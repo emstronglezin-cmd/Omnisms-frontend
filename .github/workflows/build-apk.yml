@@ -1,35 +1,39 @@
-name: Build Omnisms APK
+name: Build Omnisms APK (Fixed)
 
-on:
-  workflow_dispatch:  # Lance manuellement depuis l'UI
-  push:
-    branches: [ main ]
+on: [workflow_dispatch]
 
 jobs:
   build-apk:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Flutter
+    - uses: actions/checkout@v4
+    
+    - name: Setup Java 17 (Gradle fix)
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup Flutter 3.19
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.x'
+        flutter-version: '3.19.6'  # Version stable testée
         channel: 'stable'
         
-    - name: Install dependencies
+    - name: Update dependencies
       run: |
         flutter clean
         flutter pub get
+        cd android
+        ./gradlew clean
+        cd ..
         
-    - name: Build APK (split)
+    - name: Build APK split
       run: flutter build apk --split-per-abi --release
       
     - name: Upload APKs
       uses: actions/upload-artifact@v4
       with:
-        name: omnisms-apks
+        name: omnisms-apks-fixed
         path: build/app/outputs/flutter-apk/*.apk
-        retention-days: 30
