@@ -1,0 +1,32 @@
+workflows:
+  android-production:
+    name: Omnisms Production APK/AAB
+    instance_type: mac_mini_m1
+    max_build_duration: 60
+    
+    scripts:
+      - name: Get Flutter version
+        script: flutter --version
+        
+      - name: Install dependencies
+        script: flutter pub get
+        
+      - name: Generate keystore
+        script: |
+          keytool -genkey -v -keystore android/app/release-key.jks \
+            -storepass omnisms2026 -keypass omnisms2026 \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -alias omnisms-key -dname "CN=Omnisms"
+            
+      - name: Build AAB
+        script: flutter build appbundle --release
+        
+      - name: Build APK
+        script: flutter build apk --split-per-abi --release
+        
+    artifacts:
+      - build/**/outputs/**/*.aab
+      - build/**/outputs/**/*.apk
+      
+    publishing:
+      email: false
