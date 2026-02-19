@@ -1,39 +1,44 @@
-name: Build Omnisms APK (Fixed)
+name: Omnisms Production AAB+APK
 
 on: [workflow_dispatch]
 
 jobs:
-  build-apk:
+  build:
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
     
-    - name: Setup Java 17 (Gradle fix)
+    - name: Setup Java
       uses: actions/setup-java@v4
       with:
-        distribution: 'temurin'
         java-version: '17'
         
-    - name: Setup Flutter 3.19
+    - name: Setup Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.19.6'  # Version stable testée
-        channel: 'stable'
+        flutter-version: '3.24.0'
         
-    - name: Update dependencies
+    - name: Generate keystore
+      run: |
+        keytool -genkey -v -keystore android/app/release-key.jks \
+          -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
+          -keypass ${{ secrets.KEY_PASSWORD }} \
+          -keyalg RSA -keysize 2048 -validity 10000 \
+          -alias ${{ secrets.KEY_ALIAS }} \
+          -dname "CN=Omnisms, OU=Mobile, O=Omnisms"
+          
+    - name: Flutter build
       run: |
         flutter clean
         flutter pub get
-        cd android
-        ./gradlew clean
-        cd ..
+        flutter build appbundle --release
+        flutter build apk --split-per-abi --release
         
-    - name: Build APK split
-      run: flutter build apk --split-per-abi --release
-      
-    - name: Upload APKs
+    - name: Upload AAB+APK
       uses: actions/upload-artifact@v4
       with:
-        name: omnisms-apks-fixed
-        path: build/app/outputs/flutter-apk/*.apk
+        name: omnisms-prod-release
+        path: |
+          build/app/outputs/bundle/release/app.aab
+          build/app/outputs/flutter-apk/*.apk
