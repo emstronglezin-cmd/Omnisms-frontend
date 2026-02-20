@@ -1,46 +1,45 @@
-name: Omnisms Production AAB+APK
-
+name: Omnisms APK/AAB Production
 on: [workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # ✅ Linux rapide
     
     steps:
     - uses: actions/checkout@v4
     
-    - name: Setup Java 17
-      uses: actions/setup-java@v4
+    - uses: actions/setup-java@v4
       with:
-        distribution: 'temurin'
-        java-version: '17'
+        distribution: temurin
+        java-version: 17
         
-    - name: Setup Flutter 3.27 (omni_sms compatible)
-      uses: subosito/flutter-action@v2
+    - uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.27.0'  # ← Dart SDK 3.8.1+
-        channel: 'stable'
+        channel: stable
         
-    - name: Generate keystore
-      run: |
-        keytool -genkey -v -keystore android/app/release-key.jks \
-          -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
-          -keypass ${{ secrets.KEY_PASSWORD }} \
-          -keyalg RSA -keysize 2048 -validity 10000 \
-          -alias ${{ secrets.KEY_ALIAS }} \
-          -dname "CN=Omnisms, OU=Mobile, O=Omnisms"
-          
-    - name: Flutter build
+    # INFALLIBLE dependencies
+    - name: Flutter clean & pub get
       run: |
         flutter clean
         flutter pub get
-        flutter build appbundle --release
-        flutter build apk --split-per-abi --release
         
-    - name: Upload AAB+APK
-      uses: actions/upload-artifact@v4
+    # Keystore AUTO
+    - name: Create keystore
+      run: |
+        keytool -genkey -v -keystore android/app/release-key.jks \
+          -storepass omnisms2026 -keypass omnisms2026 \
+          -keyalg RSA -keysize 2048 -validity 10000 \
+          -alias omnisms-key -dname "CN=Omnisms"
+          
+    - name: Build AAB
+      run: flutter build appbundle --release
+      
+    - name: Build APK
+      run: flutter build apk --split-per-abi --release
+      
+    - uses: actions/upload-artifact@v4
       with:
-        name: omnisms-prod-release
+        name: omnisms-release
         path: |
-          build/app/outputs/bundle/release/app.aab
+          build/app/outputs/**/*.aab
           build/app/outputs/flutter-apk/*.apk
