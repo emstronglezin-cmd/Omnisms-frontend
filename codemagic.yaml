@@ -28,5 +28,4 @@ workflows:
       - build/**/outputs/**/*.aab
       - build/**/outputs/**/*.apk
       
-    publishing:
-      email: false
+    
