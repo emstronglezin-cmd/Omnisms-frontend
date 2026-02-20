@@ -1,13 +1,10 @@
 workflows:
   omnisms-prod:
     name: Omnisms Production
-    instance_type: linux_x2 # RAPIDE + GRATUIT
+    instance_type: linux  # ✅ GRATUIT 500min/mois
     max_build_duration: 30
     
     scripts:
-      - name: Set Flutter
-        script: flutter upgrade --force
-        
       - name: Clean & deps
         script: |
           flutter clean
@@ -20,10 +17,10 @@ workflows:
             -alias omnisms-key -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=Omnisms"
             
-      - name: APK test
+      - name: APK
         script: flutter build apk --release
         
-      - name: AAB PlayStore
+      - name: AAB
         script: flutter build appbundle --release
         
     artifacts:
