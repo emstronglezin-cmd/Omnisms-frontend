@@ -1,48 +1,38 @@
-name: Omnisms APK/AAB Production
+name: Omnisms Production
 on: [workflow_dispatch]
 
 jobs:
-  build:
+  android:
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
     
-    - name: Setup Java
-      uses: actions/setup-java@v4
+    - uses: actions/setup-java@v4
       with:
-        distribution: 'temurin'
-        java-version: '17'
+        distribution: temurin
+        java-version: 17
         
-    - name: Setup Flutter 3.24.3
-      uses: subosito/flutter-action@v2
+    - uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.24.3'  # ✅ Dart 3.5.3 STABLE
+        flutter-version: 3.24.3
         
-    - name: Flutter clean & dependencies
-      run: |
+    - run: |
         flutter clean
         flutter pub get
         
-    - name: Generate keystore
-      run: |
+    - run: |
         keytool -genkey -v -keystore android/app/release-key.jks \
-          -storepass omnisms2026 \
-          -keypass omnisms2026 \
-          -keyalg RSA -keysize 2048 -validity 10000 \
-          -alias omnisms-key \
-          -dname "CN=Omnisms, OU=Mobile, O=Omnisms, L=Ouaga"
+          -storepass omnisms2026 -keypass omnisms2026 \
+          -alias omnisms-key -keyalg RSA -keysize 2048 -validity 10000 \
+          -dname "CN=Omnisms"
           
-    - name: Build AAB
-      run: flutter build appbundle --release
+    - run: flutter build appbundle --release
+    - run: flutter build apk --release
       
-    - name: Build APK
-      run: flutter build apk --split-per-abi --release
-      
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v4
       with:
-        name: omnisms-prod-release
+        name: omnisms-release
         path: |
-          build/app/outputs/bundle/release/app.aab
+          build/app/outputs/**/*.aab
           build/app/outputs/flutter-apk/*.apk
