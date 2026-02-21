@@ -18,7 +18,7 @@ dependencies:
   firebase_messaging: ^15.0.0
   google_mobile_ads: ^4.0.0  # ✅ Dart 3.5.x OK
   flutter_sound: ^9.2.13
-  record: ^5.0.4
+  record: ^5.1.0
   shared_preferences: ^2.2.3
   firebase_auth: ^5.1.4
   url_launcher: ^6.2.6
