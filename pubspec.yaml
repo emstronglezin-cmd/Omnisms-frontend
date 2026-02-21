@@ -1,29 +1,35 @@
-name: omni_sms
-description: "A new Flutter project."
+name: omnisms
+description: Omnisms App
 publish_to: 'none'
-
 version: 1.0.0+1
 
 environment:
-  sdk: '>=2.19.0 <4.0.0'  # ✅ LARGE COMPATIBILITÉ Dart 3.5.x/3.6.x
-  flutter: '>=3.19.0'
+  sdk: '>=3.4.0 <4.0.0'
+  flutter: ">=3.24.0"
 
 dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  provider: ^6.1.2
-  http: ^1.2.2
-  firebase_core: ^3.4.0      # ✅ Stable
-  firebase_messaging: ^15.0.0
-  google_mobile_ads: ^4.0.0  # ✅ Dart 3.5.x OK
-  flutter_sound: ^9.2.13
-  record: ^5.1.0
-  shared_preferences: ^2.2.3
-  firebase_auth: ^5.1.4
-  url_launcher: ^6.2.6
-  web_socket_channel: ^3.0.1
-  logger: ^2.4.0
+  
+  # Firebase
+  firebase_core: ^3.15.2
+  firebase_auth: ^5.7.0
+  firebase_messaging: ^15.2.10
+  
+  # Audio/Record FIXÉ
+  record: 5.2.1
+  flutter_sound: ^9.30.0
+  
+  # Ads
+  google_mobile_ads: ^4.0.0
+  
+  # Utils
+  shared_preferences: ^2.4.18
+  path_provider: ^2.5.1
+  url_launcher: ^6.3.6
+  uuid: ^4.5.2
+  webview_flutter: ^4.9.0
 
 dev_dependencies:
   flutter_test:
@@ -32,10 +38,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/images/logo.png
-
-flutter_launcher_icons:
-  android: true
-  ios: true
-  image_path: "assets/logo.png"
