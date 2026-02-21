@@ -9,6 +9,7 @@ import 'screens/groups_screen.dart';
 import 'screens/subscription_screen.dart';
 import 'screens/transcription_screen.dart';
 import 'ui/home_screen.dart';
+import 'config/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,18 +32,11 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'OmniSMS',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-        brightness: Brightness.light,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-        brightness: Brightness.dark,
-      ),
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme(),
+      darkTheme: AppTheme.darkTheme(),
       themeMode: ThemeMode.system,
-      home: const HomePage(),
+      home: const HomeScreen(),
       routes: {
         '/groups': (context) => const GroupsScreen(),
         '/subscription': (context) => const SubscriptionScreen(),
