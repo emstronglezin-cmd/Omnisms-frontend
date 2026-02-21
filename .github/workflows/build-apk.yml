@@ -1,5 +1,9 @@
 name: Omnisms Production
-on: [workflow_dispatch]
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
 
 jobs:
   android:
@@ -24,12 +28,10 @@ jobs:
         flutter clean
         flutter pub get
         
-    - name: Create keystore
+    # keystore is committed in repository; no need to generate here
+    - name: Use project keystore
       run: |
-        keytool -genkey -v -keystore android/app/release-key.jks \
-          -storepass omnisms2026 -keypass omnisms2026 \
-          -alias omnisms-key -keyalg RSA -keysize 2048 -validity 10000 \
-          -dname "CN=Omnisms"
+        echo "Keystore is already present at android/omnisms-keystore.jks"
           
     - name: **APK PREMIER** (test rapide)
       run: flutter build apk --release
