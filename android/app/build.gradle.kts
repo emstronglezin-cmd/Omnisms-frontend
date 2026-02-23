@@ -5,8 +5,15 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Load keystore properties
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = java.util.Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+}
+
 android {
-    namespace = "com.example.omni_smsnew"
+    namespace = "com.omnisms.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,24 +27,32 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.omni_smsnew"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = 33
+        applicationId = "com.omnisms.app"
+        minSdk = 23
+        targetSdk = 34
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
+        multiDexEnabled = true
+    }
+
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties["keyAlias"] as String? ?: "omnisms-key"
+            keyPassword = keystoreProperties["keyPassword"] as String? ?: "omnisms2026"
+            storeFile = file(keystoreProperties["storeFile"] as String? ?: "../omnisms-keystore.jks")
+            storePassword = keystoreProperties["storePassword"] as String? ?: "omnisms2026"
+        }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.create("release") {
-                storeFile = file("../omnisms-keystore.jks")
-                storePassword = "FASO2009"
-                keyAlias = "OmniSMS"
-                keyPassword = "FASO2009"
-            }
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }

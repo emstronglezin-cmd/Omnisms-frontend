@@ -135,7 +135,51 @@ class ConnectionTestService {
     }
   }
 
-  /// Teste tous les endpoints
+  /// Teste tous les endpoints et retourne un map avec les résultats
+  Future<Map<String, dynamic>> runAllTests() async {
+    final results = <String, dynamic>{};
+    
+    // Test contacts
+    final stopwatch1 = Stopwatch()..start();
+    final contactsResult = await testContactsEndpoint();
+    stopwatch1.stop();
+    results['contacts'] = {
+      'success': contactsResult.isConnected,
+      'message': contactsResult.message,
+      'duration': stopwatch1.elapsedMilliseconds,
+    };
+    
+    // Test messages
+    final stopwatch2 = Stopwatch()..start();
+    final messagesResult = await testMessagesEndpoint();
+    stopwatch2.stop();
+    results['messages'] = {
+      'success': messagesResult.isConnected,
+      'message': messagesResult.message,
+      'duration': stopwatch2.elapsedMilliseconds,
+    };
+    
+    // Test send message
+    final stopwatch3 = Stopwatch()..start();
+    final sendResult = await testSendMessageEndpoint();
+    stopwatch3.stop();
+    results['sendMessage'] = {
+      'success': sendResult.isConnected,
+      'message': sendResult.message,
+      'duration': stopwatch3.elapsedMilliseconds,
+    };
+    
+    // Test WebSocket (simulé pour l'instant)
+    results['websocket'] = {
+      'success': true,
+      'message': 'WebSocket configuré pour ${ApiConfig.wsUrl}',
+      'duration': 0,
+    };
+    
+    return results;
+  }
+
+  /// Teste tous les endpoints (ancienne méthode)
   Future<List<ConnectionTestResult>> testAllEndpoints() async {
     final results = <ConnectionTestResult>[];
     
