@@ -28,16 +28,27 @@ android {
         targetSdk = 33
         versionCode = 1
         versionName = "1.0"
+        
+        // Build only arm64-v8a to save memory and time
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("../../omnisms-keystore.jks")
+            storePassword = "***SUPPRIME***"
+            keyAlias = "***SUPPRIME***"
+            keyPassword = "***SUPPRIME***"
+        }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.create("release") {
-                storeFile = file("../omnisms-keystore.jks")
-                storePassword = "***SUPPRIME***"
-                keyAlias = "***SUPPRIME***"
-                keyPassword = "***SUPPRIME***"
-            }
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
