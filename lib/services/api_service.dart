@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../config/api_config.dart';
 import '../message_provider.dart';
 import 'package:logger/logger.dart';
@@ -15,6 +17,10 @@ class ApiService {
   StreamController<Message>? _messageStreamController;
   final Logger _logger = Logger();
 
+  // Keys used for local cache
+  static const String _contactsKey = 'cached_contacts';
+  static String _messagesKey(String contact) => 'cached_messages_$contact';
+
   /// Récupère la liste des contacts depuis le backend
   Future<List<String>> getContacts() async {
     try {
@@ -27,7 +33,9 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        return data.cast<String>();
+        final contacts = data.cast<String>();
+        await _cacheContacts(contacts);
+        return contacts;
       } else {
         throw Exception(
           'Erreur lors de la récupération des contacts: ${response.statusCode}',
@@ -35,6 +43,10 @@ class ApiService {
       }
     } catch (e) {
       _logger.e('Erreur API getContacts: $e');
+      final cached = await _getCachedContacts();
+      if (cached != null && cached.isNotEmpty) {
+        return cached;
+      }
       // Retourne des contacts par défaut en cas d'erreur
       return ['Alice', 'Bob', 'Charlie'];
     }
@@ -54,7 +66,9 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        return data.map((json) => Message.fromJson(json)).toList();
+        final messages = data.map((json) => Message.fromJson(json)).toList();
+        await _cacheMessages(contactName, messages);
+        return messages;
       } else {
         throw Exception(
           'Erreur lors de la récupération des messages: ${response.statusCode}',
@@ -62,6 +76,10 @@ class ApiService {
       }
     } catch (e) {
       _logger.e('Erreur API getMessages: $e');
+      final cached = await _getCachedMessages(contactName);
+      if (cached != null && cached.isNotEmpty) {
+        return cached;
+      }
       // Retourne des messages par défaut en cas d'erreur
       return _getDefaultMessages(contactName);
     }
@@ -163,6 +181,69 @@ class ApiService {
       ),
     ];
   }
+
+  /// ------------------------------------------------------------------------
+  /// LOCAL CACHE HELPERS
+  /// ------------------------------------------------------------------------
+
+  Future<void> _cacheContacts(List<String> contacts) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_contactsKey, json.encode(contacts));
+    } catch (e) {
+      _logger.w('Impossible de mettre en cache les contacts: $e');
+    }
+  }
+
+  Future<List<String>?> _getCachedContacts() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_contactsKey);
+      if (str == null) return null;
+      final data = json.decode(str) as List<dynamic>;
+      return data.cast<String>();
+    } catch (e) {
+      _logger.w('Impossible de lire les contacts en cache: $e');
+      return null;
+    }
+  }
+
+  Future<void> _cacheMessages(String contact, List<Message> messages) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _messagesKey(contact);
+      final jsonList = messages.map((m) => m.toJson()).toList();
+      await prefs.setString(key, json.encode(jsonList));
+    } catch (e) {
+      _logger.w('Impossible de mettre en cache les messages pour $contact: $e');
+    }
+  }
+
+  Future<List<Message>?> _getCachedMessages(String contact) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _messagesKey(contact);
+      final str = prefs.getString(key);
+      if (str == null) return null;
+      final data = json.decode(str) as List<dynamic>;
+      return data.map((json) => Message.fromJson(json)).toList();
+    } catch (e) {
+      _logger.w('Impossible de lire les messages en cache pour $contact: $e');
+      return null;
+    }
+  }
+
+  /// Helpers accessibles par d'autres classes si nécessaire
+  Future<void> cacheMessagesLocally(String contact, List<Message> messages) =>
+      _cacheMessages(contact, messages);
+  Future<List<Message>?> getCachedMessagesLocally(String contact) =>
+      _getCachedMessages(contact);
+
+  /// Public helpers for contacts
+  Future<void> cacheContactsLocally(List<String> contacts) => _cacheContacts(contacts);
+  Future<List<String>?> getCachedContactsLocally() => _getCachedContacts();
+
+  /// ------------------------------------------------------------------------
 
   /// Récupère la liste des groupes
   Future<List<String>> getGroups() async {
