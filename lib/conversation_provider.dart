@@ -31,6 +31,10 @@ class ConversationProvider extends ChangeNotifier {
     );
     _messages.add(message);
     notifyListeners();
+    // Mise en cache des messages courants pour affichage hors-ligne
+    if (_currentContact != null) {
+      _apiService.cacheMessagesLocally(_currentContact!, _messages);
+    }
 
     // Envoie le message au backend
     final success = await _apiService.sendMessage(_currentContact!, content);
@@ -52,6 +56,10 @@ class ConversationProvider extends ChangeNotifier {
       (message) {
         _messages.add(message);
         notifyListeners();
+        // Ajout au cache local
+        if (_currentContact != null) {
+          _apiService.cacheMessagesLocally(_currentContact!, _messages);
+        }
       },
       onError: (error) {
         _setError('Erreur de connexion WebSocket: $error');
@@ -70,12 +78,21 @@ class ConversationProvider extends ChangeNotifier {
     _setLoading(true);
     _clearError();
 
+    // Affiche d'abord les messages en cache (si existants) pour une UX fluide
+    final cached = await _apiService.getCachedMessagesLocally(_currentContact!);
+    if (cached != null && cached.isNotEmpty) {
+      _messages.clear();
+      _messages.addAll(cached);
+      notifyListeners();
+    }
+
     try {
       final messages = await _apiService.getMessages(_currentContact!);
       _messages.clear();
       _messages.addAll(messages);
       notifyListeners();
     } catch (e) {
+      // en cas d'erreur l'API renverra éventuellement une liste de secours
       _setError('Erreur lors du chargement des messages: $e');
     }
 

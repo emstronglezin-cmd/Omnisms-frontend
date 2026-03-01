@@ -16,6 +16,14 @@ class ContactsProvider extends ChangeNotifier {
     _setLoading(true);
     _clearError();
 
+    // Affiche d'abord les contacts en cache si disponibles
+    final cached = await _apiService.getCachedContactsLocally();
+    if (cached != null && cached.isNotEmpty) {
+      _contacts.clear();
+      _contacts.addAll(cached);
+      notifyListeners();
+    }
+
     try {
       final contacts = await _apiService.getContacts();
       _contacts.clear();
@@ -33,6 +41,8 @@ class ContactsProvider extends ChangeNotifier {
     if (!_contacts.contains(contactName)) {
       _contacts.add(contactName);
       notifyListeners();
+      // Mise en cache locale afin de conserver la liste hors ligne
+      _apiService.cacheContactsLocally(_contacts);
     }
   }
 
@@ -40,6 +50,8 @@ class ContactsProvider extends ChangeNotifier {
   void removeContact(String contactName) {
     _contacts.remove(contactName);
     notifyListeners();
+    // Mettre à jour le cache local
+    _apiService.cacheContactsLocally(_contacts);
   }
 
   void _setLoading(bool loading) {
