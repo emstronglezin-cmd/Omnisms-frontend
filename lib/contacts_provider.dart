@@ -25,15 +25,26 @@ class ContactsProvider extends ChangeNotifier {
     }
 
     try {
-      final contacts = await _apiService.getContacts();
+      final contacts = await _apiService.getContacts().timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          _setError('Délai d\'expiration du serveur');
+          return ['Alice', 'Bob', 'Charlie'];
+        },
+      );
+      
       _contacts.clear();
       _contacts.addAll(contacts);
       notifyListeners();
     } catch (e) {
       _setError('Erreur lors du chargement des contacts: $e');
+      // Fournir des contacts par défaut en cas d'erreur
+      _contacts.clear();
+      _contacts.addAll(['Alice', 'Bob', 'Charlie']);
+      notifyListeners();
+    } finally {
+      _setLoading(false);
     }
-
-    _setLoading(false);
   }
 
   /// Ajoute un nouveau contact
