@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../config/api_config.dart';
 import '../message_provider.dart';
 import 'package:logger/logger.dart';
@@ -16,6 +16,18 @@ class ApiService {
   WebSocketChannel? _channel;
   StreamController<Message>? _messageStreamController;
   final Logger _logger = Logger();
+  final Connectivity _connectivity = Connectivity();
+  
+  /// Vérifier la connectivité internet
+  Future<bool> hasInternetConnection() async {
+    try {
+      final result = await _connectivity.checkConnectivity();
+      return result != ConnectivityResult.none;
+    } catch (e) {
+      _logger.e('Erreur lors de la vérification de connectivité: $e');
+      return false;
+    }
+  }
 
   // Keys used for local cache
   static const String _contactsKey = 'cached_contacts';
@@ -23,6 +35,13 @@ class ApiService {
 
   /// Récupère la liste des contacts depuis le backend
   Future<List<String>> getContacts() async {
+    // Vérifier la connectivité
+    final hasInternet = await hasInternetConnection();
+    if (!hasInternet) {
+      _logger.w('Pas de connexion internet - retour de contacts par défaut');
+      return ['Alice', 'Bob', 'Charlie'];
+    }
+    
     try {
       final response = await http
           .get(
@@ -41,6 +60,9 @@ class ApiService {
           'Erreur lors de la récupération des contacts: ${response.statusCode}',
         );
       }
+    } on TimeoutException {
+      _logger.e('Timeout lors de la récupération des contacts');
+      return ['Alice', 'Bob', 'Charlie'];
     } catch (e) {
       _logger.e('Erreur API getContacts: $e');
       final cached = await _getCachedContacts();
@@ -54,6 +76,13 @@ class ApiService {
 
   /// Récupère les messages d'une conversation
   Future<List<Message>> getMessages(String contactName) async {
+    // Vérifier la connectivité
+    final hasInternet = await hasInternetConnection();
+    if (!hasInternet) {
+      _logger.w('Pas de connexion internet - retour de messages par défaut');
+      return _getDefaultMessages(contactName);
+    }
+    
     try {
       final response = await http
           .get(
@@ -74,6 +103,9 @@ class ApiService {
           'Erreur lors de la récupération des messages: ${response.statusCode}',
         );
       }
+    } on TimeoutException {
+      _logger.e('Timeout lors de la récupération des messages');
+      return _getDefaultMessages(contactName);
     } catch (e) {
       _logger.e('Erreur API getMessages: $e');
       final cached = await _getCachedMessages(contactName);
@@ -87,6 +119,13 @@ class ApiService {
 
   /// Envoie un message via l'API
   Future<bool> sendMessage(String contactName, String content) async {
+    // Vérifier la connectivité
+    final hasInternet = await hasInternetConnection();
+    if (!hasInternet) {
+      _logger.w('Pas de connexion internet - impossible d\'envoyer le message');
+      return false;
+    }
+    
     try {
       final response = await http
           .post(
@@ -101,6 +140,9 @@ class ApiService {
           .timeout(ApiConfig.requestTimeout);
 
       return response.statusCode == 200 || response.statusCode == 201;
+    } on TimeoutException {
+      _logger.e('Timeout lors de l\'envoi du message');
+      return false;
     } catch (e) {
       _logger.e('Erreur API sendMessage: $e');
       return false;
@@ -115,32 +157,46 @@ class ApiService {
 
     _messageStreamController = StreamController<Message>.broadcast();
 
-    try {
-      _channel = WebSocketChannel.connect(Uri.parse(ApiConfig.wsUrl));
+    // Vérifier la connectivité avant de se connecter au WebSocket
+    hasInternetConnection().then((hasInternet) {
+      if (!hasInternet) {
+        _logger.w('Pas de connexion internet - WebSocket non connecté');
+        _messageStreamController?.addError('Pas de connexion internet');
+        return;
+      }
 
-      _channel!.stream.listen(
-        (data) {
-          try {
-            final Map<String, dynamic> messageData = json.decode(data);
-            final message = Message.fromJson(messageData);
-            _messageStreamController!.add(message);
-          } catch (e) {
-            _logger.e('Erreur lors du parsing du message WebSocket: $e');
-          }
-        },
-        onError: (error) {
-          _logger.e('Erreur WebSocket: $error');
-          _messageStreamController!.addError(error);
-        },
-        onDone: () {
-          _logger.i('Connexion WebSocket fermée');
-          _messageStreamController!.close();
-        },
-      );
-    } catch (e) {
-      _logger.e('Erreur lors de la connexion WebSocket: $e');
-      _messageStreamController!.addError(e);
-    }
+      try {
+        _channel = WebSocketChannel.connect(
+          Uri.parse(ApiConfig.wsUrl),
+        );
+
+        _channel!.stream.listen(
+          (data) {
+            try {
+              final Map<String, dynamic> messageData = json.decode(data);
+              final message = Message.fromJson(messageData);
+              _messageStreamController!.add(message);
+            } catch (e) {
+              _logger.e('Erreur lors du parsing du message WebSocket: $e');
+            }
+          },
+          onError: (error) {
+            _logger.e('Erreur WebSocket: $error');
+            _messageStreamController?.addError(error);
+          },
+          onDone: () {
+            _logger.i('Connexion WebSocket fermée');
+            _messageStreamController?.close();
+          },
+        );
+      } on TimeoutException {
+        _logger.e('Timeout connexion WebSocket');
+        _messageStreamController?.addError('Timeout WebSocket');
+      } catch (e) {
+        _logger.e('Erreur lors de la connexion WebSocket: $e');
+        _messageStreamController?.addError(e);
+      }
+    });
 
     return _messageStreamController!.stream;
   }

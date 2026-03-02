@@ -81,8 +81,16 @@ class _ContactsScreenState extends State<ContactsScreen> {
   @override
   void initState() {
     super.initState();
+    // Charger les contacts après le rendu, avec protection contre les erreurs
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<ContactsProvider>(context, listen: false).fetchContacts();
+      if (mounted) {
+        try {
+          Provider.of<ContactsProvider>(context, listen: false).fetchContacts();
+        } catch (e) {
+          // Ignorer les erreurs asynchrones - elles sont gérées par le provider
+          debugPrint('Erreur lors du chargement des contacts: $e');
+        }
+      }
     });
   }
 
