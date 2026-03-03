@@ -29,7 +29,7 @@ dependencies:
   path_provider: ^2.1.5
   url_launcher: ^6.3.2
   uuid: ^4.5.2
-  webview_flutter: ^4.9.0
+  # webview_flutter: ^4.9.0  # removed temporarily to avoid build errors
   provider: ^6.1.5+1
   http: ^1.6.0
   web_socket_channel: ^3.0.3
