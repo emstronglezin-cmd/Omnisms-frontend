@@ -1,51 +1,26 @@
 name: omnisms
-description: Omnisms App
+description: OmniSMS - Messagerie moderne et stable
 publish_to: 'none'
 version: 1.0.0+1
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
-  flutter: ">=3.24.0"
+  flutter: ">=3.10.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^1.0.6
   
-  # Firebase
-  firebase_core: ^2.24.0
-  firebase_auth: ^4.15.0
-  firebase_messaging: ^14.7.0
-  
-  # Audio/Record
-  record: ^6.2.0
-  flutter_sound: ^9.30.0
-  
-  # Ads
-  google_mobile_ads: ^4.0.0
-  
-  # Utils
-  shared_preferences: ^2.4.18
-  path_provider: ^2.1.5
-  url_launcher: ^6.3.2
-  uuid: ^4.5.2
-  # webview_flutter: ^4.4.0  # temporarily removed to allow build
-  provider: ^6.1.5+1
-  http: ^1.6.0
-  web_socket_channel: ^3.0.3
-  
-  # UI/UX Enhancements
-  flutter_animate: ^4.2.0
-  google_fonts: ^8.0.2
-  flutter_staggered_animations: ^1.1.1
-  cached_network_image: ^3.3.0
-  shimmer: ^3.0.0
-  lottie: ^2.7.0
+  # Dépendances essentielles uniquement
+  shared_preferences: ^2.2.2
+  http: ^1.1.2
+  intl: ^0.18.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^3.0.1
 
 flutter:
   uses-material-design: true
