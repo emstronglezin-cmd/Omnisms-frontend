@@ -219,7 +219,7 @@ class ApiService {
         return data['status'];
       } else {
         throw Exception(
-          'Erreur lors de la récupération du statut d'abonnement: ${response.statusCode}',
+          "Erreur lors de la récupération du statut d'abonnement: ${response.statusCode}",
         );
       }
     } catch (e) {
@@ -242,7 +242,7 @@ class ApiService {
         return true;
       } else {
         throw Exception(
-          'Erreur lors de la création de l'abonnement: ${response.statusCode}',
+          "Erreur lors de la création de l'abonnement: ${response.statusCode}",
         );
       }
     } catch (e) {

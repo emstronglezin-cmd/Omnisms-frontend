@@ -136,14 +136,14 @@ class _TranscriptionScreenState extends State<TranscriptionScreen> {
             else
               ElevatedButton(
                 onPressed: _startRecording,
-                child: const Text('Commencer l'enregistrement'),
+                child: const Text("Commencer l'enregistrement"),
               ),
             if (_isRecording)
               Padding(
                 padding: const EdgeInsets.only(top: 20.0),
                 child: ElevatedButton(
                   onPressed: _stopRecording,
-                  child: const Text('Arrêter l'enregistrement'),
+                    child: const Text("Arrêter l'enregistrement"),
                 ),
               ),
             if (_transcription != null)

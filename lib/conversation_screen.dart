@@ -178,7 +178,7 @@ class _ConversationScreenState extends State<ConversationScreen>
             },
           ),
         ],
-      ).animate().fadeIn(duration: 400.ms),
+        ),
       body: Column(
         children: [
           // Message d'erreur
