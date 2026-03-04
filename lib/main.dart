@@ -11,9 +11,25 @@ import 'screens/transcription_screen.dart';
 import 'ui/home_screen.dart';
 import 'config/app_theme.dart';
 
-void main() {
+void main() async {
+  // Gestion d'erreurs globale pour éviter les crashes
   WidgetsFlutterBinding.ensureInitialized();
-  MobileAds.instance.initialize();
+  
+  // Initialiser les ads de manière sécurisée (ne pas crasher si ça échoue)
+  try {
+    await MobileAds.instance.initialize();
+  } catch (e) {
+    debugPrint('Erreur initialisation Mobile Ads: $e');
+    // On continue même si ça échoue
+  }
+  
+  // Capturer les erreurs Flutter
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    debugPrint('Flutter Error: ${details.exception}');
+    debugPrint('Stack trace: ${details.stack}');
+  };
+  
   runApp(
     MultiProvider(
       providers: [

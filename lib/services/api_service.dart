@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../config/api_config.dart';
 import '../message_provider.dart';
-import 'package:logger/logger.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -13,7 +13,6 @@ class ApiService {
 
   WebSocketChannel? _channel;
   StreamController<Message>? _messageStreamController;
-  final Logger _logger = Logger();
 
   /// Récupère la liste des contacts depuis le backend
   Future<List<String>> getContacts() async {
@@ -23,7 +22,12 @@ class ApiService {
             Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contactsEndpoint}'),
             headers: ApiConfig.defaultHeaders,
           )
-          .timeout(ApiConfig.requestTimeout);
+          .timeout(
+            const Duration(seconds: 5), // Timeout réduit pour mode hors ligne
+            onTimeout: () {
+              throw TimeoutException('Connexion timeout');
+            },
+          );
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
@@ -34,9 +38,9 @@ class ApiService {
         );
       }
     } catch (e) {
-      _logger.e('Erreur API getContacts: $e');
-      // Retourne des contacts par défaut en cas d'erreur
-      return ['Alice', 'Bob', 'Charlie'];
+      debugPrint('Erreur API getContacts (mode hors ligne): $e');
+      // Retourne une liste vide en cas d'erreur (sera géré par le provider)
+      return [];
     }
   }
 
@@ -50,7 +54,12 @@ class ApiService {
             ),
             headers: ApiConfig.defaultHeaders,
           )
-          .timeout(ApiConfig.requestTimeout);
+          .timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {
+              throw TimeoutException('Connexion timeout');
+            },
+          );
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
@@ -61,9 +70,9 @@ class ApiService {
         );
       }
     } catch (e) {
-      _logger.e('Erreur API getMessages: $e');
-      // Retourne des messages par défaut en cas d'erreur
-      return _getDefaultMessages(contactName);
+      debugPrint('Erreur API getMessages (mode hors ligne): $e');
+      // Retourne une liste vide (sera géré par le provider)
+      return [];
     }
   }
 
@@ -80,11 +89,17 @@ class ApiService {
               'timestamp': DateTime.now().toIso8601String(),
             }),
           )
-          .timeout(ApiConfig.requestTimeout);
+          .timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {
+              throw TimeoutException('Connexion timeout');
+            },
+          );
 
       return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
-      _logger.e('Erreur API sendMessage: $e');
+      debugPrint('Erreur API sendMessage (mode hors ligne): $e');
+      // Retourne false mais ne crash pas
       return false;
     }
   }
@@ -98,7 +113,8 @@ class ApiService {
     _messageStreamController = StreamController<Message>.broadcast();
 
     try {
-      _channel = WebSocketChannel.connect(Uri.parse(ApiConfig.wsUrl));
+      final uri = Uri.parse(ApiConfig.wsUrl);
+      _channel = WebSocketChannel.connect(uri);
 
       _channel!.stream.listen(
         (data) {
@@ -107,21 +123,22 @@ class ApiService {
             final message = Message.fromJson(messageData);
             _messageStreamController!.add(message);
           } catch (e) {
-            _logger.e('Erreur lors du parsing du message WebSocket: $e');
+            debugPrint('Erreur parsing message WebSocket: $e');
           }
         },
         onError: (error) {
-          _logger.e('Erreur WebSocket: $error');
-          _messageStreamController!.addError(error);
+          debugPrint('Erreur WebSocket (mode hors ligne): $error');
+          // Ne pas propager l'erreur pour éviter les crashes
         },
         onDone: () {
-          _logger.i('Connexion WebSocket fermée');
-          _messageStreamController!.close();
+          debugPrint('Connexion WebSocket fermée');
+          _messageStreamController?.close();
         },
+        cancelOnError: false, // Ne pas annuler en cas d'erreur
       );
     } catch (e) {
-      _logger.e('Erreur lors de la connexion WebSocket: $e');
-      _messageStreamController!.addError(e);
+      debugPrint('Impossible de connecter WebSocket (mode hors ligne): $e');
+      // Ne pas crasher, retourner un stream vide
     }
 
     return _messageStreamController!.stream;
@@ -129,48 +146,24 @@ class ApiService {
 
   /// Ferme la connexion WebSocket
   void disconnectWebSocket() {
-    _channel?.sink.close();
-    _messageStreamController?.close();
-    _messageStreamController = null;
-  }
-
-  /// Messages par défaut en cas d'erreur de connexion
-  List<Message> _getDefaultMessages(String contactName) {
-    return [
-      Message(
-        sender: contactName,
-        content: 'Salut, comment ça va ?',
-        timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-        isMe: false,
-      ),
-      Message(
-        sender: 'Moi',
-        content: 'Ça va bien, merci ! Et toi ?',
-        timestamp: DateTime.now().subtract(const Duration(minutes: 4)),
-        isMe: true,
-      ),
-      Message(
-        sender: contactName,
-        content: 'Je vais très bien, merci.',
-        timestamp: DateTime.now().subtract(const Duration(minutes: 3)),
-        isMe: false,
-      ),
-      Message(
-        sender: 'Moi',
-        content: 'Super !',
-        timestamp: DateTime.now().subtract(const Duration(minutes: 2)),
-        isMe: true,
-      ),
-    ];
+    try {
+      _channel?.sink.close();
+      _messageStreamController?.close();
+      _messageStreamController = null;
+    } catch (e) {
+      debugPrint('Erreur déconnexion WebSocket: $e');
+    }
   }
 
   /// Récupère la liste des groupes
   Future<List<String>> getGroups() async {
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/groups'),
-        headers: ApiConfig.defaultHeaders,
-      );
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/groups'),
+            headers: ApiConfig.defaultHeaders,
+          )
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
@@ -181,7 +174,7 @@ class ApiService {
         );
       }
     } catch (e) {
-      _logger.e('Erreur API getGroups: $e');
+      debugPrint('Erreur API getGroups: $e');
       return [];
     }
   }
@@ -189,11 +182,13 @@ class ApiService {
   /// Crée un nouveau groupe
   Future<String?> createGroup(String groupName) async {
     try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/groups'),
-        headers: ApiConfig.defaultHeaders,
-        body: json.encode({'name': groupName}),
-      );
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/groups'),
+            headers: ApiConfig.defaultHeaders,
+            body: json.encode({'name': groupName}),
+          )
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 201) {
         final data = json.decode(response.body);
@@ -204,7 +199,7 @@ class ApiService {
         );
       }
     } catch (e) {
-      _logger.e('Erreur API createGroup: $e');
+      debugPrint('Erreur API createGroup: $e');
       return null;
     }
   }
@@ -212,21 +207,23 @@ class ApiService {
   /// Récupère le statut de l'abonnement
   Future<String> getSubscriptionStatus() async {
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/subscription/status'),
-        headers: ApiConfig.defaultHeaders,
-      );
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/api/subscription/status'),
+            headers: ApiConfig.defaultHeaders,
+          )
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return data['status'];
       } else {
         throw Exception(
-          'Erreur lors de la récupération du statut d’abonnement: ${response.statusCode}',
+          'Erreur lors de la récupération du statut d'abonnement: ${response.statusCode}',
         );
       }
     } catch (e) {
-      _logger.e('Erreur API getSubscriptionStatus: $e');
+      debugPrint('Erreur API getSubscriptionStatus: $e');
       return 'Free';
     }
   }
@@ -234,20 +231,22 @@ class ApiService {
   /// Crée un nouvel abonnement
   Future<bool> createSubscription() async {
     try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/payments/create'),
-        headers: ApiConfig.defaultHeaders,
-      );
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/api/payments/create'),
+            headers: ApiConfig.defaultHeaders,
+          )
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         return true;
       } else {
         throw Exception(
-          'Erreur lors de la création de l’abonnement: ${response.statusCode}',
+          'Erreur lors de la création de l'abonnement: ${response.statusCode}',
         );
       }
     } catch (e) {
-      _logger.e('Erreur API createSubscription: $e');
+      debugPrint('Erreur API createSubscription: $e');
       return false;
     }
   }

@@ -6,23 +6,43 @@ class ContactsProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService();
   bool _isLoading = false;
   String? _error;
+  bool _hasTriedFetch = false;
 
   List<String> get contacts => List.unmodifiable(_contacts);
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  ContactsProvider() {
+    // Initialiser avec des contacts par défaut
+    _initializeDefaultContacts();
+  }
+
+  void _initializeDefaultContacts() {
+    _contacts.addAll([
+      'Service Client',
+      'Support',
+      'Assistance',
+    ]);
+  }
+
   /// Récupère la liste des contacts depuis l'API
   Future<void> fetchContacts() async {
     _setLoading(true);
     _clearError();
+    _hasTriedFetch = true;
 
     try {
       final contacts = await _apiService.getContacts();
-      _contacts.clear();
-      _contacts.addAll(contacts);
+      if (contacts.isNotEmpty) {
+        _contacts.clear();
+        _contacts.addAll(contacts);
+      }
       notifyListeners();
     } catch (e) {
-      _setError('Erreur lors du chargement des contacts: $e');
+      // Mode hors ligne : garder les contacts par défaut
+      debugPrint('Erreur chargement contacts (mode hors ligne): $e');
+      _setError('Mode hors ligne - Contacts par défaut affichés');
+      // Ne pas effacer les contacts existants
     }
 
     _setLoading(false);
@@ -30,7 +50,7 @@ class ContactsProvider extends ChangeNotifier {
 
   /// Ajoute un nouveau contact
   void addContact(String contactName) {
-    if (!_contacts.contains(contactName)) {
+    if (!_contacts.contains(contactName) && contactName.trim().isNotEmpty) {
       _contacts.add(contactName);
       notifyListeners();
     }
