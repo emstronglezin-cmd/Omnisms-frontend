@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_sound/flutter_sound.dart';
 import '../services/transcription_service.dart';
 
 class TranscriptionScreen extends StatefulWidget {
@@ -10,36 +9,8 @@ class TranscriptionScreen extends StatefulWidget {
 }
 
 class _TranscriptionScreenState extends State<TranscriptionScreen> {
-  final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
-  bool _isRecording = false;
+  // Recording functionality temporarily disabled due to dependency issues.
   String? _transcription;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeRecorder();
-  }
-
-  Future<void> _initializeRecorder() async {
-    await _recorder.openRecorder();
-  }
-
-  Future<void> _startRecording() async {
-    await _recorder.startRecorder(toFile: 'audio.aac');
-    setState(() {
-      _isRecording = true;
-    });
-  }
-
-  Future<void> _stopRecording() async {
-    final filePath = await _recorder.stopRecorder();
-    setState(() {
-      _isRecording = false;
-    });
-    if (filePath != null) {
-      _transcribeAudio(filePath);
-    }
-  }
 
   Future<void> _transcribeAudio(String filePath) async {
     final transcription = await TranscriptionService().transcribeAudio(
@@ -51,12 +22,6 @@ class _TranscriptionScreenState extends State<TranscriptionScreen> {
   }
 
   @override
-  void dispose() {
-    _recorder.closeRecorder();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Transcription Audio')),
@@ -65,18 +30,7 @@ class _TranscriptionScreenState extends State<TranscriptionScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (_isRecording)
-              const Text('Enregistrement en cours...')
-            else
-              ElevatedButton(
-                onPressed: _startRecording,
-                child: const Text('Commencer l’enregistrement'),
-              ),
-            if (_isRecording)
-              ElevatedButton(
-                onPressed: _stopRecording,
-                child: const Text('Arrêter l’enregistrement'),
-              ),
+            const Text('La fonctionnalité d’enregistrement est désactivée.'),
             if (_transcription != null)
               Padding(
                 padding: const EdgeInsets.only(top: 20.0),
@@ -87,4 +41,5 @@ class _TranscriptionScreenState extends State<TranscriptionScreen> {
       ),
     );
   }
+
 }
