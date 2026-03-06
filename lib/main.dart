@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'dart:async';
+
 import 'conversation_provider.dart';
 import 'conversation_screen.dart';
 import 'contacts_provider.dart';
@@ -9,19 +12,53 @@ import 'screens/groups_screen.dart';
 import 'screens/subscription_screen.dart';
 import 'screens/transcription_screen.dart';
 import 'ui/home_screen.dart';
+import 'ui/dashboard_screen.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  MobileAds.instance.initialize();
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => ConversationProvider()),
-        ChangeNotifierProvider(create: (_) => ContactsProvider()),
-      ],
-      child: const MyApp(),
-    ),
-  );
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    
+    // Verrouiller l'orientation en portrait
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    
+    // Initialiser Firebase avec gestion d'erreurs
+    try {
+      await Firebase.initializeApp(
+        options: const FirebaseOptions(
+          apiKey: 'AIzaSyD3Yur6Q5IvcDI_bC9YuLFNC4jvgEREtBQ',
+          appId: '1:948236796279:android:747ba8ba81710da2ade172',
+          messagingSenderId: '948236796279',
+          projectId: 'omnisms-b98c5',
+          storageBucket: 'omnisms-b98c5.firebasestorage.app',
+        ),
+      );
+      debugPrint('✅ Firebase initialisé avec succès');
+    } catch (e) {
+      debugPrint('⚠️ Erreur Firebase (non bloquant): $e');
+    }
+    
+    // Gestionnaire d'erreurs global
+    FlutterError.onError = (FlutterErrorDetails details) {
+      debugPrint('❌ Erreur Flutter: ${details.exception}');
+      debugPrint('Stack: ${details.stack}');
+    };
+    
+    runApp(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => ConversationProvider()),
+          ChangeNotifierProvider(create: (_) => ContactsProvider()),
+        ],
+        child: const MyApp(),
+      ),
+    );
+  }, (error, stack) {
+    debugPrint('❌ Erreur Zone: $error');
+    debugPrint('Stack: $stack');
+  });
 }
 
 class MyApp extends StatelessWidget {
@@ -31,18 +68,31 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'OmniSMS',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.light,
+        ),
         useMaterial3: true,
-        brightness: Brightness.light,
+        appBarTheme: const AppBarTheme(
+          centerTitle: true,
+          elevation: 0,
+        ),
       ),
       darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.dark,
+        ),
         useMaterial3: true,
-        brightness: Brightness.dark,
+        appBarTheme: const AppBarTheme(
+          centerTitle: true,
+          elevation: 0,
+        ),
       ),
       themeMode: ThemeMode.system,
-      home: const HomePage(),
+      home: const DashboardScreen(),
       routes: {
         '/groups': (context) => const GroupsScreen(),
         '/subscription': (context) => const SubscriptionScreen(),
