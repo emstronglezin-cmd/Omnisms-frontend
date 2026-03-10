@@ -29,10 +29,10 @@ android {
         versionCode = 1
         versionName = "1.0"
         
-        // Build only arm64-v8a to save memory and time
-        ndk {
-            abiFilters += listOf("arm64-v8a")
-        }
+        // NDK abi filters removed to allow split-per-abi builds
+        // ndk {
+        //     abiFilters += listOf("arm64-v8a")
+        // }
     }
 
     signingConfigs {
