@@ -33,12 +33,17 @@ dependencies:
   # Audio
   audioplayers: ^6.1.0
   permission_handler: ^11.3.1
+  record: ^5.1.0
+  
+  # Contacts
+  contacts_service: ^0.6.3
   
   # Utils
   uuid: ^4.5.1
   intl: ^0.19.0
   logger: ^2.4.0
   url_launcher: ^6.3.1
+  flutter_emoji: ^2.5.1
 
 dev_dependencies:
   flutter_test:
