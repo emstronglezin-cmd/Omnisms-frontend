@@ -4,11 +4,11 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 
+// Legacy imports
 import 'conversation_provider.dart';
 import 'conversation_screen.dart';
 import 'contacts_provider.dart';
 import 'screens/connection_test_screen.dart';
-import 'screens/groups_screen.dart';
 import 'screens/subscription_screen.dart';
 import 'screens/transcription_screen.dart';
 import 'ui/home_screen.dart';
@@ -22,6 +22,23 @@ import 'providers/theme_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/auth/profile_screen.dart';
+
+// Phase 2 - Settings Screens
+import 'screens/settings/settings_screen.dart';
+import 'screens/settings/notifications_settings_screen.dart';
+import 'screens/settings/theme_settings_screen.dart';
+import 'screens/settings/statistics_screen.dart';
+
+// Phase 2 - Contacts Screen
+import 'screens/contacts/contacts_screen.dart' as phase2_contacts;
+
+// Phase 2 - Messaging Screens
+import 'screens/messaging/conversation_screen.dart' as phase2_messaging;
+
+// Phase 2 - Groups Screens
+import 'screens/groups/groups_screen.dart' as phase2_groups;
+import 'screens/groups/create_group_screen.dart';
+import 'screens/groups/group_conversation_screen.dart';
 
 void main() {
   runZonedGuarded(() async {
@@ -79,41 +96,64 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'OmniSMS',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6366F1),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-        ),
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6366F1),
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-        ),
-      ),
-      themeMode: ThemeMode.system,
-      home: const DashboardScreen(),
-      routes: {
-        '/groups': (context) => const GroupsScreen(),
-        '/subscription': (context) => const SubscriptionScreen(),
-        '/transcription': (context) => const TranscriptionScreen(),
-        // Phase 2 - Auth routes
-        '/login': (context) => const LoginScreen(),
-        '/register': (context) => const RegisterScreen(),
-        '/profile': (context) => const ProfileScreen(),
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          title: 'OmniSMS',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeProvider.lightTheme,
+          darkTheme: ThemeProvider.darkTheme,
+          themeMode: themeProvider.themeMode,
+          home: const DashboardScreen(),
+          routes: {
+            // Legacy routes
+            '/subscription': (context) => const SubscriptionScreen(),
+            '/transcription': (context) => const TranscriptionScreen(),
+            '/connection-test': (context) => const ConnectionTestScreen(),
+            
+            // Phase 2 - Auth routes
+            '/login': (context) => const LoginScreen(),
+            '/register': (context) => const RegisterScreen(),
+            '/profile': (context) => const ProfileScreen(),
+            
+            // Phase 2 - Settings routes
+            '/settings': (context) => const SettingsScreen(),
+            '/settings/notifications': (context) =>
+                const NotificationsSettingsScreen(),
+            '/settings/theme': (context) => const ThemeSettingsScreen(),
+            '/settings/statistics': (context) => const StatisticsScreen(),
+            
+            // Phase 2 - Contacts route
+            '/contacts': (context) => const phase2_contacts.ContactsScreen(),
+            
+            // Phase 2 - Messaging routes
+            '/conversation': (context) => const phase2_messaging.ConversationScreen(),
+            
+            // Phase 2 - Groups routes
+            '/groups/new': (context) => const phase2_groups.GroupsScreen(),
+            '/groups/create': (context) => const CreateGroupScreen(),
+            '/groups/conversation': (context) => const GroupConversationScreen(),
+          },
+          onGenerateRoute: (settings) {
+            if (settings.name == '/groups/conversation') {
+              final groupName = settings.arguments as String?;
+              return MaterialPageRoute(
+                builder: (context) {
+                  return GroupConversationScreen(groupName: groupName);
+                },
+              );
+            }
+            if (settings.name == '/conversation') {
+              final contactName = settings.arguments as String?;
+              return MaterialPageRoute(
+                builder: (context) {
+                  return phase2_messaging.ConversationScreen(contactName: contactName);
+                },
+              );
+            }
+            return null;
+          },
+        );
       },
     );
   }
