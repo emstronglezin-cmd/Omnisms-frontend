@@ -14,6 +14,15 @@ import 'screens/transcription_screen.dart';
 import 'ui/home_screen.dart';
 import 'ui/dashboard_screen.dart';
 
+// Phase 2 - Providers
+import 'providers/auth_provider.dart';
+import 'providers/theme_provider.dart';
+
+// Phase 2 - Auth Screens
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/register_screen.dart';
+import 'screens/auth/profile_screen.dart';
+
 void main() {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
@@ -49,8 +58,12 @@ void main() {
     runApp(
       MultiProvider(
         providers: [
+          // Legacy providers
           ChangeNotifierProvider(create: (_) => ConversationProvider()),
           ChangeNotifierProvider(create: (_) => ContactsProvider()),
+          // Phase 2 providers
+          ChangeNotifierProvider(create: (_) => AuthProvider()),
+          ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ],
         child: const MyApp(),
       ),
@@ -97,6 +110,10 @@ class MyApp extends StatelessWidget {
         '/groups': (context) => const GroupsScreen(),
         '/subscription': (context) => const SubscriptionScreen(),
         '/transcription': (context) => const TranscriptionScreen(),
+        // Phase 2 - Auth routes
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+        '/profile': (context) => const ProfileScreen(),
       },
     );
   }
