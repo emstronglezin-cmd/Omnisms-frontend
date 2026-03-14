@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../auth/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
@@ -18,7 +20,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    final user = context.read<AuthProvider>().currentUser;
+    final authProvider = context.read<AuthProvider>();
+    final user = authProvider.currentUser;
+    
     _nameController = TextEditingController(text: user?.name ?? '');
     _emailController = TextEditingController(text: user?.email ?? '');
     _phoneController = TextEditingController(text: user?.phone ?? '');
@@ -32,16 +36,86 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  Future<void> _handleSave() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final authProvider = context.read<AuthProvider>();
+    final success = await authProvider.updateProfile(
+      name: _nameController.text.trim(),
+      email: _emailController.text.trim(),
+      phone: _phoneController.text.trim().isNotEmpty 
+          ? _phoneController.text.trim() 
+          : null,
+    );
+
+    if (!mounted) return;
+
+    if (success) {
+      setState(() {
+        _isEditing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profil mis à jour avec succès'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authProvider.error ?? 'Erreur de mise à jour'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Déconnexion'),
+        content: const Text('Voulez-vous vraiment vous déconnecter ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Déconnexion'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final authProvider = context.read<AuthProvider>();
+      await authProvider.logout();
+      
+      if (!mounted) return;
+      
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profil'),
-        elevation: 0,
         actions: [
-          if (!_isEditing)
+          if (_isEditing)
+            TextButton(
+              onPressed: _handleSave,
+              child: const Text('Sauvegarder'),
+            )
+          else
             IconButton(
-              icon: const Icon(Icons.edit_outlined),
+              icon: const Icon(Icons.edit),
               onPressed: () {
                 setState(() {
                   _isEditing = true;
@@ -53,43 +127,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: Consumer<AuthProvider>(
         builder: (context, authProvider, _) {
           final user = authProvider.currentUser;
+          
           return SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
+              key: _formKey,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Avatar
-                  Center(
-                    child: CircleAvatar(
-                      radius: 60,
-                      backgroundColor: Theme.of(context).primaryColor,
-                      child: Text(
-                        (user?.name ?? 'U')[0].toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
+                  CircleAvatar(
+                    radius: 60,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    child: user?.photoUrl != null
+                        ? ClipOval(
+                            child: Image.network(
+                              user!.photoUrl!,
+                              width: 120,
+                              height: 120,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.person,
+                                size: 60,
+                                color: Colors.white,
+                              ),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.person,
+                            size: 60,
+                            color: Colors.white,
+                          ),
                   ),
                   const SizedBox(height: 32),
-                  // Name
-                  TextField(
+                  
+                  // Name Field
+                  TextFormField(
                     controller: _nameController,
                     enabled: _isEditing,
                     decoration: InputDecoration(
-                      labelText: 'Nom',
+                      labelText: 'Nom complet',
                       prefixIcon: const Icon(Icons.person_outlined),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Nom requis';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
-                  // Email
-                  TextField(
+                  
+                  // Email Field
+                  TextFormField(
                     controller: _emailController,
                     enabled: _isEditing,
                     keyboardType: TextInputType.emailAddress,
@@ -100,10 +192,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Email requis';
+                      }
+                      if (!value.contains('@')) {
+                        return 'Email invalide';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
-                  // Phone
-                  TextField(
+                  
+                  // Phone Field
+                  TextFormField(
                     controller: _phoneController,
                     enabled: _isEditing,
                     keyboardType: TextInputType.phone,
@@ -116,69 +218,70 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  // Save/Cancel Buttons
-                  if (_isEditing) ...[
-                    ElevatedButton(
-                      onPressed: () async {
-                        final success = await authProvider.updateProfile(
-                          name: _nameController.text,
-                          email: _emailController.text,
-                          phone: _phoneController.text,
-                        );
-                        if (success && mounted) {
-                          setState(() {
-                            _isEditing = false;
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Profil mis à jour'),
-                              backgroundColor: Colors.green,
+                  
+                  // Account Info
+                  if (user?.createdAt != null) ...[
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.calendar_today),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Membre depuis',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                      Text(
+                                        _formatDate(user!.createdAt!),
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          ],
                         ),
                       ),
-                      child: const Text('Enregistrer'),
                     ),
-                    const SizedBox(height: 12),
-                    OutlinedButton(
-                      onPressed: () {
-                        setState(() {
-                          _isEditing = false;
-                        });
-                      },
+                    const SizedBox(height: 16),
+                  ],
+                  
+                  // Logout Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed: _handleLogout,
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Déconnexion'),
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text('Annuler'),
                     ),
-                  ] else
-                    ElevatedButton(
-                      onPressed: () async {
-                        await authProvider.logout();
-                        if (mounted) {
-                          Navigator.of(context).pushReplacementNamed('/login');
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        backgroundColor: Colors.red,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'Déconnexion',
-                        style: TextStyle(color: Colors.white),
-                      ),
+                  ),
+                  
+                  if (authProvider.isLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 16.0),
+                      child: CircularProgressIndicator(),
                     ),
                 ],
               ),
@@ -187,5 +290,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         },
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final months = [
+      'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+      'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 }
