@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import '../contacts_creen.dart';
-import '../screens/groups_screen.dart';
-import '../screens/subscription_screen.dart';
-import '../screens/transcription_screen.dart';
-import '../screens/connection_test_screen.dart';
+import '../screens/settings/settings_screen.dart';
+import '../screens/contacts/contacts_screen.dart' as contact_screen;
+import '../screens/groups/groups_screen.dart' as group_screen;
+import '../screens/messaging/conversation_screen.dart' as msg_screen;
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -15,12 +14,18 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = [
-    const DashboardHomePage(),
-    const ContactsScreen(),
-    const GroupsScreen(),
-    const SettingsPage(),
-  ];
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const DashboardHomePage(),
+      const contact_screen.ContactsScreen(),
+      const group_screen.GroupsScreen(),
+      const SettingsScreen(),
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -66,14 +71,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// Page d'accueil du Dashboard
 class DashboardHomePage extends StatelessWidget {
   const DashboardHomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
     return Scaffold(
       body: CustomScrollView(
         slivers: [
@@ -82,171 +84,125 @@ class DashboardHomePage extends StatelessWidget {
             centerTitle: true,
             floating: true,
             snap: true,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Notifications')),
-                  );
-                },
-              ),
-            ],
           ),
           SliverPadding(
             padding: const EdgeInsets.all(16),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                // Carte de bienvenue
+                // Welcome Card
                 Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
                   child: Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
                       gradient: LinearGradient(
                         colors: [
-                          theme.colorScheme.primary,
-                          theme.colorScheme.secondary,
+                          Theme.of(context).colorScheme.primary,
+                          Theme.of(context).colorScheme.secondary,
                         ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
                       ),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.message_rounded,
-                                color: Colors.white,
-                                size: 32,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Bienvenue',
-                                    style: theme.textTheme.titleLarge?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Gérez vos messages facilement',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: Colors.white.withOpacity(0.9),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                        Text(
+                          'Bienvenue sur OmniSMS',
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Messagerie sécurisée et moderne',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 16,
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                
                 const SizedBox(height: 24),
-                
-                // Section Statistiques
-                Text(
-                  'Statistiques',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                
+
+                // Stats Cards
                 Row(
                   children: [
                     Expanded(
-                      child: _StatCard(
-                        title: 'Messages',
-                        value: '0',
-                        icon: Icons.message,
-                        color: theme.colorScheme.primary,
+                      child: _buildStatCard(
+                        context,
+                        'Messages',
+                        '0',
+                        Icons.message,
+                        Colors.blue,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _StatCard(
-                        title: 'Contacts',
-                        value: '0',
-                        icon: Icons.people,
-                        color: theme.colorScheme.secondary,
+                      child: _buildStatCard(
+                        context,
+                        'Contacts',
+                        '0',
+                        Icons.contacts,
+                        Colors.green,
                       ),
                     ),
                   ],
                 ),
-                
                 const SizedBox(height: 24),
-                
-                // Actions rapides
+
+                // Quick Actions
                 Text(
                   'Actions rapides',
-                  style: theme.textTheme.titleLarge?.copyWith(
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 16),
                 
-                _QuickActionCard(
-                  title: 'Abonnement',
-                  subtitle: 'Gérer votre abonnement',
-                  icon: Icons.card_membership,
-                  color: Colors.orange,
-                  onTap: () {
+                _buildQuickAction(
+                  context,
+                  'Nouveau message',
+                  Icons.add_comment,
+                  Colors.blue,
+                  () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const SubscriptionScreen(),
+                        builder: (_) => const msg_screen.ConversationScreen(),
                       ),
                     );
                   },
                 ),
                 const SizedBox(height: 12),
                 
-                _QuickActionCard(
-                  title: 'Transcription',
-                  subtitle: 'Transcription audio',
-                  icon: Icons.mic,
-                  color: Colors.purple,
-                  onTap: () {
+                _buildQuickAction(
+                  context,
+                  'Créer un groupe',
+                  Icons.group_add,
+                  Colors.green,
+                  () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const TranscriptionScreen(),
+                        builder: (_) => const CreateGroupScreen(),
                       ),
                     );
                   },
                 ),
                 const SizedBox(height: 12),
                 
-                _QuickActionCard(
-                  title: 'Test de connexion',
-                  subtitle: 'Vérifier le backend',
-                  icon: Icons.wifi_tethering,
-                  color: Colors.green,
-                  onTap: () {
+                _buildQuickAction(
+                  context,
+                  'Transcription',
+                  Icons.mic,
+                  Colors.orange,
+                  () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const ConnectionTestScreen(),
+                        builder: (_) => const TranscriptionScreen(),
                       ),
                     );
                   },
@@ -258,89 +214,45 @@ class DashboardHomePage extends StatelessWidget {
       ),
     );
   }
-}
 
-// Widget carte de statistique
-class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildStatCard(
+    BuildContext context,
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: color.withOpacity(0.3),
-          width: 1.5,
-        ),
-      ),
-      child: Container(
+      child: Padding(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: color.withOpacity(0.05),
-        ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 32),
-            const SizedBox(height: 12),
+            Icon(icon, size: 32, color: color),
+            const SizedBox(height: 8),
             Text(
               value,
-              style: TextStyle(
-                fontSize: 28,
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: color,
               ),
             ),
-            const SizedBox(height: 4),
             Text(
               title,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(color: Colors.grey[600]),
             ),
           ],
         ),
       ),
     );
   }
-}
 
-// Widget action rapide
-class _QuickActionCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _QuickActionCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildQuickAction(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -352,38 +264,21 @@ class _QuickActionCard extends StatelessWidget {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: color, size: 24),
+                child: Icon(icon, color: color),
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
-              Icon(
-                Icons.arrow_forward_ios,
-                size: 16,
-                color: Colors.grey[400],
-              ),
+              const Icon(Icons.chevron_right),
             ],
           ),
         ),
@@ -392,56 +287,124 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
-// Page des paramètres
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
+class CreateGroupScreen extends StatefulWidget {
+  const CreateGroupScreen({super.key});
+
+  @override
+  State<CreateGroupScreen> createState() => _CreateGroupScreenState();
+}
+
+class _CreateGroupScreenState extends State<CreateGroupScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _descController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _createGroup() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Groupe créé avec succès')),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Paramètres'),
-        centerTitle: true,
+        title: const Text('Créer un groupe'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const ListTile(
-            leading: Icon(Icons.person),
-            title: Text('Profil'),
-            subtitle: Text('Gérer votre profil'),
-            trailing: Icon(Icons.arrow_forward_ios, size: 16),
-          ),
-          const Divider(),
-          const ListTile(
-            leading: Icon(Icons.notifications),
-            title: Text('Notifications'),
-            subtitle: Text('Paramètres de notifications'),
-            trailing: Icon(Icons.arrow_forward_ios, size: 16),
-          ),
-          const Divider(),
-          const ListTile(
-            leading: Icon(Icons.palette),
-            title: Text('Thème'),
-            subtitle: Text('Clair / Sombre'),
-            trailing: Icon(Icons.arrow_forward_ios, size: 16),
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.info),
-            title: const Text('À propos'),
-            subtitle: const Text('Version 2.1.0'),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () {
-              showAboutDialog(
-                context: context,
-                applicationName: 'OmniSMS',
-                applicationVersion: '2.1.0',
-                applicationLegalese: '© 2026 OmniSMS',
-              );
-            },
-          ),
-        ],
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Nom du groupe',
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Nom requis';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _descController,
+              decoration: const InputDecoration(
+                labelText: 'Description (optionnel)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _createGroup,
+                child: _isLoading
+                    ? const CircularProgressIndicator()
+                    : const Text('Créer le groupe'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class TranscriptionScreen extends StatelessWidget {
+  const TranscriptionScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Transcription'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.mic,
+              size: 64,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Transcription vocale',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text('Fonctionnalité bientôt disponible'),
+          ],
+        ),
       ),
     );
   }

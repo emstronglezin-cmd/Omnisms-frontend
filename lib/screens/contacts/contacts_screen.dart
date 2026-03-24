@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../services/contacts_service.dart';
+import '../../models/models.dart';
+import '../messaging/conversation_screen.dart';
 
 class ContactsScreen extends StatefulWidget {
   const ContactsScreen({super.key});
@@ -8,55 +11,52 @@ class ContactsScreen extends StatefulWidget {
 }
 
 class _ContactsScreenState extends State<ContactsScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  final List<Map<String, dynamic>> mockContacts = [
-    {
-      'name': 'Alice Martin',
-      'phone': '+33612345678',
-      'isRegistered': true,
-      'avatar': 'AM'
-    },
-    {
-      'name': 'Bob Dupont',
-      'phone': '+33687654321',
-      'isRegistered': false,
-      'avatar': 'BD'
-    },
-    {
-      'name': 'Charlie Bernard',
-      'phone': '+33698765432',
-      'isRegistered': true,
-      'avatar': 'CB'
-    },
-    {
-      'name': 'Diana Leclerc',
-      'phone': '+33612987654',
-      'isRegistered': true,
-      'avatar': 'DL'
-    },
-  ];
-
-  late List<Map<String, dynamic>> filteredContacts;
+  final ContactsService _contactsService = ContactsService();
+  List<ContactModel> _contacts = [];
+  List<ContactModel> _filteredContacts = [];
+  bool _isLoading = true;
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    filteredContacts = mockContacts;
+    _loadContacts();
+  }
+
+  Future<void> _loadContacts() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final contacts = await _contactsService.getContacts();
+      setState(() {
+        _contacts = contacts;
+        _filteredContacts = contacts;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e')),
+        );
+      }
+    }
   }
 
   void _filterContacts(String query) {
     setState(() {
+      _searchQuery = query;
       if (query.isEmpty) {
-        filteredContacts = mockContacts;
+        _filteredContacts = _contacts;
       } else {
-        filteredContacts = mockContacts
-            .where((contact) =>
-                contact['name']
-                    .toString()
-                    .toLowerCase()
-                    .contains(query.toLowerCase()) ||
-                contact['phone'].toString().contains(query))
-            .toList();
+        _filteredContacts = _contacts.where((contact) {
+          return contact.name.toLowerCase().contains(query.toLowerCase()) ||
+              (contact.phone?.contains(query) ?? false);
+        }).toList();
       }
     });
   }
@@ -66,73 +66,100 @@ class _ContactsScreenState extends State<ContactsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Contacts'),
-        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadContacts,
+          ),
+        ],
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16.0),
             child: TextField(
-              controller: _searchController,
-              onChanged: _filterContacts,
               decoration: InputDecoration(
-                hintText: 'Rechercher...',
+                hintText: 'Rechercher un contact...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
+              onChanged: _filterContacts,
             ),
           ),
           Expanded(
-            child: ListView.builder(
-              itemCount: filteredContacts.length,
-              itemBuilder: (context, index) {
-                final contact = filteredContacts[index];
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: const Color(0xFF6366F1),
-                    child: Text(
-                      contact['avatar'],
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  title: Text(contact['name']),
-                  subtitle: Text(contact['phone']),
-                  trailing: contact['isRegistered']
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF6366F1).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'Sur OmniSMS',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF6366F1),
-                              fontWeight: FontWeight.w500,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredContacts.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.contacts_outlined,
+                              size: 64,
+                              color: Colors.grey[400],
                             ),
-                          ),
-                        )
-                      : null,
-                  onTap: () {
-                    // Ouvrir conversation
-                    Navigator.pushNamed(context, '/conversation');
-                  },
-                );
-              },
-            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _searchQuery.isEmpty
+                                  ? 'Aucun contact'
+                                  : 'Aucun résultat',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: _loadContacts,
+                              child: const Text('Charger les contacts'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _filteredContacts.length,
+                        itemBuilder: (context, index) {
+                          final contact = _filteredContacts[index];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.primary,
+                              child: Text(
+                                contact.initials,
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
+                            title: Text(contact.name),
+                            subtitle: Text(contact.phone ?? 'Pas de numéro'),
+                            trailing: contact.isRegistered
+                                ? Chip(
+                                    label: const Text('OmniSMS'),
+                                    backgroundColor: Colors.green[100],
+                                    labelStyle: TextStyle(
+                                      color: Colors.green[700],
+                                      fontSize: 12,
+                                    ),
+                                  )
+                                : null,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ConversationScreen(
+                                    contactName: contact.name,
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
           ),
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 }
