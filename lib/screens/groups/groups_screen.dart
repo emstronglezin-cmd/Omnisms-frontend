@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../services/groups_service.dart';
+import '../../models/models.dart';
 
 class GroupsScreen extends StatefulWidget {
   const GroupsScreen({super.key});
@@ -8,78 +10,107 @@ class GroupsScreen extends StatefulWidget {
 }
 
 class _GroupsScreenState extends State<GroupsScreen> {
-  final List<Map<String, dynamic>> mockGroups = [
-    {
-      'name': 'Dev Team',
-      'members': 8,
-      'lastMessage': 'Alice: À bientôt!',
-      'avatar': 'DT'
-    },
-    {
-      'name': 'Amis',
-      'members': 5,
-      'lastMessage': 'Bob: Haha 😂',
-      'avatar': 'AM'
-    },
-    {
-      'name': 'Projet Marketing',
-      'members': 12,
-      'lastMessage': 'Charlie: Parfait!',
-      'avatar': 'PM'
-    },
-  ];
+  final GroupsService _groupsService = GroupsService();
+  List<GroupModel> _groups = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGroups();
+  }
+
+  Future<void> _loadGroups() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final groups = await _groupsService.getGroups();
+      setState(() {
+        _groups = groups;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Groupes'),
-        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadGroups,
+          ),
+        ],
       ),
-      body: ListView.builder(
-        itemCount: mockGroups.length,
-        itemBuilder: (context, index) {
-          final group = mockGroups[index];
-          return ListTile(
-            leading: CircleAvatar(
-              backgroundColor: const Color(0xFF6366F1),
-              child: Text(
-                group['avatar'],
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
-            title: Text(group['name']),
-            subtitle: Text(group['lastMessage']),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _groups.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.group_outlined,
+                        size: 64,
+                        color: Colors.grey[400],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Aucun groupe',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          // Create group logic
+                        },
+                        icon: const Icon(Icons.add),
+                        label: const Text('Créer un groupe'),
+                      ),
+                    ],
                   ),
-                  child: Text(
-                    '${group['members']} membres',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF6366F1),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                )
+              : ListView.builder(
+                  itemCount: _groups.length,
+                  itemBuilder: (context, index) {
+                    final group = _groups[index];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Theme.of(context).colorScheme.secondary,
+                        child: const Icon(
+                          Icons.group,
+                          color: Colors.white,
+                        ),
+                      ),
+                      title: Text(group.name),
+                      subtitle: Text('${group.memberCount} membres'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        // Open group chat
+                      },
+                    );
+                  },
                 ),
-              ],
-            ),
-            onTap: () =>
-                Navigator.pushNamed(context, '/groups/conversation',
-                    arguments: group['name']),
-          );
-        },
-      ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF6366F1),
-        onPressed: () => Navigator.pushNamed(context, '/groups/create'),
+        onPressed: () {
+          // Create group
+        },
         child: const Icon(Icons.add),
       ),
     );
