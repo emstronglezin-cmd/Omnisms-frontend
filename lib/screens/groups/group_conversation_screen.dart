@@ -1,83 +1,56 @@
 import 'package:flutter/material.dart';
-import '../messaging/widgets/message_bubble.dart';
-import '../messaging/widgets/message_input_bar.dart';
 
 class GroupConversationScreen extends StatefulWidget {
-  final String? groupName;
-  const GroupConversationScreen({super.key, this.groupName});
+  final String groupId;
+  final String groupName;
+
+  const GroupConversationScreen({
+    super.key,
+    required this.groupId,
+    required this.groupName,
+  });
 
   @override
-  State<GroupConversationScreen> createState() =>
-      _GroupConversationScreenState();
+  State<GroupConversationScreen> createState() => _GroupConversationScreenState();
 }
 
 class _GroupConversationScreenState extends State<GroupConversationScreen> {
-  final List<Map<String, dynamic>> messages = [
-    {
-      'text': 'Salut le groupe!',
-      'sender': 'Alice',
-      'isMe': false,
-      'timestamp': DateTime.now().subtract(const Duration(minutes: 10)),
-      'isVoice': false,
-    },
-    {
-      'text': 'Coucou!',
-      'sender': 'Bob',
-      'isMe': false,
-      'timestamp': DateTime.now().subtract(const Duration(minutes: 8)),
-      'isVoice': false,
-    },
-    {
-      'text': 'Comment ça va?',
-      'sender': 'Charlie',
-      'isMe': false,
-      'timestamp': DateTime.now().subtract(const Duration(minutes: 5)),
-      'isVoice': false,
-    },
-  ];
+  final TextEditingController _textController = TextEditingController();
 
-  void _handleSendMessage(String message) {
-    setState(() {
-      messages.add({
-        'text': message,
-        'sender': 'Vous',
-        'isMe': true,
-        'timestamp': DateTime.now(),
-        'isVoice': false,
-      });
-    });
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.groupName ?? 'Groupe'),
-        centerTitle: true,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.groupName),
+            const Text(
+              'Groupe',
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.info),
+            icon: const Icon(Icons.call),
             onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Infos du groupe'),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Groupe: ${widget.groupName}'),
-                      const SizedBox(height: 8),
-                      const Text('Membres: 8'),
-                    ],
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Fermer'),
-                    ),
-                  ],
-                ),
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Appel de groupe (bientôt disponible)')),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Info du groupe (bientôt disponible)')),
               );
             },
           ),
@@ -86,44 +59,79 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              itemCount: messages.length,
-              itemBuilder: (context, index) {
-                final message = messages[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 4,
-                    horizontal: 12,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.group,
+                    size: 64,
+                    color: Colors.grey[400],
                   ),
-                  child: Column(
-                    crossAxisAlignment: message['isMe']
-                        ? CrossAxisAlignment.end
-                        : CrossAxisAlignment.start,
-                    children: [
-                      if (!message['isMe'])
-                        Text(
-                          message['sender'],
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      MessageBubble(
-                        text: message['text'],
-                        isMe: message['isMe'],
-                        timestamp: message['timestamp'],
-                        isVoice: message['isVoice'],
-                      ),
-                    ],
+                  const SizedBox(height: 16),
+                  Text(
+                    'Messages de groupe',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.grey[600],
+                    ),
                   ),
-                );
-              },
+                  const SizedBox(height: 8),
+                  Text(
+                    'Envoyez votre premier message',
+                    style: TextStyle(color: Colors.grey[500]),
+                  ),
+                ],
+              ),
             ),
           ),
-          MessageInputBar(
-            onSendMessage: _handleSendMessage,
-            onSendVoiceMessage: (path) {},
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 4,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _textController,
+                    decoration: InputDecoration(
+                      hintText: 'Message...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: () {
+                    if (_textController.text.trim().isNotEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Messages de groupe (bientôt disponible)'),
+                        ),
+                      );
+                      _textController.clear();
+                    }
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),
