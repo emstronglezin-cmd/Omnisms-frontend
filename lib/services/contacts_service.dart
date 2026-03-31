@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:permission_handler/permission_handler.dart';
-import 'package:contacts_service/contacts_service.dart' as cs;
+import 'package:flutter_contacts/flutter_contacts.dart';
 import '../config/api_config.dart';
 import '../models/models.dart';
 import 'auth_service.dart';
@@ -11,8 +10,7 @@ class ContactsService {
 
   // Request contacts permission
   Future<bool> requestContactsPermission() async {
-    final status = await Permission.contacts.request();
-    return status.isGranted;
+    return await FlutterContacts.requestPermission();
   }
 
   // Get phone contacts
@@ -23,22 +21,29 @@ class ContactsService {
         throw Exception('Permission denied');
       }
 
-      final contacts = await cs.ContactsService.getContacts();
+      final contacts = await FlutterContacts.getContacts(
+        withProperties: true,
+        withPhoto: true,
+      );
+      
       final contactList = <ContactModel>[];
 
       for (var contact in contacts) {
-        if (contact.phones != null && contact.phones!.isNotEmpty) {
+        if (contact.phones.isNotEmpty) {
+          String? photoUrl;
+          if (contact.photo != null) {
+            photoUrl = 'data:image/png;base64,${contact.photo}';
+          }
+
           contactList.add(
             ContactModel(
-              id: contact.identifier ?? DateTime.now().toString(),
-              name: contact.displayName ?? 'Contact',
-              phone: contact.phones!.first.value,
-              email: contact.emails?.isNotEmpty == true 
-                  ? contact.emails!.first.value 
+              id: contact.id,
+              name: contact.displayName,
+              phone: contact.phones.first.number,
+              email: contact.emails.isNotEmpty 
+                  ? contact.emails.first.address 
                   : null,
-              photoUrl: contact.avatar?.isNotEmpty == true 
-                  ? 'data:image/png;base64,${contact.avatar}' 
-                  : null,
+              photoUrl: photoUrl,
             ),
           );
         }
