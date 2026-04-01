@@ -10,18 +10,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 📥 Code
+      # 📥 Récupérer le code
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ☕ Java
+      # ☕ Installer Java
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      # ⚡ Cache Gradle
+      # ⚡ Cache Gradle (accélère + évite bugs)
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
@@ -32,37 +32,33 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}
 
-      # 🚀 Flutter
+      # 🚀 Installer Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
 
-      # 📦 Dependencies
+      # 📦 Installer dépendances
       - name: Install dependencies
         run: flutter pub get
 
-      # 🧹 Clean (IMPORTANT)
+      # 🧹 Clean (corrigé, sans bug)
       - name: Clean project
-        run: |
-          flutter clean
-          cd android
-          ./gradlew clean
-          cd ..
+        run: flutter clean
 
-      # 🔐 Permissions Gradle
+      # 🔐 Fix permission Gradle (IMPORTANT)
       - name: Fix Gradle permissions
         run: chmod +x android/gradlew
 
       # 🏗 Build APK
-      - name: Build APK
+      - name: Build APK release
         run: flutter build apk --release
 
       # 🏗 Build AAB (Play Store)
-      - name: Build AAB
+      - name: Build AAB release
         run: flutter build appbundle --release
 
-      # 📤 Upload artifacts
+      # 📤 Upload fichiers
       - name: Upload APK & AAB
         uses: actions/upload-artifact@v4
         with:
