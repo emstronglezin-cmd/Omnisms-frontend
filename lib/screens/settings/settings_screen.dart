@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import '../../providers/auth_provider.dart';
 import '../auth/profile_screen.dart';
 import 'notifications_settings_screen.dart';
@@ -142,6 +143,40 @@ class SettingsScreen extends StatelessWidget {
           
           const Divider(),
           
+          // 🔥 TEST CRASHLYTICS (DEBUG ONLY)
+          if (!const bool.fromEnvironment('dart.vm.product'))
+            ListTile(
+              leading: const Icon(Icons.bug_report, color: Colors.orange),
+              title: const Text('Test Crash (Debug)'),
+              subtitle: const Text('Tester Firebase Crashlytics'),
+              onTap: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Test Crashlytics'),
+                    content: const Text(
+                      'Ceci va forcer un crash pour tester Crashlytics. Continuer ?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Annuler'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Tester'),
+                      ),
+                    ],
+                  ),
+                );
+                
+                if (confirm == true) {
+                  // Force a crash for testing
+                  FirebaseCrashlytics.instance.crash();
+                }
+              },
+            ),
+          
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('À propos'),
@@ -160,6 +195,8 @@ class SettingsScreen extends StatelessWidget {
                   const Text('Messagerie sécurisée et moderne'),
                   const SizedBox(height: 16),
                   const Text('Backend: http://51.15.89.72:5000'),
+                  const SizedBox(height: 8),
+                  const Text('🔥 Crashlytics: Activé'),
                 ],
               );
             },
