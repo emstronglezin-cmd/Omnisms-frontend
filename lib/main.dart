@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 // Providers
 import 'providers/auth_provider.dart';
@@ -35,6 +37,10 @@ void main() async {
         storageBucket: 'omnisms-b98c5.firebasestorage.app',
       ),
     );
+    
+    // 🔥 Initialize Crashlytics (production only)
+    await _initCrashlytics();
+    
   } catch (e) {
     debugPrint('⚠️ Firebase init error (non-blocking): $e');
   }
@@ -51,6 +57,24 @@ void main() async {
       child: const MyApp(),
     ),
   );
+}
+
+/// 🔥 Initialize Firebase Crashlytics
+Future<void> _initCrashlytics() async {
+  // Enable Crashlytics collection (production only)
+  const bool isProduction = bool.fromEnvironment('dart.vm.product');
+  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(isProduction);
+  
+  // Pass all uncaught "fatal" errors from the framework to Crashlytics
+  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+  
+  // Pass all uncaught asynchronous errors to Crashlytics
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
+  
+  debugPrint('🔥 Crashlytics initialized (production mode: $isProduction)');
 }
 
 class MyApp extends StatelessWidget {
