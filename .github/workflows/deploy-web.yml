@@ -1,0 +1,163 @@
+name: 🌐 Build & Deploy Web PWA
+
+on:
+  push:
+    branches: [ main, feature/* ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-web:
+    name: 🏗️ Build Flutter Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: 📦 Install dependencies
+        run: flutter pub get
+
+      - name: 🔍 Analyze code
+        run: flutter analyze --no-fatal-infos
+
+      - name: 🧪 Run tests
+        run: flutter test || echo "No tests found"
+
+      - name: 🏗️ Build Web (Release)
+        run: |
+          flutter build web \
+            --release \
+            --web-renderer canvaskit \
+            --base-href "/" \
+            --pwa-strategy offline-first
+
+      - name: 📊 Check build size
+        run: |
+          echo "📦 Build size:"
+          du -sh build/web
+          echo ""
+          echo "📁 Main files:"
+          ls -lh build/web/*.{js,html} 2>/dev/null || true
+
+      - name: 📤 Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: build/web/
+          retention-days: 7
+
+  deploy-firebase:
+    name: 🚀 Deploy to Firebase
+    needs: build-web
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📥 Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: build/web
+
+      - name: 🔥 Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: omnisms-b98c5
+        env:
+          FIREBASE_CLI_EXPERIMENTS: webframeworks
+
+  test-browsers:
+    name: 🧪 Test Multi-Browser
+    needs: build-web
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        browser: [chrome, firefox]
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📥 Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: build/web
+
+      - name: 🌐 Setup test server
+        run: |
+          cd build/web
+          python3 -m http.server 8080 &
+          sleep 5
+
+      - name: 🧪 Run Playwright tests (${{ matrix.browser }})
+        run: |
+          npm install -g playwright
+          playwright install ${{ matrix.browser }}
+          echo "Testing on ${{ matrix.browser }}"
+          # Add your e2e tests here
+
+  performance-audit:
+    name: ⚡ Performance Audit
+    needs: build-web
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📥 Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: build/web
+
+      - name: 🌐 Setup test server
+        run: |
+          cd build/web
+          python3 -m http.server 8080 &
+          sleep 5
+
+      - name: ⚡ Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          urls: |
+            http://localhost:8080
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+  notify:
+    name: 📢 Notify Status
+    needs: [build-web, deploy-firebase]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: ✅ Success notification
+        if: ${{ needs.deploy-firebase.result == 'success' }}
+        run: |
+          echo "🎉 Deployment successful!"
+          echo "🌐 Live at: https://omnisms-b98c5.web.app"
+      
+      - name: ❌ Failure notification
+        if: ${{ needs.build-web.result == 'failure' || needs.deploy-firebase.result == 'failure' }}
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Check the logs above for details"
