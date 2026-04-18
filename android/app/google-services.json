@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "948236796279",
+    "project_id": "omnisms-b98c5",
+    "storage_bucket": "omnisms-b98c5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:948236796279:android:747ba8ba81710da2ade172",
+        "android_client_info": {
+          "package_name": "omnisms.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3Yur6Q5IvcDI_bC9YuLFNC4jvgEREtBQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
