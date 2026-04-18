@@ -170,7 +170,10 @@ class DashboardHomePage extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const msg_screen.ConversationScreen(),
+                        builder: (_) => const msg_screen.ConversationScreen(
+                          contactId: '',
+                          contactName: 'Nouveau message',
+                        ),
                       ),
                     );
                   },

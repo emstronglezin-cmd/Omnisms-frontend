@@ -1,0 +1,64 @@
+name: 🧪 Tests and Quality Assurance
+
+on:
+  push:
+    branches:
+      - main
+      - feature/**
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  analyze:
+    name: Code Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        
+      - name: 🔧 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+          
+      - name: 📦 Dependencies
+        run: flutter pub get
+        
+      - name: 🔍 Flutter Analyze
+        run: flutter analyze
+        
+      - name: 📝 Check Formatting
+        run: dart format --set-exit-if-changed .
+        continue-on-error: true
+        
+  test:
+    name: Unit & Widget Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        
+      - name: 🔧 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+          
+      - name: 📦 Dependencies
+        run: flutter pub get
+        
+      - name: 🧪 Run Tests
+        run: flutter test --coverage
+        
+      - name: 📊 Upload Coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+        continue-on-error: true
