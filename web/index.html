@@ -1,20 +1,8 @@
 <!DOCTYPE html>
+
 <html lang="fr">
 <head>
-  <!-- 
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
-  <base href="$FLUTTER_BASE_HREF">
+  <base href="/">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
@@ -23,22 +11,27 @@
   <meta name="author" content="OmniSMS Team">
 
   <!-- iOS meta tags & icons -->
+
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="OmniSMS">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
-  
+
   <!-- Android Chrome -->
+
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#080c14">
 
   <!-- PWA -->
+
   <link rel="manifest" href="manifest.json">
 
   <!-- Favicon -->
+
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <!-- Open Graph / Facebook -->
+
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://omnisms.web.app">
   <meta property="og:title" content="OmniSMS - Messagerie SMS Professionnelle">
@@ -46,6 +39,7 @@
   <meta property="og:image" content="icons/Icon-512.png">
 
   <!-- Twitter -->
+
   <meta property="twitter:card" content="summary_large_image">
   <meta property="twitter:url" content="https://omnisms.web.app">
   <meta property="twitter:title" content="OmniSMS - Messagerie SMS Professionnelle">
@@ -53,10 +47,11 @@
   <meta property="twitter:image" content="icons/Icon-512.png">
 
   <!-- Viewport -->
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
   <title>OmniSMS</title>
-  
+
   <style>
     /* Loading splash screen */
     body {
@@ -191,6 +186,7 @@
       }
     }
   </style>
+
 </head>
 <body>
   <!-- Loading splash screen -->
@@ -205,6 +201,7 @@
   </div>
 
   <!-- PWA install prompt -->
+
   <div id="install-prompt">
     <span>📱 Installer OmniSMS sur votre appareil</span>
     <button id="install-button">Installer</button>
@@ -212,88 +209,70 @@
   </div>
 
   <!-- Offline indicator -->
+
   <div id="offline-indicator" class="offline-indicator">
     🔴 Mode hors ligne - Connexion limitée
   </div>
 
+  <!-- CORRECTION 1 : flutter_bootstrap.js gère lui-même le loader moderne -->
+
+  <script src="flutter_bootstrap.js"></script>
+
   <script>
-    window.addEventListener('load', function(ev) {
-      // Download main.dart.js
-      _flutter.loader.loadEntrypoint({
-        serviceWorker: {
-          serviceWorkerVersion: serviceWorkerVersion,
-        },
-        onEntrypointLoaded: function(engineInitializer) {
-          engineInitializer.initializeEngine().then(function(appRunner) {
-            // Hide loading screen when Flutter is ready
-            document.getElementById('loading').style.display = 'none';
-            appRunner.runApp();
-          });
-        }
-      });
+    // CORRECTION 2 : on attend que flutter_bootstrap soit prêt avant d'initialiser
+    window.addEventListener('flutter-first-frame', function() {
+      document.getElementById('loading').style.display = 'none';
+    });
 
-      // PWA install prompt
-      let deferredPrompt;
-      const installPrompt = document.getElementById('install-prompt');
-      const installButton = document.getElementById('install-button');
-      const dismissButton = document.getElementById('dismiss-button');
+    // Fallback : si flutter-first-frame ne se déclenche pas après 8s, on cache le loading
+    setTimeout(function() {
+      var loading = document.getElementById('loading');
+      if (loading) loading.style.display = 'none';
+    }, 8000);
 
-      window.addEventListener('beforeinstallprompt', (e) => {
-        // Prevent the mini-infobar from appearing on mobile
-        e.preventDefault();
-        // Stash the event so it can be triggered later
-        deferredPrompt = e;
-        // Show install prompt after 3 seconds
-        setTimeout(() => {
-          installPrompt.style.display = 'block';
-        }, 3000);
-      });
+    // PWA install prompt
+    let deferredPrompt;
+    const installPrompt = document.getElementById('install-prompt');
+    const installButton = document.getElementById('install-button');
+    const dismissButton = document.getElementById('dismiss-button');
 
-      installButton.addEventListener('click', async () => {
-        if (deferredPrompt) {
-          deferredPrompt.prompt();
-          const { outcome } = await deferredPrompt.userChoice;
-          console.log(`User response to the install prompt: ${outcome}`);
-          deferredPrompt = null;
-          installPrompt.style.display = 'none';
-        }
-      });
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      setTimeout(() => {
+        installPrompt.style.display = 'block';
+      }, 3000);
+    });
 
-      dismissButton.addEventListener('click', () => {
+    installButton.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`User response to the install prompt: ${outcome}`);
+        deferredPrompt = null;
         installPrompt.style.display = 'none';
-      });
-
-      // Offline/online detection
-      const offlineIndicator = document.getElementById('offline-indicator');
-      
-      window.addEventListener('online', () => {
-        offlineIndicator.style.display = 'none';
-      });
-
-      window.addEventListener('offline', () => {
-        offlineIndicator.style.display = 'block';
-      });
-
-      // Check initial connection status
-      if (!navigator.onLine) {
-        offlineIndicator.style.display = 'block';
       }
     });
 
-    // Service Worker registration
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function() {
-        navigator.serviceWorker.register('flutter_service_worker.js?v='+new Date().getTime())
-          .then(function(registration) {
-            console.log('Service Worker registered with scope:', registration.scope);
-          })
-          .catch(function(error) {
-            console.log('Service Worker registration failed:', error);
-          });
-      });
+    dismissButton.addEventListener('click', () => {
+      installPrompt.style.display = 'none';
+    });
+
+    // Offline/online detection
+    const offlineIndicator = document.getElementById('offline-indicator');
+
+    window.addEventListener('online', () => {
+      offlineIndicator.style.display = 'none';
+    });
+
+    window.addEventListener('offline', () => {
+      offlineIndicator.style.display = 'block';
+    });
+
+    if (!navigator.onLine) {
+      offlineIndicator.style.display = 'block';
     }
   </script>
-  
-  <script src="flutter_bootstrap.js" async></script>
+
 </body>
 </html>
