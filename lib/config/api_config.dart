@@ -1,7 +1,7 @@
 class ApiConfig {
   // Backend Configuration
-  static const String baseUrl = 'https://omnismss-backend.onrender.com';
-  static const String wsUrl = 'wss://omnismss-backend.onrender.com/ws';
+  static const String baseUrl = 'https://omnisms-backend.onrender.com';
+  static const String wsUrl = 'wss://omnisms-backend.onrender.com/ws';
   
   // API Endpoints
   static const String contactsEndpoint = '/api/contacts';
