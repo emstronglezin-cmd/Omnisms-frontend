@@ -165,7 +165,7 @@ Une fois déployé, vérifier:
    ✓ Dashboard affiche les stats
    ✓ Navigation sidebar fonctionnelle
    ✓ Messages/Contacts/Groupes accessibles
-   ✓ Backend API répond (https://omnismss-backend.onrender.com)
+   ✓ Backend API répond (https://omnisms-backend.onrender.com)
    ```
 
 ## 🔄 Workflow CI/CD
@@ -325,7 +325,7 @@ Votre application OmniSMS est maintenant **live en production** ! 🚀
 
 **URLs:**
 - 🌐 Production: https://omnisms-b98c5.web.app
-- 📱 Backend API: https://omnismss-backend.onrender.com
+- 📱 Backend API: https://omnisms-backend.onrender.com
 - 💳 Abonnement: https://www.pay.moneyfusion.net/abonnement-a-omnisms-_1762539771460/
 
 **Prochaines Étapes:**

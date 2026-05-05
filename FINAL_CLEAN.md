@@ -160,7 +160,7 @@ Le script `build.sh` fait automatiquement:
 - Firebase: `https://omnisms-b98c5.web.app`
 
 **Backend API:**
-- `https://omnismss-backend.onrender.com`
+- `https://omnisms-backend.onrender.com`
 
 **Paiement:**
 - `https://emstronglezin-cmd.github.io/omnisms-site/`

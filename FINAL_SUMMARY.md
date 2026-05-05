@@ -276,7 +276,7 @@ vapidKey: 'VOTRE-VAPID-KEY-ICI'
 ### Liens Utiles
 - GitHub Repo: https://github.com/emstronglezin-cmd/Omnisms-frontend
 - Firebase Console: https://console.firebase.google.com/project/omnisms-b98c5
-- Backend API: https://omnismss-backend.onrender.com
+- Backend API: https://omnisms-backend.onrender.com
 - Abonnement: https://www.pay.moneyfusion.net/abonnement-a-omnisms-_1762539771460/
 
 ### Support

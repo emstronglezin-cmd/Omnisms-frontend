@@ -119,7 +119,7 @@ flutter build appbundle --release
 - **Groupes** (création, modification, suppression)
 - Paramètres (profil, notifications, thème, statistiques)
 - Navigation fonctionnelle partout
-- Backend connecté : `https://omnismss-backend.onrender.com`
+- Backend connecté : `https://omnisms-backend.onrender.com`
 
 ### ✅ Git (100%)
 ```
@@ -160,8 +160,8 @@ flutter build appbundle --release
 - **Créer PR** : https://github.com/emstronglezin-cmd/Omnisms-frontend/compare/main...feature/complete-backend-integration
 
 ### Backend
-- **Base URL** : https://omnismss-backend.onrender.com
-- **WebSocket** : wss://omnismss-backend.onrender.com/ws
+- **Base URL** : https://omnisms-backend.onrender.com
+- **WebSocket** : wss://omnisms-backend.onrender.com/ws
 
 ---
 
@@ -201,7 +201,7 @@ flutter build appbundle --release
 | Tâche | Status | Note |
 |-------|--------|------|
 | Architecture propre | ✅ 100% | Models, Services, Providers, Screens |
-| Backend connecté | ✅ 100% | https://omnismss-backend.onrender.com |
+| Backend connecté | ✅ 100% | https://omnisms-backend.onrender.com |
 | Authentification | ✅ 100% | Register, Login, Profile |
 | Contacts réels | ✅ 100% | flutter_contacts, permission, sync |
 | Messagerie | ✅ 100% | Texte, vocal, transcription, réactions |

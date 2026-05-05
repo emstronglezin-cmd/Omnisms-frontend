@@ -10,7 +10,7 @@
 ## 🌐 Live Demo
 
 - **Production:** [https://omnisms-b98c5.web.app](https://omnisms-b98c5.web.app)
-- **Backend API:** [https://omnismss-backend.onrender.com](https://omnismss-backend.onrender.com)
+- **Backend API:** [https://omnisms-backend.onrender.com](https://omnisms-backend.onrender.com)
 
 ## ✨ Fonctionnalités
 
@@ -224,7 +224,7 @@ Copyright © 2026 OmniSMS. Tous droits réservés.
 
 - **Firebase Console:** https://console.firebase.google.com/project/omnisms-b98c5
 - **Google Analytics:** https://analytics.google.com
-- **Backend API:** https://omnismss-backend.onrender.com
+- **Backend API:** https://omnisms-backend.onrender.com
 - **Abonnement:** https://www.pay.moneyfusion.net/abonnement-a-omnisms-_1762539771460/
 
 ## 📈 Roadmap

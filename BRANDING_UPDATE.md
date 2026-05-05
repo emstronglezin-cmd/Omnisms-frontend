@@ -4,7 +4,7 @@
 
 ### 1. Backend URL Configuration
 - **Status**: ✅ Already configured correctly
-- **Backend URL**: `https://omnismss-backend.onrender.com`
+- **Backend URL**: `https://omnisms-backend.onrender.com`
 - **Service ID**: `srv-d7oieg8sfn5c73c920kg`
 - **Configuration File**: `lib/config/api_config.dart`
 - **Endpoints Verified**:
@@ -70,7 +70,7 @@ Muted:      #6b7a96 (Muted gray)
 
 ## 🎯 API Routes Verified
 
-All backend routes are configured to use `https://omnismss-backend.onrender.com`:
+All backend routes are configured to use `https://omnisms-backend.onrender.com`:
 
 ### Authentication
 - POST `/api/auth/register` - User registration
@@ -79,7 +79,7 @@ All backend routes are configured to use `https://omnismss-backend.onrender.com`
 ### Messaging
 - GET `/api/messages?contact={name}` - Get messages for contact
 - POST `/api/messages/send` - Send new message
-- WebSocket `wss://omnismss-backend.onrender.com/ws` - Real-time messaging
+- WebSocket `wss://omnisms-backend.onrender.com/ws` - Real-time messaging
 
 ### Contacts
 - GET `/api/contacts` - Get all contacts
@@ -191,7 +191,7 @@ ios/Runner/Assets.xcassets/AppIcon.appiconset/
 
 ## ✅ Validation Checklist
 
-- [x] Backend URL correctly set to `https://omnismss-backend.onrender.com`
+- [x] Backend URL correctly set to `https://omnisms-backend.onrender.com`
 - [x] All Flutter branding icons replaced with OmniSMS branding
 - [x] Web PWA icons generated (favicon, 192x192, 512x512, maskable)
 - [x] Android launcher icons generated (all densities)
@@ -207,7 +207,7 @@ ios/Runner/Assets.xcassets/AppIcon.appiconset/
 
 ## 🔗 Important URLs
 
-- **Backend API**: https://omnismss-backend.onrender.com
+- **Backend API**: https://omnisms-backend.onrender.com
 - **Payment Page**: https://emstronglezin-cmd.github.io/omnisms-site/
 - **GitHub Repo**: https://github.com/emstronglezin-cmd/Omnisms-frontend
 - **Netlify Deployment**: (Automatic on push)

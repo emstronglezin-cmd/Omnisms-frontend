@@ -198,7 +198,7 @@ https://github.com/emstronglezin-cmd/Omnisms-frontend
 https://github.com/emstronglezin-cmd/Omnisms-frontend/commit/c262932
 
 **Backend API :**
-https://omnismss-backend.onrender.com
+https://omnisms-backend.onrender.com
 
 **Page de paiement :**
 https://emstronglezin-cmd.github.io/omnisms-site/

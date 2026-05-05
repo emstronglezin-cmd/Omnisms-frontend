@@ -69,8 +69,8 @@ record: ^5.1.0              # Audio recording
 ```
 
 ## 🔧 Backend Integration
-- **Base URL**: `https://omnismss-backend.onrender.com`
-- **WebSocket**: `wss://omnismss-backend.onrender.com/ws`
+- **Base URL**: `https://omnisms-backend.onrender.com`
+- **WebSocket**: `wss://omnisms-backend.onrender.com/ws`
 - **Timeout**: 30 seconds on all API calls
 - **Error Handling**: try/catch blocks everywhere
 - **Loading States**: CircularProgressIndicator on all async operations

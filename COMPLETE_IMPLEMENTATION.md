@@ -11,7 +11,7 @@
 - ✅ Structure de dossiers claire : `/models`, `/services`, `/providers`, `/screens`
 
 #### 2. Backend connecté
-- ✅ URL backend : `https://omnismss-backend.onrender.com`
+- ✅ URL backend : `https://omnisms-backend.onrender.com`
 - ✅ Tous les appels API avec timeout de 30 secondes
 - ✅ Gestion d'erreurs complète avec try/catch
 - ✅ WebSocket pour les messages en temps réel
@@ -68,8 +68,8 @@
 
 ## 🔧 Backend API Configuration
 ```dart
-static const String baseUrl = 'https://omnismss-backend.onrender.com';
-static const String wsUrl = 'wss://omnismss-backend.onrender.com/ws';
+static const String baseUrl = 'https://omnisms-backend.onrender.com';
+static const String wsUrl = 'wss://omnisms-backend.onrender.com/ws';
 static const Duration requestTimeout = Duration(seconds: 30);
 ```
 
@@ -206,7 +206,7 @@ flutter build appbundle --release
 6. Backup des conversations
 
 ## 📝 Notes importantes
-- Le backend est déployé sur `https://omnismss-backend.onrender.com`
+- Le backend est déployé sur `https://omnisms-backend.onrender.com`
 - Les tokens sont stockés de manière sécurisée dans SharedPreferences
 - WebSocket se reconnecte automatiquement en cas de déconnexion
 - Toutes les images sont en lazy loading avec placeholder
@@ -231,5 +231,5 @@ Toutes les fonctionnalités demandées sont implémentées :
 
 **Version :** 2.2.0+4
 **Date :** 2026-03-25
-**Backend :** https://omnismss-backend.onrender.com
+**Backend :** https://omnisms-backend.onrender.com
 **Statut :** ✅ Production Ready

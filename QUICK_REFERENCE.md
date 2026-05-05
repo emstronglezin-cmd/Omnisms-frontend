@@ -101,7 +101,7 @@ print(cache);
 
 - **Live:** https://omnisms-b98c5.web.app
 - **Alt:** https://omnisms-b98c5.firebaseapp.com
-- **Backend:** https://omnismss-backend.onrender.com
+- **Backend:** https://omnisms-backend.onrender.com
 - **Abonnement:** https://www.pay.moneyfusion.net/abonnement-a-omnisms-_1762539771460/
 
 ## 🔗 Liens Rapides

@@ -5,8 +5,8 @@
 **L'application est maintenant 100% fonctionnelle et connectée au backend de production.**
 
 ### Backend Configuration
-- **URL**: `https://omnismss-backend.onrender.com`
-- **WebSocket**: `wss://omnismss-backend.onrender.com/ws`
+- **URL**: `https://omnisms-backend.onrender.com`
+- **WebSocket**: `wss://omnisms-backend.onrender.com/ws`
 - **Timeout**: 30 secondes
 - **Error Handling**: Complet avec messages utilisateur
 
@@ -237,7 +237,7 @@ flutter build appbundle --release
 ## 🚀 Déploiement
 
 **Code Status**: ✅ Production Ready  
-**Backend**: ✅ https://omnismss-backend.onrender.com  
+**Backend**: ✅ https://omnisms-backend.onrender.com  
 **Build**: ⚠️ À faire sur machine locale (Android SDK requis)
 
 **Repository**: https://github.com/emstronglezin-cmd/Omnisms-frontend  

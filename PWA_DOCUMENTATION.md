@@ -166,8 +166,8 @@ Chaque carte affiche:
 
 ## 🔐 Backend Integration
 
-- **Base URL**: https://omnismss-backend.onrender.com
-- **WebSocket**: wss://omnismss-backend.onrender.com/ws
+- **Base URL**: https://omnisms-backend.onrender.com
+- **WebSocket**: wss://omnisms-backend.onrender.com/ws
 - **Timeout**: 30 secondes
 - **Auth**: JWT via SharedPreferences
 - Services inchangés (réutilisation du code mobile)
@@ -243,7 +243,7 @@ Ouvrir: http://localhost:8000
 ## 📞 Support
 
 Pour toute question ou problème:
-- Backend: https://omnismss-backend.onrender.com
+- Backend: https://omnisms-backend.onrender.com
 - Abonnement: https://www.pay.moneyfusion.net/abonnement-a-omnisms-_1762539771460/
 - Email: support@omnisms.com (à configurer)
 

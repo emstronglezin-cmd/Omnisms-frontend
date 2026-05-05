@@ -34,8 +34,8 @@ Voir `CRASHLYTICS_SETUP.md` pour le guide complet.
 - Structure propre et organisée
 
 ### ✅ 2. Backend Connecté (100%)
-- Base URL : `https://omnismss-backend.onrender.com`
-- WebSocket : `wss://omnismss-backend.onrender.com/ws`
+- Base URL : `https://omnisms-backend.onrender.com`
+- WebSocket : `wss://omnisms-backend.onrender.com/ws`
 - Timeout 30s sur tous les appels
 - Error handling complet
 
@@ -264,8 +264,8 @@ permission_handler: ^11.3.1
 - **Create PR** : [Link](https://github.com/emstronglezin-cmd/Omnisms-frontend/compare/main...feature/complete-backend-integration)
 
 ### Backend
-- **API** : https://omnismss-backend.onrender.com
-- **WebSocket** : wss://omnismss-backend.onrender.com/ws
+- **API** : https://omnisms-backend.onrender.com
+- **WebSocket** : wss://omnisms-backend.onrender.com/ws
 
 ### Firebase
 - **Console** : https://console.firebase.google.com

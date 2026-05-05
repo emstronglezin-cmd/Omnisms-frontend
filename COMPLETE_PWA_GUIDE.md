@@ -578,7 +578,7 @@ flutter clean && flutter pub get
 
 ## 📞 Support et Ressources
 
-- **Backend API**: https://omnismss-backend.onrender.com
+- **Backend API**: https://omnisms-backend.onrender.com
 - **Firebase Console**: https://console.firebase.google.com/project/omnisms-b98c5
 - **GitHub Repo**: https://github.com/emstronglezin-cmd/Omnisms-frontend
 - **Documentation Flutter Web**: https://docs.flutter.dev/platform-integration/web
