@@ -12,19 +12,14 @@ echo "=================================="
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 # Check if Flutter is installed
 if [ ! -d "flutter" ]; then
     echo -e "${BLUE}📥 Installing Flutter SDK...${NC}"
     
-    # Download Flutter SDK
     wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz
-    
-    # Extract
     tar xf flutter_linux_3.24.5-stable.tar.xz
-    
-    # Clean up
     rm flutter_linux_3.24.5-stable.tar.xz
     
     echo -e "${GREEN}✅ Flutter SDK installed${NC}"
@@ -34,6 +29,9 @@ fi
 
 # Add Flutter to PATH
 export PATH="$PATH:$PWD/flutter/bin"
+
+# Disable analytics
+flutter config --no-analytics
 
 # Verify Flutter
 echo -e "${BLUE}🔍 Verifying Flutter installation...${NC}"
@@ -51,9 +49,8 @@ flutter pub get
 echo -e "${BLUE}🏗️  Building Flutter Web (release)...${NC}"
 flutter build web \
   --release \
-  --web-renderer canvaskit \
-  --base-href "/" \
-  --pwa-strategy offline-first
+  --web-renderer html \
+  --base-href "/"
 
 echo -e "${GREEN}✅ Build completed successfully!${NC}"
 
@@ -64,7 +61,6 @@ echo "  - Flutter Version: $(flutter --version | head -n 1)"
 echo "  - Build Directory: build/web"
 echo "  - Build Size: $(du -sh build/web | cut -f1)"
 
-# List generated files
 echo ""
 echo "📁 Generated Files:"
 ls -lh build/web/*.html build/web/*.js 2>/dev/null || echo "  Files generated successfully"
