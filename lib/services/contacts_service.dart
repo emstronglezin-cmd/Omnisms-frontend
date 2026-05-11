@@ -16,39 +16,53 @@ class ContactsService {
   // Get phone contacts
   Future<List<ContactModel>> getPhoneContacts() async {
     try {
-      final hasPermission = await requestContactsPermission();
+      // Check permission first
+      bool hasPermission = await FlutterContacts.requestPermission();
+      
       if (!hasPermission) {
-        throw Exception('Permission denied');
+        print('Contacts permission denied');
+        return [];
       }
 
+      print('Loading contacts from device...');
+      
+      // Get contacts with all properties
       final contacts = await FlutterContacts.getContacts(
         withProperties: true,
-        withPhoto: true,
+        withPhoto: false, // Disable photos for faster loading
       );
+      
+      print('Found ${contacts.length} contacts on device');
       
       final contactList = <ContactModel>[];
 
       for (var contact in contacts) {
+        // Include contacts with at least one phone number
         if (contact.phones.isNotEmpty) {
-          String? photoUrl;
-          if (contact.photo != null) {
-            photoUrl = 'data:image/png;base64,${contact.photo}';
-          }
+          // Get first phone number
+          final phoneNumber = contact.phones.first.number
+              .replaceAll(' ', '')
+              .replaceAll('-', '')
+              .replaceAll('(', '')
+              .replaceAll(')', '');
 
           contactList.add(
             ContactModel(
               id: contact.id,
-              name: contact.displayName,
-              phone: contact.phones.first.number,
+              name: contact.displayName.isNotEmpty 
+                  ? contact.displayName 
+                  : phoneNumber,
+              phone: phoneNumber,
               email: contact.emails.isNotEmpty 
                   ? contact.emails.first.address 
                   : null,
-              photoUrl: photoUrl,
+              photoUrl: null, // Load photos on demand for performance
             ),
           );
         }
       }
 
+      print('Processed ${contactList.length} contacts with phone numbers');
       return contactList;
     } catch (e) {
       print('Error getting phone contacts: $e');

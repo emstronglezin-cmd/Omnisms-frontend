@@ -14,6 +14,9 @@ import 'providers/contacts_provider.dart';
 import 'providers/messaging_provider.dart';
 import 'providers/groups_provider.dart';
 
+// Services
+import 'services/ads_service.dart';
+
 // Screens
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
@@ -53,6 +56,16 @@ void main() async {
     
   } catch (e) {
     debugPrint('⚠️ Firebase init error (non-blocking): $e');
+  }
+  
+  // 📱 Initialize Start.io Ads (mobile only)
+  if (!kIsWeb) {
+    try {
+      await AdsService().initialize();
+      debugPrint('✅ Ads service initialized');
+    } catch (e) {
+      debugPrint('⚠️ Ads init error (non-blocking): $e');
+    }
   }
   
   runApp(

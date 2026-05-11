@@ -17,6 +17,7 @@ class MessageInputBar extends StatefulWidget {
 class _MessageInputBarState extends State<MessageInputBar> {
   final TextEditingController _controller = TextEditingController();
   bool _isRecording = false;
+  bool _hasText = false;
 
   @override
   Widget build(BuildContext context) {
@@ -53,41 +54,60 @@ class _MessageInputBarState extends State<MessageInputBar> {
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
               onChanged: (value) {
-                setState(() {});
+                setState(() {
+                  _hasText = value.trim().isNotEmpty;
+                });
               },
             ),
           ),
           const SizedBox(width: 8),
           // Send button / Mic button
-          GestureDetector(
-            onLongPress: () {
-              setState(() => _isRecording = true);
-              // TODO: Start voice recording
-            },
-            onLongPressEnd: (_) {
-              setState(() => _isRecording = false);
-              // TODO: Stop voice recording and send
-            },
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF6366F1),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: Icon(
-                  _controller.text.isEmpty ? Icons.mic : Icons.send,
-                  color: Colors.white,
-                ),
-                onPressed: _controller.text.isEmpty
-                    ? null
-                    : () {
-                        widget.onSendMessage(_controller.text);
+          _hasText
+              ? Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF6366F1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.send,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      final text = _controller.text.trim();
+                      if (text.isNotEmpty) {
+                        widget.onSendMessage(text);
                         _controller.clear();
-                        setState(() {});
-                      },
-              ),
-            ),
-          ),
+                        setState(() {
+                          _hasText = false;
+                        });
+                      }
+                    },
+                  ),
+                )
+              : GestureDetector(
+                  onLongPress: () {
+                    setState(() => _isRecording = true);
+                    // TODO: Start voice recording
+                  },
+                  onLongPressEnd: (_) {
+                    setState(() => _isRecording = false);
+                    // TODO: Stop voice recording and send
+                  },
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF6366F1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.mic,
+                        color: Colors.white,
+                      ),
+                      onPressed: null,
+                    ),
+                  ),
+                ),
         ],
       ),
     );
