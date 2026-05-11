@@ -22,19 +22,34 @@ class ContactsProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Get phone contacts
+      // Get phone contacts directly
       final phoneContacts = await _contactsService.getPhoneContacts();
-      _hasPermission = phoneContacts.isNotEmpty;
       
-      // Sync with backend
-      _contacts = await _contactsService.syncContacts(phoneContacts);
-      _filteredContacts = [];
+      if (phoneContacts.isNotEmpty) {
+        _hasPermission = true;
+        _contacts = phoneContacts;
+        _filteredContacts = [];
+        
+        // Sync with backend in background (don't wait)
+        _contactsService.syncContacts(phoneContacts).then((syncedContacts) {
+          if (syncedContacts.isNotEmpty) {
+            _contacts = syncedContacts;
+            notifyListeners();
+          }
+        }).catchError((e) {
+          print('Background sync error: $e');
+        });
+      } else {
+        _hasPermission = false;
+        _error = 'Aucun contact trouvé';
+      }
       
       _isLoading = false;
       notifyListeners();
     } catch (e) {
       _error = 'Erreur lors du chargement des contacts: $e';
       _isLoading = false;
+      _hasPermission = false;
       notifyListeners();
     }
   }
