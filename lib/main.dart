@@ -10,7 +10,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 // Providers
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
-import 'providers/contacts_provider.dart';
+import 'providers/contacts_provider_v2.dart';
 import 'providers/messaging_provider.dart';
 import 'providers/groups_provider.dart';
 
@@ -73,7 +73,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => ContactsProvider()),
+        ChangeNotifierProvider(create: (_) => ContactsProviderV2()),
         ChangeNotifierProvider(create: (_) => MessagingProvider()),
         ChangeNotifierProvider(create: (_) => GroupsProvider()),
       ],

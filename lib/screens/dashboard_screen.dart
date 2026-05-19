@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../screens/settings/settings_screen.dart';
-import '../screens/contacts/contacts_screen.dart' as contact_screen;
+import '../screens/contacts/contacts_screen_v2.dart' as contact_screen;
 import '../screens/groups/groups_screen.dart' as group_screen;
 import '../screens/messaging/conversation_screen.dart' as msg_screen;
 import '../screens/groups/create_group_screen.dart';
@@ -26,7 +26,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _pages = [
       const DashboardHomePage(),
-      const contact_screen.ContactsScreen(),
+      const contact_screen.ContactsScreenV2(),
       const group_screen.GroupsScreen(),
       const SettingsScreen(),
     ];
