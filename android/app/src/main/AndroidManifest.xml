@@ -4,6 +4,18 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     
+    <!-- Permissions pour les contacts -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+    
+    <!-- Permissions pour l'audio -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    
+    <!-- Start.io App ID -->
+    <meta-data
+        android:name="com.startapp.sdk.APP_ID"
+        android:value="210637982" />
+    
     <application
         android:label="omni_smsnew"
         android:name="${applicationName}"

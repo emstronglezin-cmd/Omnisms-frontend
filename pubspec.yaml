@@ -1,7 +1,7 @@
 name: omnisms
 description: OmniSMS - Application de messagerie complète
 publish_to: 'none'
-version: 2.2.0+6
+version: 2.2.0+7
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
