@@ -1,35 +1,46 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:record/record.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../providers/messaging_provider.dart';
 import '../../models/models.dart';
+import '../../widgets/chat/modern_message_bubble.dart' as modern;
+import '../../widgets/chat/modern_message_input.dart';
+import '../../widgets/chat/typing_indicator.dart';
+import '../../widgets/chat/online_status_widget.dart';
+import '../../widgets/chat/reaction_widget.dart';
+import '../../widgets/audio/voice_recorder_widget.dart';
+import '../../widgets/audio/audio_player_widget.dart';
+import '../../widgets/audio/transcription_widget.dart';
 
 class ConversationScreen extends StatefulWidget {
   final String contactId;
   final String contactName;
+  final String? contactImageUrl;
 
   const ConversationScreen({
     super.key,
     required this.contactId,
     required this.contactName,
+    this.contactImageUrl,
   });
 
   @override
   State<ConversationScreen> createState() => _ConversationScreenState();
 }
 
-class _ConversationScreenState extends State<ConversationScreen> {
+class _ConversationScreenState extends State<ConversationScreen> with TickerProviderStateMixin {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final AudioRecorder _audioRecorder = AudioRecorder();
-  final AudioPlayer _audioPlayer = AudioPlayer();
   
   bool _isRecording = false;
   bool _isSending = false;
-  String? _recordingPath;
+  bool _isTyping = false;
+  bool _showTypingIndicator = false;
+  
+  // Simulated online status (would come from WebSocket in real app)
+  bool _isContactOnline = true;
+  DateTime? _lastSeen = DateTime.now().subtract(const Duration(minutes: 5));
 
   @override
   void initState() {
@@ -37,15 +48,26 @@ class _ConversationScreenState extends State<ConversationScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<MessagingProvider>().loadMessages(widget.contactId);
     });
+    
+    // Listen to text changes for typing indicator
+    _textController.addListener(_onTextChanged);
   }
 
   @override
   void dispose() {
+    _textController.removeListener(_onTextChanged);
     _textController.dispose();
     _scrollController.dispose();
-    _audioRecorder.dispose();
-    _audioPlayer.dispose();
     super.dispose();
+  }
+
+  void _onTextChanged() {
+    final hasText = _textController.text.trim().isNotEmpty;
+    if (hasText != _isTyping) {
+      setState(() {
+        _isTyping = hasText;
+      });
+    }
   }
 
   Future<void> _sendTextMessage() async {
@@ -69,136 +91,166 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
     if (!success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Échec de l\'envoi du message')),
+        const SnackBar(
+          content: Text('Échec de l\'envoi du message'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
 
     _scrollToBottom();
   }
 
-  Future<void> _startRecording() async {
-    try {
-      if (await _audioRecorder.hasPermission()) {
-        final directory = await getTemporaryDirectory();
-        _recordingPath = '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-        
-        await _audioRecorder.start(
-          const RecordConfig(),
-          path: _recordingPath!,
-        );
+  void _onRecordingComplete(String audioPath, Duration duration) async {
+    setState(() {
+      _isRecording = false;
+      _isSending = true;
+    });
 
-        setState(() {
-          _isRecording = true;
-        });
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Permission microphone requise')),
-          );
-        }
+    try {
+      final file = File(audioPath);
+      final success = await context.read<MessagingProvider>().sendVoiceMessage(
+        contactId: widget.contactId,
+        audioFile: file,
+      );
+
+      if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Échec de l\'envoi du message vocal'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
-      debugPrint('Error starting recording: $e');
-    }
-  }
-
-  Future<void> _stopRecordingAndSend() async {
-    try {
-      final path = await _audioRecorder.stop();
-      
-      setState(() {
-        _isRecording = false;
-        _isSending = true;
-      });
-
-      if (path != null) {
-        final file = File(path);
-        final success = await context.read<MessagingProvider>().sendVoiceMessage(
-          contactId: widget.contactId,
-          audioFile: file,
+      debugPrint('Error sending voice message: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
-
-        if (!success && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Échec de l\'envoi du message vocal')),
-          );
-        }
       }
-
+    } finally {
       setState(() {
         _isSending = false;
       });
-
       _scrollToBottom();
-    } catch (e) {
-      debugPrint('Error stopping recording: $e');
-      setState(() {
-        _isRecording = false;
-        _isSending = false;
-      });
     }
   }
 
-  Future<void> _cancelRecording() async {
-    try {
-      await _audioRecorder.stop();
-      setState(() {
-        _isRecording = false;
-      });
-    } catch (e) {
-      debugPrint('Error canceling recording: $e');
-    }
+  void _onRecordingCancel() {
+    setState(() {
+      _isRecording = false;
+    });
+  }
+
+  void _startRecording() {
+    setState(() {
+      _isRecording = true;
+    });
   }
 
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
     }
   }
 
   void _showMessageOptions(MessageModel message) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (message.type == MessageType.voice)
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 16),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              
+              if (message.type == MessageType.voice)
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.text_fields, color: Colors.blue),
+                  ),
+                  title: const Text('Transcrire le message vocal'),
+                  subtitle: const Text('Convertir en texte'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    _transcribeMessage(message);
+                  },
+                ),
+              
               ListTile(
-                leading: const Icon(Icons.text_fields),
-                title: const Text('Transcrire'),
-                onTap: () async {
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[50],
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.emoji_emotions, color: Colors.orange),
+                ),
+                title: const Text('Réagir au message'),
+                subtitle: const Text('Ajouter un emoji'),
+                onTap: () {
                   Navigator.pop(context);
-                  _transcribeMessage(message);
+                  _showEmojiReactionPicker(message);
                 },
               ),
-            ListTile(
-              leading: const Icon(Icons.emoji_emotions),
-              title: const Text('Réagir'),
-              onTap: () {
-                Navigator.pop(context);
-                _showEmojiPicker(message);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Supprimer', style: TextStyle(color: Colors.red)),
-              onTap: () async {
-                Navigator.pop(context);
-                final confirmed = await _confirmDelete();
-                if (confirmed) {
-                  await context.read<MessagingProvider>().deleteMessage(
-                        widget.contactId,
-                        message.id,
-                      );
-                }
-              },
-            ),
-          ],
+              
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.delete, color: Colors.red),
+                ),
+                title: const Text('Supprimer le message', style: TextStyle(color: Colors.red)),
+                subtitle: const Text('Cette action est irréversible'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final confirmed = await _confirmDelete();
+                  if (confirmed) {
+                    await context.read<MessagingProvider>().deleteMessage(
+                          widget.contactId,
+                          message.id,
+                        );
+                  }
+                },
+              ),
+              
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -208,7 +260,21 @@ class _ConversationScreenState extends State<ConversationScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Transcription en cours...'),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
 
     final transcription = await context.read<MessagingProvider>().transcribeMessage(message.id);
@@ -216,7 +282,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     if (mounted) {
       Navigator.pop(context);
 
-      if (transcription != null) {
+      if (transcription != null && transcription.isNotEmpty) {
         context.read<MessagingProvider>().updateMessageTranscription(
               widget.contactId,
               message.id,
@@ -224,42 +290,46 @@ class _ConversationScreenState extends State<ConversationScreen> {
             );
         
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Transcription: $transcription')),
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Transcription terminée: ${transcription.substring(0, transcription.length > 30 ? 30 : transcription.length)}...'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+          ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Échec de la transcription')),
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Échec de la transcription'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
   }
 
-  void _showEmojiPicker(MessageModel message) {
-    showModalBottomSheet(
+  void _showEmojiReactionPicker(MessageModel message) {
+    showEmojiReactionPicker(
       context: context,
-      builder: (context) => SafeArea(
-        child: SizedBox(
-          height: 200,
-          child: GridView.count(
-            crossAxisCount: 6,
-            padding: const EdgeInsets.all(16),
-            children: ['❤️', '😂', '😮', '😢', '👍', '👎', '🔥', '🎉', '💯', '✨']
-                .map((emoji) => InkWell(
-                      onTap: () async {
-                        Navigator.pop(context);
-                        await context.read<MessagingProvider>().reactToMessage(
-                              message.id,
-                              emoji,
-                            );
-                      },
-                      child: Center(
-                        child: Text(emoji, style: const TextStyle(fontSize: 32)),
-                      ),
-                    ))
-                .toList(),
-          ),
-        ),
-      ),
+      isMe: message.isMe,
+      onEmojiSelected: (emoji) async {
+        await context.read<MessagingProvider>().reactToMessage(
+              message.id,
+              emoji,
+            );
+      },
     );
   }
 
@@ -267,16 +337,26 @@ class _ConversationScreenState extends State<ConversationScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Supprimer le message'),
-        content: const Text('Voulez-vous vraiment supprimer ce message ?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Supprimer le message'),
+          ],
+        ),
+        content: const Text(
+          'Voulez-vous vraiment supprimer ce message ?\n\nCette action est irréversible.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Annuler'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Supprimer'),
           ),
         ],
       ),
@@ -287,27 +367,44 @@ class _ConversationScreenState extends State<ConversationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text(widget.contactName),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: ConversationHeader(
+          imageUrl: widget.contactImageUrl,
+          name: widget.contactName,
+          isOnline: _isContactOnline,
+          lastSeen: _lastSeen,
+          onTap: () {
+            // TODO: Navigate to contact profile
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Profil du contact (bientôt disponible)')),
+            );
+          },
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.call),
+            icon: const Icon(Icons.call, color: Colors.black87),
             onPressed: () {
-              // TODO: Implement call
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Appel vocal (bientôt disponible)')),
               );
             },
           ),
           IconButton(
-            icon: const Icon(Icons.videocam),
+            icon: const Icon(Icons.videocam, color: Colors.black87),
             onPressed: () {
-              // TODO: Implement video call
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Appel vidéo (bientôt disponible)')),
               );
             },
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(
@@ -319,7 +416,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 final messages = provider.getMessages(widget.contactId);
 
                 if (provider.isLoading) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Chargement des messages...'),
+                      ],
+                    ),
+                  );
                 }
 
                 if (messages.isEmpty) {
@@ -327,23 +433,35 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.message_outlined,
-                          size: 64,
-                          color: Colors.grey[400],
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.message_outlined,
+                            size: 64,
+                            color: Colors.blue[300],
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                        Text(
+                        const SizedBox(height: 24),
+                        const Text(
                           'Aucun message',
                           style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey[600],
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Envoyez votre premier message',
-                          style: TextStyle(color: Colors.grey[500]),
+                          'Envoyez votre premier message à ${widget.contactName}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),
@@ -352,16 +470,59 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
                 return ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: messages.length,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  itemCount: messages.length + (_showTypingIndicator ? 1 : 0),
                   itemBuilder: (context, index) {
+                    // Show typing indicator as last item
+                    if (_showTypingIndicator && index == messages.length) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Row(
+                          children: [
+                            AvatarWithStatus(
+                              imageUrl: widget.contactImageUrl,
+                              name: widget.contactName,
+                              isOnline: _isContactOnline,
+                              size: 32,
+                              showStatusIndicator: false,
+                            ),
+                            const SizedBox(width: 8),
+                            const TypingIndicator(),
+                          ],
+                        ),
+                      );
+                    }
+
                     final message = messages[index];
-                    return _MessageBubble(
-                      message: message,
-                      onLongPress: () => _showMessageOptions(message),
-                      onPlayAudio: (url) async {
-                        await _audioPlayer.play(UrlSource(url));
-                      },
+                    
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        modern.ModernMessageBubble(
+                          message: message.content ?? '',
+                          isMe: message.isMe,
+                          timestamp: message.timestamp,
+                          type: _getModernMessageType(message.type),
+                          isRead: message.status == MessageStatus.read,
+                          onLongPress: () => _showMessageOptions(message),
+                          audioWidget: message.type == MessageType.voice
+                              ? AudioPlayerWidget(
+                                  audioUrl: message.mediaUrl ?? '',
+                                  duration: Duration(seconds: message.duration ?? 0),
+                                  transcription: message.transcription,
+                                  isMe: message.isMe,
+                                )
+                              : null,
+                          imageUrl: message.type == MessageType.image ? message.mediaUrl : null,
+                        ),
+                        
+                        // Reaction emoji
+                        if (message.reaction != null && message.reaction!.isNotEmpty)
+                          ReactionWidget(
+                            emoji: message.reaction!,
+                            isMe: message.isMe,
+                          ),
+                      ],
                     );
                   },
                 );
@@ -371,167 +532,48 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
           // Input bar
           Container(
-            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
+              color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
                   offset: const Offset(0, -2),
                 ),
               ],
             ),
-            child: _isRecording
-                ? _buildRecordingBar()
-                : _buildInputBar(),
+            child: SafeArea(
+              child: _isRecording
+                  ? Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: VoiceRecorderWidget(
+                        onRecordingComplete: _onRecordingComplete,
+                        onCancel: _onRecordingCancel,
+                      ),
+                    )
+                  : ModernMessageInput(
+                      controller: _textController,
+                      onSendMessage: _sendTextMessage,
+                      onStartRecording: _startRecording,
+                      isSending: _isSending,
+                    ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildRecordingBar() {
-    return Row(
-      children: [
-        const Icon(Icons.mic, color: Colors.red),
-        const SizedBox(width: 8),
-        const Expanded(
-          child: Text('Enregistrement en cours...'),
-        ),
-        IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: _cancelRecording,
-        ),
-        IconButton(
-          icon: const Icon(Icons.send, color: Colors.blue),
-          onPressed: _stopRecordingAndSend,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInputBar() {
-    return Row(
-      children: [
-        Expanded(
-          child: TextField(
-            controller: _textController,
-            decoration: InputDecoration(
-              hintText: 'Message...',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
-                borderSide: BorderSide.none,
-              ),
-              filled: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
-              ),
-            ),
-            maxLines: null,
-            textInputAction: TextInputAction.newline,
-          ),
-        ),
-        const SizedBox(width: 8),
-        if (_textController.text.trim().isEmpty)
-          IconButton(
-            icon: const Icon(Icons.mic),
-            onPressed: _startRecording,
-          )
-        else
-          IconButton(
-            icon: _isSending
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.send),
-            onPressed: _isSending ? null : _sendTextMessage,
-          ),
-      ],
-    );
-  }
-}
-
-class _MessageBubble extends StatelessWidget {
-  final MessageModel message;
-  final VoidCallback onLongPress;
-  final Function(String) onPlayAudio;
-
-  const _MessageBubble({
-    required this.message,
-    required this.onLongPress,
-    required this.onPlayAudio,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onLongPress: onLongPress,
-      child: Align(
-        alignment: message.isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.7,
-          ),
-          decoration: BoxDecoration(
-            color: message.isMe
-                ? Theme.of(context).colorScheme.primaryContainer
-                : Theme.of(context).colorScheme.surfaceVariant,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (message.type == MessageType.voice)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.play_arrow, size: 20),
-                      onPressed: () {
-                        if (message.mediaUrl != null) {
-                          onPlayAudio(message.mediaUrl!);
-                        }
-                      },
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${message.duration ?? 0}s',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
-                )
-              else
-                Text(message.content ?? ''),
-              if (message.transcription != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  message.transcription!,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-              if (message.reaction != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  message.reaction!,
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
+  modern.MessageType _getModernMessageType(MessageType type) {
+    switch (type) {
+      case MessageType.text:
+        return modern.MessageType.text;
+      case MessageType.voice:
+        return modern.MessageType.audio;
+      case MessageType.image:
+        return modern.MessageType.image;
+      default:
+        return modern.MessageType.text;
+    }
   }
 }
