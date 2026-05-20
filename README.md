@@ -5,11 +5,13 @@
 [![Flutter](https://img.shields.io/badge/Flutter-3.24.5-blue.svg)](https://flutter.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Hosting-orange.svg)](https://firebase.google.com)
 [![PWA](https://img.shields.io/badge/PWA-Ready-green.svg)](https://web.dev/progressive-web-apps)
+[![Netlify](https://img.shields.io/badge/Netlify-Deployed-00C7B7.svg)](https://netlify.com)
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)]()
 
 ## 🌐 Live Demo
 
-- **Production:** [https://omnisms-b98c5.web.app](https://omnisms-b98c5.web.app)
+- **Production (Netlify):** [https://omnisms.netlify.app](https://omnisms.netlify.app)
+- **Alternative (Firebase):** [https://omnisms-b98c5.web.app](https://omnisms-b98c5.web.app)
 - **Backend API:** [https://omnisms-backend.onrender.com](https://omnisms-backend.onrender.com)
 
 ## ✨ Fonctionnalités
@@ -26,10 +28,14 @@
 - 🔔 **Notifications Push Web** - Notifications en temps réel (FCM)
 - 📴 **Mode Offline** - Fonctionne sans connexion internet
 - 📊 **Analytics** - Tracking Google Analytics 4
-- ⚡ **Lazy Loading** - Chargement optimisé
+- ⚡ **Performance Optimisée** - Lazy loading, cache images, pagination
+- 🎨 **UI Moderne** - Design Instagram/Telegram style
+- 💬 **Chat Avancé** - Réactions emoji, typing indicator, statut en ligne
+- 🎤 **Messages Vocaux** - Enregistrement, waveform, transcription, vitesse de lecture
 - 🌓 **Dark Mode** - Thème clair/sombre
 - 🔐 **Authentification** - Firebase Auth
 - 🔄 **Sync Auto** - Synchronisation automatique
+- 💰 **PropellerAds** - Monétisation publicitaire
 
 ## 🏗️ Architecture
 
@@ -115,11 +121,11 @@ firebase deploy --only hosting
 
 ## 📚 Documentation
 
-- **[COMPLETE_PWA_GUIDE.md](./COMPLETE_PWA_GUIDE.md)** - Guide complet PWA (13KB)
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - 🚀 Guide de déploiement complet
+- **[CONTACTS_FIX_COMPLETE.md](./CONTACTS_FIX_COMPLETE.md)** - 📱 Fix contacts iOS/Android
+- **[NEXT_STEPS.md](./NEXT_STEPS.md)** - 📋 Roadmap et prochaines étapes
+- **[COMPLETE_PWA_GUIDE.md](./COMPLETE_PWA_GUIDE.md)** - Guide complet PWA
 - **[GITHUB_SECRETS_SETUP.md](./GITHUB_SECRETS_SETUP.md)** - Configuration CI/CD
-- **[FINAL_SUMMARY.md](./FINAL_SUMMARY.md)** - Résumé final
-- **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** - Référence rapide
-- **[PWA_DOCUMENTATION.md](./PWA_DOCUMENTATION.md)** - Doc PWA
 
 ## 🔧 Configuration
 
@@ -229,13 +235,22 @@ Copyright © 2026 OmniSMS. Tous droits réservés.
 
 ## 📈 Roadmap
 
-### Court Terme
+### ✅ Terminé (v2.2.0)
 - [x] PWA Complete
 - [x] Notifications Push
 - [x] Mode Offline
 - [x] Analytics GA4
+- [x] **UI Moderne** - Style Instagram/Telegram
+- [x] **Messages Vocaux** - Recording + Waveform + Transcription
+- [x] **Performance** - Lazy loading, cache, pagination
+- [x] **PropellerAds** - Intégration publicitaire
+- [x] **Contacts iOS/Android** - Fix permissions
+- [x] **Chat Avancé** - Réactions, typing, statut
+
+### Court Terme
 - [ ] Tests E2E complets
 - [ ] Optimisation bundle size
+- [ ] Backend health monitoring
 
 ### Moyen Terme
 - [ ] Support multilingue (i18n)
@@ -256,7 +271,35 @@ Si ce projet vous aide, n'hésitez pas à lui donner une ⭐ !
 
 ---
 
-**Version:** 2.2.0+4  
+**Version:** 2.2.0+7  
 **Status:** ✅ Production Ready  
-**Last Updated:** 2026-04-18  
+**Last Updated:** 2026-05-20  
 **Made with ❤️ using Flutter**
+
+## 🎉 Nouveautés v2.2.0
+
+### Interface Chat Moderne
+- 💬 Bulles de messages style Instagram avec animations
+- 👀 Indicateurs de lecture (vu/non vu)
+- ⌨️ Typing indicator animé
+- 🟢 Statut en ligne/hors ligne
+- 😀 Réactions emoji sur les messages
+- 🕐 Timestamps et métadonnées
+
+### Messages Vocaux Complets
+- 🎤 Enregistrement avec waveform live
+- ⏸️ Lecture avec waveform interactive
+- ⚡ Contrôle de vitesse (x1, x1.5, x2)
+- 📝 Transcription automatique (API backend)
+- 💾 Cache local des audios
+
+### Performances
+- 🚀 Lazy loading des messages (pagination 50 par 50)
+- 🖼️ Cache intelligent des images
+- 📦 Optimisation mémoire
+- ⚡ Scroll ultra-fluide (60 FPS)
+
+### Monétisation
+- 💰 Intégration PropellerAds
+- 📺 Bannières publicitaires
+- 🎯 Configuration par zones
