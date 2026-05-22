@@ -4,16 +4,16 @@ class AdsConfig {
   // Remplacez ces valeurs par vos vrais Zone IDs depuis PropellerAds dashboard
   
   /// Banner Ad Zone ID - Format bannière standard
-  static const String bannerZoneId = 'REPLACE_WITH_YOUR_BANNER_ZONE_ID';
+  static const String bannerZoneId = '11034847';
   
   /// Interstitial Ad Zone ID - Format plein écran
-  static const String interstitialZoneId = 'REPLACE_WITH_YOUR_INTERSTITIAL_ZONE_ID';
+  static const String interstitialZoneId = '11034847'; // Utiliser le même Zone ID pour l'instant
   
   /// Push Notification Zone ID - Format push notifications
-  static const String pushNotificationZoneId = 'REPLACE_WITH_YOUR_PUSH_ZONE_ID';
+  static const String pushNotificationZoneId = '11034847'; // Utiliser le même Zone ID pour l'instant
   
   /// Onclick (Popunder) Zone ID - Format onclick/popunder
-  static const String onclickZoneId = 'REPLACE_WITH_YOUR_ONCLICK_ZONE_ID';
+  static const String onclickZoneId = '11034847'; // Utiliser le même Zone ID pour l'instant
   
   // ==================== Configuration ====================
   
