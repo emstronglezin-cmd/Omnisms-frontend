@@ -1,0 +1,47 @@
+# Vercel ignore file
+
+# Flutter
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+
+# Build outputs (except build/web)
+build/android/
+build/ios/
+build/macos/
+build/windows/
+build/linux/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.code-workspace
+
+# System
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+
+# Temporary
+*.tmp
+*.temp
+.cache/
+
+# Documentation (keep in repo but not in build)
+*.md
+!README.md
+
+# Old configs
+netlify.toml
+build.sh
+.netlify/
