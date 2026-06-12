@@ -1,86 +1,40 @@
 import 'package:flutter/foundation.dart';
-import 'package:startapp_sdk/startapp.dart';
 
+/// AdsService - Stub vide pour compatibilité
+/// Start.io a été supprimé, PropellerAds est utilisé à la place
 class AdsService {
   static final AdsService _instance = AdsService._internal();
   factory AdsService() => _instance;
   AdsService._internal();
 
-  var startAppSdk = StartAppSdk();
-  StartAppBannerAd? _bannerAd;
-  StartAppInterstitialAd? _interstitialAd;
   bool _isInitialized = false;
 
-  /// Initialize Start.io SDK
+  /// Initialize (no-op)
   Future<void> initialize() async {
-    if (_isInitialized || kIsWeb) {
-      // Start.io doesn't support web
-      return;
-    }
-
-    try {
-      // Initialize SDK
-      await startAppSdk.loadAd(StartAppAdType.REWARDED);
-      
-      _isInitialized = true;
-      debugPrint('✅ Start.io Ads initialized successfully');
-      
-      // Load interstitial ad in advance
-      await loadInterstitialAd();
-    } catch (e) {
-      debugPrint('❌ Error initializing Start.io Ads: $e');
-      _isInitialized = false;
-    }
+    _isInitialized = true;
+    debugPrint('✅ AdsService initialized (PropellerAds used instead)');
   }
 
-  /// Create and show banner ad
-  Future<StartAppBannerAd?> createBannerAd() async {
-    if (!_isInitialized || kIsWeb) return null;
-
-    try {
-      _bannerAd = StartAppBannerAd(StartAppBannerType.BANNER);
-      debugPrint('✅ Banner ad created');
-      return _bannerAd;
-    } catch (e) {
-      debugPrint('❌ Error loading banner ad: $e');
-      return null;
-    }
+  /// Create banner ad (no-op)
+  Future<dynamic> createBannerAd() async {
+    return null;
   }
 
-  /// Load interstitial ad
+  /// Load interstitial ad (no-op)
   Future<void> loadInterstitialAd() async {
-    if (!_isInitialized || kIsWeb) return;
-
-    try {
-      _interstitialAd = StartAppInterstitialAd();
-      await startAppSdk.loadAd(StartAppAdType.INTERSTITIAL);
-      debugPrint('✅ Interstitial ad loaded');
-    } catch (e) {
-      debugPrint('❌ Error loading interstitial ad: $e');
-    }
+    // No-op
   }
 
-  /// Show interstitial ad
+  /// Show interstitial ad (no-op)
   Future<void> showInterstitialAd() async {
-    if (!_isInitialized || _interstitialAd == null || kIsWeb) return;
-
-    try {
-      await _interstitialAd!.show();
-      debugPrint('✅ Interstitial ad shown');
-      
-      // Load next ad
-      await loadInterstitialAd();
-    } catch (e) {
-      debugPrint('❌ Error showing interstitial ad: $e');
-    }
+    // No-op
   }
 
-  /// Dispose banner ad
+  /// Dispose banner ad (no-op)
   void disposeBannerAd() {
-    _bannerAd?.dispose();
-    _bannerAd = null;
+    // No-op
   }
 
   /// Check if ads are available
-  bool get isAvailable => _isInitialized && !kIsWeb;
+  bool get isAvailable => false;
 }
