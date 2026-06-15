@@ -1,15 +1,11 @@
 {
   "version": 2,
-  "name": "omnisms",
-  "buildCommand": "flutter build web --release --web-renderer html",
+  "buildCommand": "./vercel-build.sh",
   "outputDirectory": "build/web",
-  "devCommand": "flutter run -d web-server --web-port $PORT",
-  "framework": null,
-  "installCommand": "if [ ! -d \"flutter\" ]; then wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz && tar xf flutter_linux_3.24.5-stable.tar.xz && rm flutter_linux_3.24.5-stable.tar.xz; fi && export PATH=\"$PATH:$PWD/flutter/bin\" && flutter config --no-analytics && flutter pub get",
+  "installCommand": "chmod +x vercel-build.sh",
   "routes": [
     {
       "src": "/sw.js",
-      "dest": "/sw.js",
       "headers": {
         "Content-Type": "application/javascript",
         "Service-Worker-Allowed": "/"
@@ -17,7 +13,6 @@
     },
     {
       "src": "/firebase-messaging-sw.js",
-      "dest": "/firebase-messaging-sw.js",
       "headers": {
         "Content-Type": "application/javascript",
         "Service-Worker-Allowed": "/"
@@ -25,7 +20,6 @@
     },
     {
       "src": "/manifest.json",
-      "dest": "/manifest.json",
       "headers": {
         "Content-Type": "application/manifest+json"
       }
@@ -63,8 +57,5 @@
         }
       ]
     }
-  ],
-  "env": {
-    "FLUTTER_VERSION": "3.24.5"
-  }
+  ]
 }
