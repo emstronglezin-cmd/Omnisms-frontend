@@ -10,9 +10,9 @@ echo "=================================="
 # Check if Flutter is installed
 if [ ! -d "flutter" ]; then
     echo "📥 Installing Flutter SDK..."
-    wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz
-    tar xf flutter_linux_3.24.5-stable.tar.xz
-    rm flutter_linux_3.24.5-stable.tar.xz
+    curl -sL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz -o flutter.tar.xz
+    tar xf flutter.tar.xz
+    rm flutter.tar.xz
     echo "✅ Flutter SDK installed"
 else
     echo "✅ Flutter SDK already installed"
