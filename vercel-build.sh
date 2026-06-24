@@ -7,10 +7,14 @@ set -e
 echo "🌐 OmniSMS - Vercel Build Script"
 echo "=================================="
 
+# Fix Git ownership warnings (Vercel runs as root)
+git config --global --add safe.directory '*'
+
 # Check if Flutter is installed
 if [ ! -d "flutter" ]; then
-    echo "📥 Installing Flutter SDK..."
-    curl -sL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz -o flutter.tar.xz
+    echo "📥 Installing Flutter SDK (v3.44.3 stable)..."
+    # Use latest stable version (3.44.3) to satisfy url_launcher ^6.3.1 requirements
+    curl -sL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.44.3-stable.tar.xz -o flutter.tar.xz
     tar xf flutter.tar.xz
     rm flutter.tar.xz
     echo "✅ Flutter SDK installed"
@@ -21,8 +25,11 @@ fi
 # Add Flutter to PATH
 export PATH="$PATH:$PWD/flutter/bin"
 
+# Fix Flutter git ownership
+git config --global --add safe.directory "$PWD/flutter"
+
 # Disable analytics
-flutter config --no-analytics
+flutter config --no-analytics 2>/dev/null || true
 
 # Verify Flutter
 echo "🔍 Verifying Flutter installation..."
