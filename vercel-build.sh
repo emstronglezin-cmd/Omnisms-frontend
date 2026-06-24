@@ -12,14 +12,13 @@ git config --global --add safe.directory '*'
 
 # Check if Flutter is installed
 if [ ! -d "flutter" ]; then
-    echo "📥 Installing Flutter SDK (v3.44.3 stable)..."
-    # Use latest stable version (3.44.3) to satisfy url_launcher ^6.3.1 requirements
-    curl -sL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.44.3-stable.tar.xz -o flutter.tar.xz
-    tar xf flutter.tar.xz
-    rm flutter.tar.xz
-    echo "✅ Flutter SDK installed"
+   echo "📥 Installing Flutter SDK (v3.44.3 stable)..."
+   curl -sL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.44.3-stable.tar.xz -o flutter.tar.xz
+   tar xf flutter.tar.xz
+   rm flutter.tar.xz
+   echo "✅ Flutter SDK installed"
 else
-    echo "✅ Flutter SDK already installed"
+   echo "✅ Flutter SDK already installed"
 fi
 
 # Add Flutter to PATH
@@ -43,12 +42,11 @@ flutter clean
 echo "📦 Installing dependencies..."
 flutter pub get
 
-# Build for web
+# Build for web (--web-renderer supprimé depuis Flutter 3.22+)
 echo "🏗️  Building Flutter Web (release)..."
 flutter build web \
-  --release \
-  --web-renderer html \
-  --base-href "/"
+ --release \
+ --base-href "/"
 
 echo "✅ Build completed successfully!"
 
