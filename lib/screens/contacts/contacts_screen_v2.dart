@@ -528,8 +528,8 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
           context,
           MaterialPageRoute(
             builder: (context) => ConversationScreen(
+              contactId: contact.phone, // Using phone as contactId
               contactName: contact.name,
-              contactPhone: contact.phone,
             ),
           ),
         );

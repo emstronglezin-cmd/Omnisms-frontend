@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:just_audio/just_audio.dart';
+import 'package:just_audio/just_audio.dart' as just_audio;
 import 'package:audio_waveforms/audio_waveforms.dart';
 
 /// Widget moderne pour lire des messages vocaux avec waveform et contrôles de vitesse
@@ -23,14 +23,14 @@ class AudioPlayerWidget extends StatefulWidget {
 }
 
 class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
-  late final AudioPlayer _audioPlayer;
+  late final just_audio.AudioPlayer _audioPlayer;
   PlayerController? _waveformController;
   
   bool _isPlaying = false;
   Duration _currentPosition = Duration.zero;
   double _playbackSpeed = 1.0;
   bool _isLoading = false;
-  StreamSubscription<PlayerState>? _playerStateSubscription;
+  StreamSubscription<just_audio.PlayerState>? _playerStateSubscription;
   StreamSubscription<Duration>? _positionSubscription;
 
   @override
@@ -40,7 +40,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   }
 
   Future<void> _initializePlayer() async {
-    _audioPlayer = AudioPlayer();
+    _audioPlayer = just_audio.AudioPlayer();
     
     // Initialize waveform controller
     _waveformController = PlayerController();
@@ -66,7 +66,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
         }
         
         // Auto-reset when completed
-        if (state.processingState == ProcessingState.completed) {
+        if (state.processingState == just_audio.ProcessingState.completed) {
           _audioPlayer.seek(Duration.zero);
           _audioPlayer.pause();
         }
