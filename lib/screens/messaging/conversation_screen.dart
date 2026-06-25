@@ -552,10 +552,8 @@ class _ConversationScreenState extends State<ConversationScreen> with TickerProv
                       ),
                     )
                   : ModernMessageInput(
-                      controller: _textController,
                       onSendMessage: _sendTextMessage,
                       onStartRecording: _startRecording,
-                      isSending: _isSending,
                     ),
             ),
           ),
