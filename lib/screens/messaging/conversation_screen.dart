@@ -70,11 +70,8 @@ class _ConversationScreenState extends State<ConversationScreen> with TickerProv
     }
   }
 
-  Future<void> _sendTextMessage() async {
-    if (_textController.text.trim().isEmpty) return;
-
-    final text = _textController.text.trim();
-    _textController.clear();
+  Future<void> _sendTextMessage(String text) async {
+    if (text.trim().isEmpty) return;
 
     setState(() {
       _isSending = true;
@@ -82,7 +79,7 @@ class _ConversationScreenState extends State<ConversationScreen> with TickerProv
 
     final success = await context.read<MessagingProvider>().sendTextMessage(
           contactId: widget.contactId,
-          content: text,
+          content: text.trim(),
         );
 
     setState(() {
