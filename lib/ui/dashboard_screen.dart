@@ -3,6 +3,8 @@ import '../screens/settings/settings_screen.dart';
 import '../screens/contacts/contacts_screen.dart' as contact_screen;
 import '../screens/groups/groups_screen.dart' as group_screen;
 import '../screens/messaging/conversation_screen.dart' as msg_screen;
+import '../screens/groups/create_group_screen.dart' as create_group_screen;
+import '../screens/transcription_screen.dart' as transcription_screen;
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -189,7 +191,7 @@ class DashboardHomePage extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const CreateGroupScreen(),
+                        builder: (_) => const create_group_screen.CreateGroupScreen(),
                       ),
                     );
                   },
@@ -205,7 +207,7 @@ class DashboardHomePage extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const TranscriptionScreen(),
+                        builder: (_) => const transcription_screen.TranscriptionScreen(),
                       ),
                     );
                   },
@@ -284,129 +286,6 @@ class DashboardHomePage extends StatelessWidget {
               const Icon(Icons.chevron_right),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class CreateGroupScreen extends StatefulWidget {
-  const CreateGroupScreen({super.key});
-
-  @override
-  State<CreateGroupScreen> createState() => _CreateGroupScreenState();
-}
-
-class _CreateGroupScreenState extends State<CreateGroupScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _descController = TextEditingController();
-  bool _isLoading = false;
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _descController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _createGroup() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    await Future.delayed(const Duration(seconds: 2));
-
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = false;
-    });
-
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Groupe créé avec succès')),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Créer un groupe'),
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nom du groupe',
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Nom requis';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _descController,
-              decoration: const InputDecoration(
-                labelText: 'Description (optionnel)',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _createGroup,
-                child: _isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text('Créer le groupe'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class TranscriptionScreen extends StatelessWidget {
-  const TranscriptionScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Transcription'),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.mic,
-              size: 64,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Transcription vocale',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text('Fonctionnalité bientôt disponible'),
-          ],
         ),
       ),
     );

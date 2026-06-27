@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../providers/auth_provider.dart';
 import '../auth/profile_screen.dart';
 import 'notifications_settings_screen.dart';
@@ -170,9 +170,10 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 );
                 
-                if (confirm == true) {
-                  // Force a crash for testing
-                  FirebaseCrashlytics.instance.crash();
+                if (confirm == true && !kIsWeb) {
+                  // Force a crash for testing (mobile only)
+                  // FirebaseCrashlytics.instance.crash();
+                  debugPrint('Crash test triggered (no-op on web)');
                 }
               },
             ),

@@ -1,11 +1,8 @@
-import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 // Providers
 import 'providers/auth_provider.dart';
@@ -14,14 +11,11 @@ import 'providers/contacts_provider_v2.dart';
 import 'providers/messaging_provider.dart';
 import 'providers/groups_provider.dart';
 
-// Services
-import 'services/ads_service.dart';
-
 // Screens
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/splash_screen.dart';
-import 'screens/dashboard_screen.dart';
+import 'ui/dashboard_screen.dart';
 import 'screens/contacts/contacts_screen.dart';
 import 'screens/groups/groups_screen.dart';
 import 'screens/settings/settings_screen.dart';
@@ -30,44 +24,35 @@ import 'screens/subscription_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Lock orientation (mobile only, not web)
+
+  // Lock orientation on mobile only
   if (!kIsWeb) {
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
   }
-  
-  // Initialize Firebase
+
+  // Initialize Firebase (non-blocking - app works without it)
   try {
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: 'AIzaSyD3Yur6Q5IvcDI_bC9YuLFNC4jvgEREtBQ',
-        appId: '1:948236796279:android:747ba8ba81710da2ade172',
-        messagingSenderId: '948236796279',
-        projectId: 'omnisms-b98c5',
-        storageBucket: 'omnisms-b98c5.firebasestorage.app',
-      ),
-    );
-    
-    // 🔥 Initialize Crashlytics (production only)
-    await _initCrashlytics();
-    
-  } catch (e) {
-    debugPrint('⚠️ Firebase init error (non-blocking): $e');
-  }
-  
-  // 📱 Initialize Start.io Ads (mobile only)
-  if (!kIsWeb) {
-    try {
-      await AdsService().initialize();
-      debugPrint('✅ Ads service initialized');
-    } catch (e) {
-      debugPrint('⚠️ Ads init error (non-blocking): $e');
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: const FirebaseOptions(
+          apiKey: 'AIzaSyD3Yur6Q5IvcDI_bC9YuLFNC4jvgEREtBQ',
+          appId: '1:948236796279:web:omnisms-webapp-2024',
+          messagingSenderId: '948236796279',
+          projectId: 'omnisms-b98c5',
+          storageBucket: 'omnisms-b98c5.firebasestorage.app',
+          authDomain: 'omnisms-b98c5.firebaseapp.com',
+        ),
+      );
+      debugPrint('✅ Firebase initialized');
     }
+  } catch (e) {
+    // Firebase error is non-blocking
+    debugPrint('⚠️ Firebase init (non-blocking): $e');
   }
-  
+
   runApp(
     MultiProvider(
       providers: [
@@ -80,24 +65,6 @@ void main() async {
       child: const MyApp(),
     ),
   );
-}
-
-/// 🔥 Initialize Firebase Crashlytics
-Future<void> _initCrashlytics() async {
-  // Enable Crashlytics collection (production only)
-  const bool isProduction = bool.fromEnvironment('dart.vm.product');
-  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(isProduction);
-  
-  // Pass all uncaught "fatal" errors from the framework to Crashlytics
-  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-  
-  // Pass all uncaught asynchronous errors to Crashlytics
-  PlatformDispatcher.instance.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    return true;
-  };
-  
-  debugPrint('🔥 Crashlytics initialized (production mode: $isProduction)');
 }
 
 class MyApp extends StatelessWidget {
