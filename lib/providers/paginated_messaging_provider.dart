@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/messaging_service.dart';
@@ -34,11 +34,16 @@ class PaginatedMessagingProvider with ChangeNotifier {
   }
 
   void _initWebSocket() {
-    _messagingService.connectWebSocket((message) {
-      _addMessageToConversation(message);
-    });
-    _isConnected = true;
-    notifyListeners();
+    try {
+      _messagingService.connectWebSocket((message) {
+        _addMessageToConversation(message);
+      });
+      _isConnected = true;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('⚠️ WebSocket init error (non-blocking): $e');
+      _isConnected = false;
+    }
   }
 
   void _addMessageToConversation(MessageModel message) {
@@ -146,10 +151,14 @@ class PaginatedMessagingProvider with ChangeNotifier {
 
   Future<bool> sendVoiceMessage({
     required String contactId,
-    required File audioFile,
+    required dynamic audioFile, // dynamic to avoid dart:io File on web
     int? duration,
     String? conversationId,
   }) async {
+    if (kIsWeb) {
+      debugPrint('⚠️ Voice messages not supported on web');
+      return false;
+    }
     try {
       final message = await _messagingService.sendVoiceMessage(
         receiverId: contactId,
@@ -250,7 +259,11 @@ class PaginatedMessagingProvider with ChangeNotifier {
 
   @override
   void dispose() {
-    _messagingService.disconnectWebSocket();
+    try {
+      _messagingService.disconnectWebSocket();
+    } catch (e) {
+      debugPrint('⚠️ WebSocket disconnect error: $e');
+    }
     super.dispose();
   }
 

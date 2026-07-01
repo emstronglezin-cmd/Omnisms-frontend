@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart' as just_audio;
-import 'package:audio_waveforms/audio_waveforms.dart';
 
-/// Widget moderne pour lire des messages vocaux avec waveform et contrôles de vitesse
+/// Widget pour lire des messages vocaux
+/// Sur web: utilise just_audio (compatible web)
+/// Sur mobile: utilise just_audio avec progress bar
 class AudioPlayerWidget extends StatefulWidget {
   final String audioUrl;
   final Duration duration;
@@ -24,8 +26,7 @@ class AudioPlayerWidget extends StatefulWidget {
 
 class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   late final just_audio.AudioPlayer _audioPlayer;
-  PlayerController? _waveformController;
-  
+
   bool _isPlaying = false;
   Duration _currentPosition = Duration.zero;
   double _playbackSpeed = 1.0;
@@ -41,38 +42,25 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
 
   Future<void> _initializePlayer() async {
     _audioPlayer = just_audio.AudioPlayer();
-    
-    // Initialize waveform controller
-    _waveformController = PlayerController();
-    
+
     try {
       setState(() => _isLoading = true);
-      
-      // Prepare audio source
+
       await _audioPlayer.setUrl(widget.audioUrl);
-      
-      // Extract waveform if possible
-      await _waveformController?.preparePlayer(
-        path: widget.audioUrl,
-        shouldExtractWaveform: true,
-      );
-      
-      // Listen to player state changes
+
       _playerStateSubscription = _audioPlayer.playerStateStream.listen((state) {
         if (mounted) {
           setState(() {
             _isPlaying = state.playing;
           });
         }
-        
-        // Auto-reset when completed
+
         if (state.processingState == just_audio.ProcessingState.completed) {
           _audioPlayer.seek(Duration.zero);
           _audioPlayer.pause();
         }
       });
-      
-      // Listen to position changes
+
       _positionSubscription = _audioPlayer.positionStream.listen((position) {
         if (mounted) {
           setState(() {
@@ -80,7 +68,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
           });
         }
       });
-      
+
       setState(() => _isLoading = false);
     } catch (e) {
       debugPrint('Error initializing audio player: $e');
@@ -93,7 +81,6 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     _playerStateSubscription?.cancel();
     _positionSubscription?.cancel();
     _audioPlayer.dispose();
-    _waveformController?.dispose();
     super.dispose();
   }
 
@@ -109,11 +96,11 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     final speeds = [1.0, 1.5, 2.0];
     final currentIndex = speeds.indexOf(_playbackSpeed);
     final nextSpeed = speeds[(currentIndex + 1) % speeds.length];
-    
+
     setState(() {
       _playbackSpeed = nextSpeed;
     });
-    
+
     _audioPlayer.setSpeed(nextSpeed);
   }
 
@@ -127,7 +114,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   Widget build(BuildContext context) {
     final primaryColor = widget.isMe ? Colors.white : const Color(0xFF0084FF);
     final backgroundColor = widget.isMe ? const Color(0xFF0084FF) : Colors.grey[200];
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -137,7 +124,6 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Audio player controls
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -166,54 +152,36 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                         ),
                 ),
               ),
-              
+
               const SizedBox(width: 8),
-              
-              // Waveform or progress bar
+
+              // Progress bar (web-safe, no audio_waveforms)
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Waveform visualization
-                    if (_waveformController != null)
-                      SizedBox(
-                        height: 40,
-                        child: AudioFileWaveforms(
-                          size: Size(MediaQuery.of(context).size.width * 0.5, 40),
-                          playerController: _waveformController!,
-                          enableSeekGesture: true,
-                          waveformType: WaveformType.fitWidth,
-                          playerWaveStyle: PlayerWaveStyle(
-                            fixedWaveColor: primaryColor.withOpacity(0.3),
-                            liveWaveColor: primaryColor,
-                            spacing: 4,
-                            showSeekLine: false,
-                            scaleFactor: 150,
-                          ),
-                        ),
-                      )
-                    else
-                      // Fallback progress bar
-                      SliderTheme(
-                        data: SliderThemeData(
-                          trackHeight: 2,
-                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                          activeTrackColor: primaryColor,
-                          inactiveTrackColor: primaryColor.withOpacity(0.3),
-                          thumbColor: primaryColor,
-                        ),
-                        child: Slider(
-                          value: _currentPosition.inMilliseconds.toDouble(),
-                          max: widget.duration.inMilliseconds.toDouble(),
-                          onChanged: (value) async {
-                            final position = Duration(milliseconds: value.toInt());
-                            await _audioPlayer.seek(position);
-                          },
-                        ),
+                    SliderTheme(
+                      data: SliderThemeData(
+                        trackHeight: 2,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                        activeTrackColor: primaryColor,
+                        inactiveTrackColor: primaryColor.withOpacity(0.3),
+                        thumbColor: primaryColor,
                       ),
-                    
-                    // Duration display
+                      child: Slider(
+                        value: _currentPosition.inMilliseconds
+                            .clamp(0, widget.duration.inMilliseconds)
+                            .toDouble(),
+                        max: widget.duration.inMilliseconds > 0
+                            ? widget.duration.inMilliseconds.toDouble()
+                            : 1.0,
+                        onChanged: (value) async {
+                          final position = Duration(milliseconds: value.toInt());
+                          await _audioPlayer.seek(position);
+                        },
+                      ),
+                    ),
                     Text(
                       '${_formatDuration(_currentPosition)} / ${_formatDuration(widget.duration)}',
                       style: TextStyle(
@@ -225,9 +193,9 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                   ],
                 ),
               ),
-              
+
               const SizedBox(width: 8),
-              
+
               // Playback speed button
               GestureDetector(
                 onTap: _changePlaybackSpeed,
@@ -249,14 +217,14 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
               ),
             ],
           ),
-          
-          // Transcription display (if available)
+
+          // Transcription display
           if (widget.transcription != null && widget.transcription!.isNotEmpty) ...[
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: widget.isMe 
+                color: widget.isMe
                     ? Colors.white.withOpacity(0.2)
                     : Colors.grey[300],
                 borderRadius: BorderRadius.circular(8),

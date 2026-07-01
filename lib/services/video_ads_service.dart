@@ -1,11 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../../config/ads_config.dart';
-
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:js_interop';
-import 'dart:js_interop_unsafe';
+import '../config/ads_config.dart';
 
 /// Service complet pour les vidéos publicitaires PropellerAds sur Flutter Web
 /// Supporte : Interstitial vidéo, Rewarded vidéo, Banner, Onclick/Popunder
@@ -38,13 +34,9 @@ class VideoAdsService {
 
   void _injectPropellerAdsScript() {
     if (!kIsWeb) return;
-    try {
-      final window = globalContext;
-      // Mark as initialized in JS context
-      window['_propellerAdsReady'] = true.toJS;
-    } catch (e) {
-      debugPrint('PropellerAds script injection error: $e');
-    }
+    // PropellerAds script injection happens via web/index.html
+    // No dart:js_interop needed here
+    debugPrint('✅ PropellerAds: script injection placeholder');
   }
 
   /// Vérifie le cooldown entre deux interstitielles

@@ -18,6 +18,26 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
 
   @override
+  void initState() {
+    super.initState();
+    // Check if already logged in — redirect to dashboard
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        final authProvider = context.read<AuthProvider>();
+        if (authProvider.isLoggedIn) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const DashboardScreen()),
+          );
+        }
+      } catch (e) {
+        debugPrint('⚠️ Auth check in LoginScreen: $e');
+        // Stay on login screen if auth check fails
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();

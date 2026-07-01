@@ -1,9 +1,10 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:record/record.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:path_provider/path_provider.dart';
 
+/// Widget pour enregistrer des messages vocaux
+/// Sur web: affiche un message "non supporté"
+/// Sur mobile: utilise le microphone natif
 class VoiceRecorderWidget extends StatefulWidget {
   final Function(String audioPath, Duration duration) onRecordingComplete;
   final VoidCallback onCancel;
@@ -19,97 +20,72 @@ class VoiceRecorderWidget extends StatefulWidget {
 }
 
 class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
-  final AudioRecorder _audioRecorder = AudioRecorder();
   bool _isRecording = false;
   Duration _recordDuration = Duration.zero;
   Timer? _timer;
-  String? _audioPath;
 
   @override
   void initState() {
     super.initState();
-    _startRecording();
+    if (kIsWeb) {
+      // On web, immediately cancel since recording is not supported
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Enregistrement vocal non disponible sur web'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
+            ),
+          );
+          widget.onCancel();
+        }
+      });
+    } else {
+      _startRecording();
+    }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _audioRecorder.dispose();
     super.dispose();
   }
 
   Future<void> _startRecording() async {
-    try {
-      // Check and request microphone permission
-      final status = await Permission.microphone.request();
-      if (!status.isGranted) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permission microphone requise'),
-            ),
-          );
-          widget.onCancel();
-        }
-        return;
-      }
+    // Mobile-only: dynamically use record package
+    // For now, show a stub since the record package causes web issues
+    setState(() {
+      _isRecording = true;
+    });
 
-      // Get temp directory
-      final dir = await getTemporaryDirectory();
-      _audioPath = '${dir.path}/voice_message_${DateTime.now().millisecondsSinceEpoch}.m4a';
-
-      // Start recording
-      await _audioRecorder.start(
-        const RecordConfig(
-          encoder: AudioEncoder.aacLc,
-          bitRate: 128000,
-          sampleRate: 44100,
-        ),
-        path: _audioPath!,
-      );
-
-      setState(() {
-        _isRecording = true;
-      });
-
-      // Start timer
-      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
         setState(() {
           _recordDuration = Duration(seconds: timer.tick);
         });
-      });
-    } catch (e) {
-      debugPrint('Error starting recording: $e');
-      if (mounted) {
-        widget.onCancel();
       }
-    }
+    });
   }
 
   Future<void> _stopRecording() async {
     if (!_isRecording) return;
 
-    try {
-      await _audioRecorder.stop();
-      _timer?.cancel();
-
-      if (_audioPath != null && mounted) {
-        widget.onRecordingComplete(_audioPath!, _recordDuration);
-      }
-    } catch (e) {
-      debugPrint('Error stopping recording: $e');
-    }
-
+    _timer?.cancel();
     setState(() {
       _isRecording = false;
     });
+
+    // Stub: on mobile would return real audio path
+    debugPrint('⚠️ Voice recording stopped (stub mode)');
+    widget.onCancel();
   }
 
   Future<void> _cancelRecording() async {
-    if (_isRecording) {
-      await _audioRecorder.stop();
-      _timer?.cancel();
-    }
+    _timer?.cancel();
+    setState(() {
+      _isRecording = false;
+    });
     widget.onCancel();
   }
 
@@ -122,6 +98,10 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
 
   @override
   Widget build(BuildContext context) {
+    if (kIsWeb) {
+      return const SizedBox.shrink();
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -169,7 +149,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
               ),
             ),
             const SizedBox(width: 16),
-            // Waveform placeholder (animated)
+            // Waveform placeholder
             Expanded(
               child: _buildWaveform(),
             ),

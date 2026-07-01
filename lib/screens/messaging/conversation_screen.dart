@@ -1,7 +1,6 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
 import '../../providers/messaging_provider.dart';
 import '../../models/models.dart';
 import '../../widgets/chat/modern_message_bubble.dart' as modern;
@@ -105,10 +104,21 @@ class _ConversationScreenState extends State<ConversationScreen> with TickerProv
     });
 
     try {
-      final file = File(audioPath);
+      if (kIsWeb) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Messages vocaux non supportés sur le web'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        setState(() { _isSending = false; });
+        return;
+      }
       final success = await context.read<MessagingProvider>().sendVoiceMessage(
         contactId: widget.contactId,
-        audioFile: file,
+        audioFile: audioPath, // pass path as dynamic for mobile
       );
 
       if (!success && mounted) {
