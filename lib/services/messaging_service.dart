@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../config/api_config.dart';
@@ -18,7 +18,6 @@ class MessagingService {
   }) async {
     try {
       final token = await _authService.getToken();
-      final userId = await _authService.getUserId();
 
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}${ApiConfig.sendMessageEndpoint}'),
@@ -40,21 +39,25 @@ class MessagingService {
       }
       return null;
     } catch (e) {
-      print('Error sending text message: $e');
+      debugPrint('Error sending text message: $e');
       return null;
     }
   }
 
-  // Send voice message
+  // Send voice message — not supported on web (dart:io File not available)
   Future<MessageModel?> sendVoiceMessage({
     required String receiverId,
-    required File audioFile,
+    required dynamic audioFile, // dynamic to avoid dart:io dependency on web
     int? duration,
     String? conversationId,
   }) async {
+    if (kIsWeb) {
+      debugPrint('⚠️ Voice messages not supported on web');
+      return null;
+    }
     try {
       final token = await _authService.getToken();
-      
+
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('${ApiConfig.baseUrl}${ApiConfig.sendMessageEndpoint}'),
@@ -69,12 +72,13 @@ class MessagingService {
       if (duration != null) request.fields['duration'] = duration.toString();
       if (conversationId != null) request.fields['conversationId'] = conversationId;
 
+      // audioFile.path only works on mobile (dart:io File)
       request.files.add(
         await http.MultipartFile.fromPath('audio', audioFile.path),
       );
 
       final streamedResponse = await request.send().timeout(
-        Duration(seconds: 60), // Longer timeout for file upload
+        const Duration(seconds: 60),
       );
       final response = await http.Response.fromStream(streamedResponse);
 
@@ -84,7 +88,7 @@ class MessagingService {
       }
       return null;
     } catch (e) {
-      print('Error sending voice message: $e');
+      debugPrint('Error sending voice message: $e');
       return null;
     }
   }
@@ -113,7 +117,7 @@ class MessagingService {
       }
       return [];
     } catch (e) {
-      print('Error getting messages: $e');
+      debugPrint('Error getting messages: $e');
       return [];
     }
   }
@@ -134,7 +138,7 @@ class MessagingService {
 
       return response.statusCode == 200;
     } catch (e) {
-      print('Error reacting to message: $e');
+      debugPrint('Error reacting to message: $e');
       return false;
     }
   }
@@ -154,7 +158,7 @@ class MessagingService {
 
       return response.statusCode == 200;
     } catch (e) {
-      print('Error deleting message: $e');
+      debugPrint('Error deleting message: $e');
       return false;
     }
   }
@@ -171,7 +175,7 @@ class MessagingService {
           'Authorization': 'Bearer $token',
         } : ApiConfig.headers,
         body: jsonEncode({'messageId': messageId}),
-      ).timeout(Duration(seconds: 60)); // Longer timeout for transcription
+      ).timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -179,7 +183,7 @@ class MessagingService {
       }
       return null;
     } catch (e) {
-      print('Error transcribing message: $e');
+      debugPrint('Error transcribing message: $e');
       return null;
     }
   }
@@ -188,7 +192,7 @@ class MessagingService {
   void connectWebSocket(Function(MessageModel) onMessageReceived) async {
     try {
       final token = await _authService.getToken();
-      final wsUrl = token != null 
+      final wsUrl = token != null
           ? '${ApiConfig.wsUrl}?token=$token'
           : ApiConfig.wsUrl;
 
@@ -203,24 +207,28 @@ class MessagingService {
               onMessageReceived(msg);
             }
           } catch (e) {
-            print('Error parsing WebSocket message: $e');
+            debugPrint('Error parsing WebSocket message: $e');
           }
         },
         onError: (error) {
-          print('WebSocket error: $error');
+          debugPrint('WebSocket error: $error');
         },
         onDone: () {
-          print('WebSocket closed');
+          debugPrint('WebSocket closed');
         },
       );
     } catch (e) {
-      print('Error connecting WebSocket: $e');
+      debugPrint('Error connecting WebSocket: $e');
     }
   }
 
   void disconnectWebSocket() {
-    _channel?.sink.close();
-    _channel = null;
+    try {
+      _channel?.sink.close();
+      _channel = null;
+    } catch (e) {
+      debugPrint('Error disconnecting WebSocket: $e');
+    }
   }
 
   // Mark message as read
@@ -238,7 +246,7 @@ class MessagingService {
 
       return response.statusCode == 200;
     } catch (e) {
-      print('Error marking message as read: $e');
+      debugPrint('Error marking message as read: $e');
       return false;
     }
   }

@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart';
 
 // Providers
 import 'providers/auth_provider.dart';
@@ -27,31 +26,28 @@ void main() async {
 
   // Lock orientation on mobile only
   if (!kIsWeb) {
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+    try {
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    } catch (e) {
+      debugPrint('⚠️ Orientation lock error: $e');
+    }
   }
 
-  // Initialize Firebase (non-blocking - app works without it)
-  try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: const FirebaseOptions(
-          apiKey: 'AIzaSyD3Yur6Q5IvcDI_bC9YuLFNC4jvgEREtBQ',
-          appId: '1:948236796279:web:omnisms-webapp-2024',
-          messagingSenderId: '948236796279',
-          projectId: 'omnisms-b98c5',
-          storageBucket: 'omnisms-b98c5.firebasestorage.app',
-          authDomain: 'omnisms-b98c5.firebaseapp.com',
-        ),
-      );
-      debugPrint('✅ Firebase initialized');
-    }
-  } catch (e) {
-    // Firebase error is non-blocking
-    debugPrint('⚠️ Firebase init (non-blocking): $e');
-  }
+  // Firebase is completely disabled on web to avoid initialization crashes.
+  // The app uses its own backend (omnisms-backend.onrender.com) for auth.
+  // Firebase can be re-enabled once a valid web appId is configured.
+  // To re-enable: uncomment the block below and add a real Firebase web appId.
+  //
+  // if (!kIsWeb) {
+  //   try {
+  //     await Firebase.initializeApp(...);
+  //   } catch (e) {
+  //     debugPrint('⚠️ Firebase init error: $e');
+  //   }
+  // }
 
   runApp(
     MultiProvider(

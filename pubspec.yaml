@@ -13,11 +13,11 @@ dependencies:
   # UI
   cupertino_icons: ^1.0.6
   
-  # Firebase
+  # Firebase (web-compatible only - no crashlytics on web)
   firebase_core: ^3.6.0
   firebase_auth: ^5.3.1
   firebase_messaging: ^15.1.3
-  firebase_crashlytics: ^4.1.3
+  # firebase_crashlytics removed: NOT supported on web (causes silent crash)
   
   # State Management
   provider: ^6.1.2
@@ -31,12 +31,12 @@ dependencies:
   shared_preferences: ^2.3.2
   path_provider: ^2.1.4
   
-  # Audio
-  audioplayers: ^6.1.0
-  permission_handler: ^11.3.1
-  record: ^5.1.0
+  # Audio (web-compatible packages only)
+  # audioplayers removed: replaced by just_audio (better web support)
+  # permission_handler removed: native-only, crashes on web
+  # record removed: native-only, crashes on web
   just_audio: ^0.9.36
-  audio_waveforms: ^1.0.5
+  # audio_waveforms removed: native-only (Android/iOS), crashes on web
   
   # Contacts
   flutter_contacts: ^1.1.7+1

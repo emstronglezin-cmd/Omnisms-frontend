@@ -1,5 +1,5 @@
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 
 enum PermissionStatusExtended {
@@ -17,32 +17,23 @@ class PermissionsService {
 
   /// Check if contacts permission is granted
   Future<bool> hasContactsPermission() async {
+    if (kIsWeb) return false; // Web doesn't have contacts permission
     try {
-      final status = await Permission.contacts.status;
-      return status.isGranted || status.isLimited;
+      return await FlutterContacts.requestPermission(readonly: true);
     } catch (e) {
       debugPrint('Error checking contacts permission: $e');
-      // Fallback to flutter_contacts
-      return await FlutterContacts.requestPermission(readonly: true);
+      return false;
     }
   }
 
   /// Get detailed permission status
   Future<PermissionStatusExtended> getContactsPermissionStatus() async {
+    if (kIsWeb) return PermissionStatusExtended.denied;
     try {
-      final status = await Permission.contacts.status;
-      
-      if (status.isGranted) {
-        return PermissionStatusExtended.granted;
-      } else if (status.isLimited) {
-        return PermissionStatusExtended.limited;
-      } else if (status.isPermanentlyDenied) {
-        return PermissionStatusExtended.permanentlyDenied;
-      } else if (status.isRestricted) {
-        return PermissionStatusExtended.restricted;
-      } else {
-        return PermissionStatusExtended.denied;
-      }
+      final granted = await FlutterContacts.requestPermission(readonly: true);
+      return granted
+          ? PermissionStatusExtended.granted
+          : PermissionStatusExtended.denied;
     } catch (e) {
       debugPrint('Error getting permission status: $e');
       return PermissionStatusExtended.denied;
@@ -51,57 +42,34 @@ class PermissionsService {
 
   /// Request contacts permission
   Future<PermissionStatusExtended> requestContactsPermission() async {
+    if (kIsWeb) {
+      debugPrint('⚠️ Contacts permission not available on web');
+      return PermissionStatusExtended.denied;
+    }
     try {
-      // First, try with permission_handler (more detailed)
-      final status = await Permission.contacts.request();
-      
-      if (status.isGranted) {
+      final granted = await FlutterContacts.requestPermission();
+      if (granted) {
         debugPrint('✅ Contacts permission granted');
         return PermissionStatusExtended.granted;
-      } else if (status.isLimited) {
-        debugPrint('⚠️ Contacts permission limited (iOS)');
-        return PermissionStatusExtended.limited;
-      } else if (status.isPermanentlyDenied) {
-        debugPrint('❌ Contacts permission permanently denied');
-        return PermissionStatusExtended.permanentlyDenied;
-      } else if (status.isRestricted) {
-        debugPrint('🔒 Contacts permission restricted');
-        return PermissionStatusExtended.restricted;
       } else {
         debugPrint('❌ Contacts permission denied');
         return PermissionStatusExtended.denied;
       }
     } catch (e) {
-      debugPrint('Error requesting permission with permission_handler: $e');
-      
-      // Fallback to flutter_contacts
-      try {
-        final granted = await FlutterContacts.requestPermission();
-        return granted 
-            ? PermissionStatusExtended.granted 
-            : PermissionStatusExtended.denied;
-      } catch (e2) {
-        debugPrint('Error requesting permission with flutter_contacts: $e2');
-        return PermissionStatusExtended.denied;
-      }
+      debugPrint('Error requesting contacts permission: $e');
+      return PermissionStatusExtended.denied;
     }
   }
 
-  /// Open app settings
+  /// Open app settings (no-op on web)
   Future<void> openAppSettings() async {
-    try {
-      await openAppSettings();
-    } catch (e) {
-      debugPrint('Error opening app settings: $e');
-    }
+    if (kIsWeb) return;
+    debugPrint('⚠️ openAppSettings: mobile only');
   }
 
-  /// Check if should show rationale (Android)
+  /// Check if should show rationale (Android only)
   Future<bool> shouldShowRequestRationale() async {
-    try {
-      return await Permission.contacts.shouldShowRequestRationale;
-    } catch (e) {
-      return false;
-    }
+    if (kIsWeb) return false;
+    return false;
   }
 }

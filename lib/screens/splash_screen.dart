@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
 import 'auth/login_screen.dart';
-import '../ui/dashboard_screen.dart';
 
+/// Splash screen with bulletproof navigation.
+/// Always navigates to LoginScreen — auth check happens inside LoginScreen.
+/// This avoids any crash from providers that might not be ready.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -31,7 +31,7 @@ class _SplashScreenState extends State<SplashScreen>
       CurvedAnimation(parent: _animController, curve: Curves.elasticOut),
     );
     _animController.forward();
-    _checkAuth();
+    _navigateToLogin();
   }
 
   @override
@@ -40,23 +40,32 @@ class _SplashScreenState extends State<SplashScreen>
     super.dispose();
   }
 
-  Future<void> _checkAuth() async {
-    // Attendre l'animation + vérification auth
+  Future<void> _navigateToLogin() async {
+    // Wait for splash animation + a short delay
     await Future.delayed(const Duration(milliseconds: 2000));
     if (!mounted) return;
 
-    final authProvider = context.read<AuthProvider>();
-
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 400),
-        pageBuilder: (_, __, ___) => authProvider.isLoggedIn
-            ? const DashboardScreen()
-            : const LoginScreen(),
-        transitionsBuilder: (_, anim, __, child) =>
-            FadeTransition(opacity: anim, child: child),
-      ),
-    );
+    try {
+      // Always go to LoginScreen — it handles auth check internally
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 400),
+          pageBuilder: (_, __, ___) => const LoginScreen(),
+          transitionsBuilder: (_, anim, __, child) =>
+              FadeTransition(opacity: anim, child: child),
+        ),
+      );
+    } catch (e) {
+      debugPrint('⚠️ Splash navigation error: $e');
+      // Fallback: try named route
+      if (mounted) {
+        try {
+          Navigator.of(context).pushReplacementNamed('/login');
+        } catch (e2) {
+          debugPrint('⚠️ Fallback navigation error: $e2');
+        }
+      }
+    }
   }
 
   @override
@@ -69,7 +78,7 @@ class _SplashScreenState extends State<SplashScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo animé
+              // Animated logo
               ScaleTransition(
                 scale: _scaleAnim,
                 child: Container(
@@ -98,7 +107,7 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
               const SizedBox(height: 28),
-              // Nom app
+              // App name
               const Text(
                 'OmniSMS',
                 style: TextStyle(
@@ -119,13 +128,13 @@ class _SplashScreenState extends State<SplashScreen>
               ),
               const SizedBox(height: 56),
               // Spinner
-              SizedBox(
+              const SizedBox(
                 width: 36,
                 height: 36,
                 child: CircularProgressIndicator(
                   strokeWidth: 3,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    const Color(0xFF00D4FF),
+                    Color(0xFF00D4FF),
                   ),
                 ),
               ),
