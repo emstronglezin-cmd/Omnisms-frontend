@@ -1,14 +1,21 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import '../screens/settings/settings_screen.dart';
-import '../screens/contacts/contacts_screen_v2.dart' as contact_screen;
-import '../screens/groups/groups_screen.dart' as group_screen;
-import '../screens/messaging/conversation_screen.dart' as msg_screen;
-import '../screens/groups/create_group_screen.dart';
-import '../screens/transcription_screen.dart';
-import '../layouts/responsive_layout.dart';
-import '../layouts/web_main_layout.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
+import 'contacts/contacts_screen_v2.dart';
+import 'groups/groups_screen.dart';
+import 'settings/settings_screen.dart';
+import 'messaging/conversation_screen.dart';
+import 'groups/create_group_screen.dart';
+import 'transcription_screen.dart';
+import 'subscription_screen.dart';
+import 'settings/statistics_screen.dart';
+import 'contacts/contacts_screen.dart';
 
+/// ─── MAIN DASHBOARD SCREEN ───────────────────────────────────────────────────
+/// Single source of truth for the dashboard.
+/// On web (wide): shows sidebar + content.
+/// On mobile: shows bottom nav bar.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -19,62 +26,81 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
 
-  late final List<Widget> _pages;
+  final List<_NavItem> _navItems = const [
+    _NavItem(icon: Icons.home_outlined, activeIcon: Icons.home, label: 'Accueil'),
+    _NavItem(icon: Icons.contacts_outlined, activeIcon: Icons.contacts, label: 'Contacts'),
+    _NavItem(icon: Icons.group_outlined, activeIcon: Icons.group, label: 'Groupes'),
+    _NavItem(icon: Icons.settings_outlined, activeIcon: Icons.settings, label: 'Paramètres'),
+  ];
 
-  @override
-  void initState() {
-    super.initState();
-    _pages = [
-      const DashboardHomePage(),
-      const contact_screen.ContactsScreenV2(),
-      const group_screen.GroupsScreen(),
-      const SettingsScreen(),
-    ];
-  }
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+  Widget _buildPage(int index) {
+    switch (index) {
+      case 0:
+        return const DashboardHomePage();
+      case 1:
+        return const ContactsScreenV2();
+      case 2:
+        return const GroupsScreen();
+      case 3:
+        return const SettingsScreen();
+      default:
+        return const DashboardHomePage();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Use responsive layout for web
-    if (kIsWeb && MediaQuery.of(context).size.width >= 600) {
-      return const WebMainLayout();
-    }
+    final isWideScreen = kIsWeb && MediaQuery.of(context).size.width >= 768;
 
-    // Mobile layout with bottom navigation
+    if (isWideScreen) {
+      return _buildWebLayout();
+    }
+    return _buildMobileLayout();
+  }
+
+  Widget _buildMobileLayout() {
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
-        children: _pages,
+        children: List.generate(4, _buildPage),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: _onItemTapped,
+        onDestinationSelected: (i) => setState(() => _selectedIndex = i),
         elevation: 8,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Accueil',
+        destinations: _navItems.map((item) => NavigationDestination(
+          icon: Icon(item.icon),
+          selectedIcon: Icon(item.activeIcon),
+          label: item.label,
+        )).toList(),
+      ),
+    );
+  }
+
+  Widget _buildWebLayout() {
+    return Scaffold(
+      backgroundColor: const Color(0xFF080c14),
+      body: Row(
+        children: [
+          // Sidebar
+          _WebSidebarWidget(
+            selectedIndex: _selectedIndex,
+            navItems: _navItems,
+            onSelect: (i) => setState(() => _selectedIndex = i),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.contacts_outlined),
-            selectedIcon: Icon(Icons.contacts),
-            label: 'Contacts',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.group_outlined),
-            selectedIcon: Icon(Icons.group),
-            label: 'Groupes',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Paramètres',
+          // Content
+          Expanded(
+            child: Column(
+              children: [
+                _WebHeaderWidget(selectedIndex: _selectedIndex, navItems: _navItems),
+                Expanded(
+                  child: IndexedStack(
+                    index: _selectedIndex,
+                    children: List.generate(4, _buildPage),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -82,420 +108,307 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
+// ─── Nav Item data class ──────────────────────────────────────────────────────
+class _NavItem {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  const _NavItem({required this.icon, required this.activeIcon, required this.label});
+}
+
+// ─── Web Sidebar ──────────────────────────────────────────────────────────────
+class _WebSidebarWidget extends StatelessWidget {
+  final int selectedIndex;
+  final List<_NavItem> navItems;
+  final ValueChanged<int> onSelect;
+
+  const _WebSidebarWidget({
+    required this.selectedIndex,
+    required this.navItems,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 240,
+      color: const Color(0xFF0f1520),
+      child: Column(
+        children: [
+          // Logo
+          Container(
+            height: 64,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            alignment: Alignment.centerLeft,
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF00D4FF), Color(0xFF0066FF)],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.sms_rounded, color: Colors.white, size: 18),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'OmniSMS',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(color: Colors.white10, height: 1),
+          const SizedBox(height: 8),
+          // Nav items
+          ...List.generate(navItems.length, (i) {
+            final item = navItems[i];
+            final isSelected = selectedIndex == i;
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFF00D4FF).withOpacity(0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: isSelected
+                    ? Border.all(color: const Color(0xFF00D4FF).withOpacity(0.3))
+                    : null,
+              ),
+              child: ListTile(
+                leading: Icon(
+                  isSelected ? item.activeIcon : item.icon,
+                  color: isSelected
+                      ? const Color(0xFF00D4FF)
+                      : const Color(0xFF6b7a96),
+                  size: 22,
+                ),
+                title: Text(
+                  item.label,
+                  style: TextStyle(
+                    color: isSelected
+                        ? const Color(0xFFe8edf5)
+                        : const Color(0xFF6b7a96),
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontSize: 14,
+                  ),
+                ),
+                onTap: () => onSelect(i),
+                dense: true,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            );
+          }),
+          const Spacer(),
+          // Logout button
+          Consumer<AuthProvider>(
+            builder: (ctx, auth, _) => Container(
+              margin: const EdgeInsets.all(8),
+              child: ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red, size: 20),
+                title: const Text(
+                  'Déconnexion',
+                  style: TextStyle(color: Colors.red, fontSize: 14),
+                ),
+                onTap: () async {
+                  await auth.logout();
+                  if (ctx.mounted) {
+                    Navigator.of(ctx).pushReplacementNamed('/login');
+                  }
+                },
+                dense: true,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Web Header ───────────────────────────────────────────────────────────────
+class _WebHeaderWidget extends StatelessWidget {
+  final int selectedIndex;
+  final List<_NavItem> navItems;
+
+  const _WebHeaderWidget({
+    required this.selectedIndex,
+    required this.navItems,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthProvider>(
+      builder: (ctx, auth, _) {
+        final user = auth.currentUser;
+        return Container(
+          height: 64,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          color: const Color(0xFF0f1520),
+          child: Row(
+            children: [
+              Text(
+                navItems[selectedIndex].label,
+                style: const TextStyle(
+                  color: Color(0xFFe8edf5),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              // Online dot
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 8, height: 8,
+                      decoration: const BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text('En ligne',
+                        style: TextStyle(color: Colors.green, fontSize: 12)),
+                  ],
+                ),
+              ),
+              if (user != null) ...[
+                const SizedBox(width: 16),
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: const Color(0xFF00D4FF),
+                  child: Text(
+                    user.name?.isNotEmpty == true
+                        ? user.name![0].toUpperCase()
+                        : 'U',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  user.name ?? 'Utilisateur',
+                  style: const TextStyle(
+                    color: Color(0xFFe8edf5),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─── DASHBOARD HOME PAGE ──────────────────────────────────────────────────────
 class DashboardHomePage extends StatelessWidget {
   const DashboardHomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final isWeb = kIsWeb && MediaQuery.of(context).size.width >= 600;
-    
+    final isWeb = kIsWeb && MediaQuery.of(context).size.width >= 768;
+
     return Scaffold(
       backgroundColor: isWeb ? const Color(0xFF080c14) : null,
-      body: CustomScrollView(
-        slivers: [
-          if (!isWeb)
-            const SliverAppBar.large(
-              title: Text('OmniSMS'),
+      appBar: isWeb
+          ? null
+          : AppBar(
+              title: const Text('OmniSMS'),
               centerTitle: true,
-              floating: true,
-              snap: true,
             ),
-          SliverPadding(
-            padding: EdgeInsets.all(isWeb ? 32 : 16),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                // Welcome Card
-                Card(
-                  elevation: isWeb ? 2 : 1,
-                  color: isWeb ? const Color(0xFF0f1520) : null,
-                  child: Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: isWeb 
-                          ? [const Color(0xFF00d4ff), const Color(0xFF0066ff)]
-                          : [
-                              Theme.of(context).colorScheme.primary,
-                              Theme.of(context).colorScheme.secondary,
-                            ],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Bienvenue sur OmniSMS',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Messagerie sécurisée et moderne',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 16,
-                          ),
-                        ),
-                        if (isWeb) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.check_circle,
-                                  color: Colors.white,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  'Abonnement Premium actif',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Stats Cards
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    if (isWeb && constraints.maxWidth > 800) {
-                      // 4 columns on web
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: _buildStatCard(
-                              context,
-                              'Crédits SMS',
-                              '1,250',
-                              Icons.credit_card,
-                              const Color(0xFF00d4ff),
-                              isWeb,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildStatCard(
-                              context,
-                              'Envoyés',
-                              '84',
-                              Icons.send,
-                              const Color(0xFF0066ff),
-                              isWeb,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildStatCard(
-                              context,
-                              'Contacts',
-                              '32',
-                              Icons.contacts,
-                              Colors.green,
-                              isWeb,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildStatCard(
-                              context,
-                              'Groupes',
-                              '5',
-                              Icons.group,
-                              Colors.orange,
-                              isWeb,
-                            ),
-                          ),
-                        ],
-                      );
-                    } else {
-                      // 2 columns on mobile
-                      return Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildStatCard(
-                                  context,
-                                  'Messages',
-                                  '0',
-                                  Icons.message,
-                                  Colors.blue,
-                                  isWeb,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _buildStatCard(
-                                  context,
-                                  'Contacts',
-                                  '0',
-                                  Icons.contacts,
-                                  Colors.green,
-                                  isWeb,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      );
-                    }
-                  },
-                ),
-                const SizedBox(height: 24),
-
-                // Quick Actions
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Actions rapides',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: isWeb ? const Color(0xFFe8edf5) : null,
-                      ),
-                    ),
-                    if (isWeb)
-                      TextButton.icon(
-                        onPressed: () {
-                          // Navigate to subscription
-                        },
-                        icon: const Icon(Icons.credit_card, size: 16),
-                        label: const Text('Recharger'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFF00d4ff),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                
-                _buildQuickAction(
-                  context,
-                  'Nouveau message',
-                  Icons.add_comment,
-                  const Color(0xFF00d4ff),
-                  isWeb,
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const msg_screen.ConversationScreen(
-                          contactId: '',
-                          contactName: 'Nouveau message',
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                
-                _buildQuickAction(
-                  context,
-                  'Créer un groupe',
-                  Icons.group_add,
-                  const Color(0xFF0066ff),
-                  isWeb,
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const CreateGroupScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                
-                _buildQuickAction(
-                  context,
-                  'Transcription vocale',
-                  Icons.mic,
-                  Colors.orange,
-                  isWeb,
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const TranscriptionScreen(),
-                      ),
-                    );
-                  },
-                ),
-
-                if (isWeb) ...[
-                  const SizedBox(height: 32),
-                  // Subscription banner for web
-                  Card(
-                    color: const Color(0xFF0f1520),
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: const Color(0xFF00d4ff).withOpacity(0.3),
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF00d4ff).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.workspace_premium,
-                              color: Color(0xFF00d4ff),
-                              size: 32,
-                            ),
-                          ),
-                          const SizedBox(width: 24),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Abonnement Premium',
-                                  style: TextStyle(
-                                    color: Color(0xFFe8edf5),
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '2000 FCFA / mois - SMS illimités',
-                                  style: TextStyle(
-                                    color: const Color(0xFF6b7a96),
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              // Open payment link
-                            },
-                            icon: const Icon(Icons.shopping_cart),
-                            label: const Text('S\'abonner'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF00d4ff),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 16,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ]),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard(
-    BuildContext context,
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-    bool isWeb,
-  ) {
-    return Card(
-      elevation: isWeb ? 2 : 1,
-      color: isWeb ? const Color(0xFF0f1520) : null,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: isWeb
-            ? BoxDecoration(
-                border: Border.all(
-                  color: color.withOpacity(0.2),
-                ),
-                borderRadius: BorderRadius.circular(12),
-              )
-            : null,
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(isWeb ? 32 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Icon(
-                  icon,
-                  color: color,
-                  size: isWeb ? 32 : 28,
-                ),
-                if (isWeb)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text(
-                      '↑ 12%',
-                      style: TextStyle(
-                        color: Colors.green,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
+            // Welcome card
+            _buildWelcomeCard(context, isWeb),
+            const SizedBox(height: 24),
+
+            // Stats
+            _buildStatsRow(context, isWeb),
+            const SizedBox(height: 24),
+
+            // Quick actions title
             Text(
-              value,
-              style: TextStyle(
-                fontSize: isWeb ? 28 : 24,
-                fontWeight: FontWeight.bold,
-                color: isWeb ? const Color(0xFFe8edf5) : null,
+              'Actions rapides',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: isWeb ? const Color(0xFFe8edf5) : null,
+                  ),
+            ),
+            const SizedBox(height: 16),
+
+            // Quick actions
+            _buildQuickAction(
+              context, 'Nouveau message', Icons.add_comment,
+              const Color(0xFF00D4FF), isWeb,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ConversationScreen(
+                    contactId: 'new',
+                    contactName: 'Nouveau message',
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                color: isWeb
-                    ? const Color(0xFF6b7a96)
-                    : Theme.of(context).textTheme.bodySmall?.color,
+            const SizedBox(height: 12),
+            _buildQuickAction(
+              context, 'Créer un groupe', Icons.group_add,
+              const Color(0xFF0066FF), isWeb,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CreateGroupScreen()),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildQuickAction(
+              context, 'Transcription vocale', Icons.mic,
+              Colors.orange, isWeb,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TranscriptionScreen()),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildQuickAction(
+              context, 'Statistiques', Icons.bar_chart,
+              Colors.purple, isWeb,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const StatisticsScreen()),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildQuickAction(
+              context, 'Abonnement', Icons.workspace_premium,
+              const Color(0xFFFFD700), isWeb,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
               ),
             ),
           ],
@@ -504,60 +417,141 @@ class DashboardHomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildQuickAction(
-    BuildContext context,
-    String title,
-    IconData icon,
-    Color color,
-    bool isWeb,
-    VoidCallback onTap,
-  ) {
+  Widget _buildWelcomeCard(BuildContext context, bool isWeb) {
+    return Consumer<AuthProvider>(
+      builder: (ctx, auth, _) => Card(
+        elevation: 2,
+        color: isWeb ? const Color(0xFF0f1520) : null,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF00D4FF), Color(0xFF0066FF)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Bienvenue${auth.currentUser?.name != null ? ", ${auth.currentUser!.name}" : ""} 👋',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'OmniSMS — Messagerie sécurisée et moderne',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsRow(BuildContext context, bool isWeb) {
+    final stats = [
+      ('Messages', '0', Icons.message, Colors.blue),
+      ('Contacts', '0', Icons.contacts, Colors.green),
+      ('Groupes', '0', Icons.group, Colors.orange),
+      ('Crédits', '0', Icons.credit_card, const Color(0xFF00D4FF)),
+    ];
+
+    if (isWeb) {
+      return Row(
+        children: stats
+            .map((s) => Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: _buildStatCard(context, s.$1, s.$2, s.$3, s.$4, isWeb),
+                  ),
+                ))
+            .toList(),
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: _buildStatCard(context, stats[0].$1, stats[0].$2, stats[0].$3, stats[0].$4, isWeb)),
+        const SizedBox(width: 12),
+        Expanded(child: _buildStatCard(context, stats[1].$1, stats[1].$2, stats[1].$3, stats[1].$4, isWeb)),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(BuildContext context, String title, String value,
+      IconData icon, Color color, bool isWeb) {
     return Card(
-      elevation: isWeb ? 1 : 0,
       color: isWeb ? const Color(0xFF0f1520) : null,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 12),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: isWeb ? const Color(0xFFe8edf5) : null,
+              ),
+            ),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 13,
+                color: isWeb ? const Color(0xFF6b7a96) : Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickAction(BuildContext context, String title, IconData icon,
+      Color color, bool isWeb, VoidCallback onTap) {
+    return Card(
+      color: isWeb ? const Color(0xFF0f1520) : null,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Container(
+        child: Padding(
           padding: const EdgeInsets.all(16),
-          decoration: isWeb
-              ? BoxDecoration(
-                  border: Border.all(
-                    color: color.withOpacity(0.2),
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                )
-              : null,
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 24,
-                ),
+                child: Icon(icon, color: color, size: 22),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
                   title,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: isWeb ? const Color(0xFFe8edf5) : null,
                   ),
                 ),
               ),
-              Icon(
-                Icons.arrow_forward_ios,
-                size: 16,
-                color: isWeb ? const Color(0xFF6b7a96) : null,
-              ),
+              Icon(Icons.chevron_right,
+                  color: isWeb ? const Color(0xFF6b7a96) : Colors.grey),
             ],
           ),
         ),
