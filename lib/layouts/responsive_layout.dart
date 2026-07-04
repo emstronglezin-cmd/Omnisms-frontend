@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'web_main_layout.dart';
 
+/// Responsive layout helper.
+/// Simplified — DashboardScreen now handles web/mobile internally.
 class ResponsiveLayout extends StatelessWidget {
   final Widget mobileLayout;
   final Widget? webLayout;
@@ -25,13 +26,10 @@ class ResponsiveLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 600) {
-          // Mobile layout
-          return mobileLayout;
-        } else {
-          // Web/tablet layout
-          return webLayout ?? WebMainLayout(child: mobileLayout);
+        if (constraints.maxWidth >= 600 && webLayout != null) {
+          return webLayout!;
         }
+        return mobileLayout;
       },
     );
   }
