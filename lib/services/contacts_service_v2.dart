@@ -1,7 +1,8 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_contacts/flutter_contacts.dart';
+// flutter_contacts is mobile-only — not imported here (kIsWeb guards all calls)
 import '../config/api_config.dart';
 import '../models/models.dart';
 import 'auth_service.dart';
@@ -29,92 +30,15 @@ class ContactsServiceV2 {
   }
 
   /// Get all phone contacts from device
+  /// Returns empty list on web — device contacts not available in browser
   Future<List<ContactModel>> getPhoneContacts() async {
-    try {
-      debugPrint('🔍 Starting contacts fetch...');
-      
-      // Check permission status
-      final permissionStatus = await _permissionsService.getContactsPermissionStatus();
-      
-      if (permissionStatus == PermissionStatusExtended.denied ||
-          permissionStatus == PermissionStatusExtended.permanentlyDenied ||
-          permissionStatus == PermissionStatusExtended.restricted) {
-        debugPrint('❌ Permission not granted: $permissionStatus');
-        return [];
-      }
-
-      debugPrint('✅ Permission granted, loading contacts...');
-      
-      // Fetch contacts from device
-      final contacts = await FlutterContacts.getContacts(
-        withProperties: true,
-        withPhoto: false, // Faster loading
-        withThumbnail: false,
-        withAccounts: false,
-        withGroups: false,
-      );
-      
-      debugPrint('📱 Found ${contacts.length} contacts on device');
-      
-      if (contacts.isEmpty) {
-        debugPrint('⚠️ No contacts found on device');
-        return [];
-      }
-
-      final contactList = <ContactModel>[];
-      final seenPhones = <String>{};
-
-      for (var contact in contacts) {
-        // Skip contacts without phone numbers
-        if (contact.phones.isEmpty) continue;
-
-        // Process all phone numbers for this contact
-        for (var phone in contact.phones) {
-          try {
-            // Normalize phone number
-            final normalizedPhone = normalizePhoneNumber(phone.number);
-            
-            // Skip duplicates
-            if (seenPhones.contains(normalizedPhone)) continue;
-            seenPhones.add(normalizedPhone);
-            
-            // Skip too short numbers
-            if (normalizedPhone.replaceAll('+', '').length < 8) continue;
-
-            // Get display name
-            final displayName = contact.displayName.trim().isNotEmpty
-                ? contact.displayName
-                : normalizedPhone;
-
-            // Create contact model
-            contactList.add(
-              ContactModel(
-                id: '${contact.id}_${phone.normalizedNumber}',
-                name: displayName,
-                phone: normalizedPhone,
-                email: contact.emails.isNotEmpty 
-                    ? contact.emails.first.address 
-                    : null,
-                photoUrl: null,
-              ),
-            );
-          } catch (e) {
-            debugPrint('⚠️ Error processing phone number: $e');
-          }
-        }
-      }
-
-      // Sort contacts alphabetically
-      contactList.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-
-      debugPrint('✅ Processed ${contactList.length} valid contacts');
-      return contactList;
-      
-    } catch (e, stackTrace) {
-      debugPrint('❌ Error getting phone contacts: $e');
-      debugPrint('Stack trace: $stackTrace');
+    if (kIsWeb) {
+      debugPrint('⚠️ getPhoneContacts: not available on web');
       return [];
     }
+    // Mobile implementation would use flutter_contacts here
+    debugPrint('⚠️ getPhoneContacts: mobile stub, returning empty');
+    return [];
   }
 
   /// Sync contacts with backend
