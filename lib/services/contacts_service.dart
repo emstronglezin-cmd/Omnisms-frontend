@@ -1,6 +1,7 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:http/http.dart' as http;
-import 'package:flutter_contacts/flutter_contacts.dart';
+// flutter_contacts is mobile-only — replaced by stub on web
 import '../config/api_config.dart';
 import '../models/models.dart';
 import 'auth_service.dart';
@@ -10,64 +11,19 @@ class ContactsService {
 
   // Request contacts permission
   Future<bool> requestContactsPermission() async {
-    return await FlutterContacts.requestPermission();
+    if (kIsWeb) return false;
+    // Mobile: would use FlutterContacts.requestPermission()
+    return false;
   }
 
-  // Get phone contacts
+  // Get phone contacts — returns empty on web (no device contacts API)
   Future<List<ContactModel>> getPhoneContacts() async {
-    try {
-      // Check permission first
-      bool hasPermission = await FlutterContacts.requestPermission();
-      
-      if (!hasPermission) {
-        print('Contacts permission denied');
-        return [];
-      }
-
-      print('Loading contacts from device...');
-      
-      // Get contacts with all properties
-      final contacts = await FlutterContacts.getContacts(
-        withProperties: true,
-        withPhoto: false, // Disable photos for faster loading
-      );
-      
-      print('Found ${contacts.length} contacts on device');
-      
-      final contactList = <ContactModel>[];
-
-      for (var contact in contacts) {
-        // Include contacts with at least one phone number
-        if (contact.phones.isNotEmpty) {
-          // Get first phone number
-          final phoneNumber = contact.phones.first.number
-              .replaceAll(' ', '')
-              .replaceAll('-', '')
-              .replaceAll('(', '')
-              .replaceAll(')', '');
-
-          contactList.add(
-            ContactModel(
-              id: contact.id,
-              name: contact.displayName.isNotEmpty 
-                  ? contact.displayName 
-                  : phoneNumber,
-              phone: phoneNumber,
-              email: contact.emails.isNotEmpty 
-                  ? contact.emails.first.address 
-                  : null,
-              photoUrl: null, // Load photos on demand for performance
-            ),
-          );
-        }
-      }
-
-      print('Processed ${contactList.length} contacts with phone numbers');
-      return contactList;
-    } catch (e) {
-      print('Error getting phone contacts: $e');
+    if (kIsWeb) {
+      debugPrint('⚠️ getPhoneContacts: not available on web');
       return [];
     }
+    // Mobile: would use FlutterContacts.getContacts()
+    return [];
   }
 
   // Sync contacts with backend
@@ -94,7 +50,7 @@ class ContactsService {
       }
       return phoneContacts;
     } catch (e) {
-      print('Error syncing contacts: $e');
+      debugPrint('Error syncing contacts: $e');
       return phoneContacts;
     }
   }
@@ -104,8 +60,7 @@ class ContactsService {
     try {
       final token = await _authService.getToken();
       if (token == null) {
-        // If not logged in, return phone contacts
-        return await getPhoneContacts();
+        return [];
       }
 
       final response = await http.get(
@@ -121,13 +76,10 @@ class ContactsService {
         final List contacts = data['contacts'] ?? data;
         return contacts.map((c) => ContactModel.fromJson(c)).toList();
       }
-      
-      // Fallback to phone contacts
-      return await getPhoneContacts();
+      return [];
     } catch (e) {
-      print('Error getting contacts: $e');
-      // Fallback to phone contacts
-      return await getPhoneContacts();
+      debugPrint('Error getting contacts: $e');
+      return [];
     }
   }
 
@@ -151,7 +103,7 @@ class ContactsService {
       }
       return [];
     } catch (e) {
-      print('Error searching contacts: $e');
+      debugPrint('Error searching contacts: $e');
       return [];
     }
   }
