@@ -1,6 +1,8 @@
 {
   "version": 2,
+  "buildCommand": "echo 'Static site - no build needed'",
   "outputDirectory": "public",
+  "installCommand": "echo 'No install needed'",
   "headers": [
     {
       "source": "/sw.js",
