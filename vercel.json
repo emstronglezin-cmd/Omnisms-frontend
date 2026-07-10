@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "buildCommand": "echo 'Static site - no build needed'",
-  "outputDirectory": "public",
+  "buildCommand": "./vercel-build.sh",
   "installCommand": "echo 'No install needed'",
+  "outputDirectory": "build/web",
   "headers": [
     {
       "source": "/sw.js",
