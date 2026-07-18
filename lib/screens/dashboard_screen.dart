@@ -10,7 +10,6 @@ import 'groups/create_group_screen.dart';
 import 'transcription_screen.dart';
 import 'subscription_screen.dart';
 import 'settings/statistics_screen.dart';
-import 'contacts/contacts_screen.dart';
 
 /// ─── MAIN DASHBOARD SCREEN ───────────────────────────────────────────────────
 /// Single source of truth for the dashboard.

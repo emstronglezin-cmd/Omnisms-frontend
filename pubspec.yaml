@@ -1,7 +1,7 @@
 name: omnisms
-description: OmniSMS - Application de messagerie complète
+description: OmniSMS - Application de messagerie SMS complète
 publish_to: 'none'
-version: 2.2.0+7
+version: 2.3.0+1
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -9,52 +9,30 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  
+
   # UI
   cupertino_icons: ^1.0.6
-  
-  # Firebase — désactivé car non initialisé (cause écran noir sur web)
-  # Réactiver si Firebase.initializeApp() est ajouté dans main.dart avec les bons options web
-  # firebase_core: ^3.6.0
-  # firebase_auth: ^5.3.1
-  # firebase_messaging: ^15.1.3
-  # firebase_crashlytics: NOT supported on web (causes silent crash)
-  
+
   # State Management
   provider: ^6.1.2
-  
+
   # Network
   http: ^1.2.2
   web_socket_channel: ^3.0.1
-  connectivity_plus: ^6.0.5
-  
+
   # Storage
   shared_preferences: ^2.3.2
-  path_provider: ^2.1.4
-  
-  # Audio (web-compatible packages only)
-  # audioplayers removed: replaced by just_audio (better web support)
-  # permission_handler removed: native-only, crashes on web
-  # record removed: native-only, crashes on web
+
+  # Audio (web-compatible)
   just_audio: ^0.9.36
-  # audio_waveforms removed: native-only (Android/iOS), crashes on web
-  
-  # Contacts
-  # flutter_contacts: ^1.1.7+1  # DÉSACTIVÉ: native-only (Android/iOS), incompatible Web
-  
+
   # Performance & Cache
   cached_network_image: ^3.3.1
   flutter_cache_manager: ^3.3.1
-  
+
   # Utils
-  uuid: ^4.5.1
   intl: ^0.19.0
-  logger: ^2.4.0
   url_launcher: ^6.3.1
-  flutter_emoji: ^2.5.1
-  
-  # Web View for ads
-  # webview_flutter: ^4.4.4  # DÉSACTIVÉ: native-only, incompatible Web (utiliser HtmlElementView sur web)
 
 dev_dependencies:
   flutter_test:
