@@ -6,11 +6,9 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/models.dart';
 import 'auth_service.dart';
-import 'permissions_service.dart';
 
 class ContactsServiceV2 {
   final AuthService _authService = AuthService();
-  final PermissionsService _permissionsService = PermissionsService();
 
   /// Normalize phone number to international format
   String normalizePhoneNumber(String phone) {
