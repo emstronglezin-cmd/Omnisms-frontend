@@ -12,27 +12,26 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _formKey          = GlobalKey<FormState>();
+  final _emailController    = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isWakingUp      = false; // Render free tier wakeup indicator
 
   @override
   void initState() {
     super.initState();
-    // Check if already logged in — redirect to dashboard
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       try {
-        final authProvider = context.read<AuthProvider>();
-        if (authProvider.isLoggedIn) {
+        final auth = context.read<AuthProvider>();
+        if (auth.isLoggedIn) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const DashboardScreen()),
           );
         }
       } catch (e) {
-        debugPrint('⚠️ Auth check in LoginScreen: $e');
-        // Stay on login screen if auth check fails
+        debugPrint('⚠️ Auth check: $e');
       }
     });
   }
@@ -47,12 +46,19 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final authProvider = context.read<AuthProvider>();
-    final success = await authProvider.login(
-      email: _emailController.text.trim(),
+    // Show wakeup hint after 5s (Render free tier can be slow)
+    final wakeupTimer = Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _isWakingUp = true);
+    });
+
+    final auth = context.read<AuthProvider>();
+    final success = await auth.login(
+      email:    _emailController.text.trim(),
       password: _passwordController.text,
     );
 
+    await wakeupTimer.catchError((_) {});
+    if (mounted) setState(() => _isWakingUp = false);
     if (!mounted) return;
 
     if (success) {
@@ -62,8 +68,10 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(authProvider.error ?? 'Erreur de connexion'),
+          content: Text(auth.error ?? 'Erreur de connexion'),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 6),
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -71,161 +79,205 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: SafeArea(
         child: Consumer<AuthProvider>(
-          builder: (context, authProvider, _) {
+          builder: (context, auth, _) {
             return Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Logo
-                      Icon(
-                        Icons.sms_outlined,
-                        size: 80,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(height: 24),
-                      
-                      // Title
-                      Text(
-                        'OmniSMS',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Messagerie Sécurisée',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(height: 48),
-                      
-                      // Email Field
-                      TextFormField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: InputDecoration(
-                          labelText: 'Email',
-                          prefixIcon: const Icon(Icons.email_outlined),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Email requis';
-                          }
-                          if (!value.contains('@')) {
-                            return 'Email invalide';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Password Field
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        decoration: InputDecoration(
-                          labelText: 'Mot de passe',
-                          prefixIcon: const Icon(Icons.lock_outlined),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword 
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // ── Logo ──────────────────────────────────
+                        Container(
+                          width: 80, height: 80,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF00D4FF), Color(0xFF0066FF)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                          child: const Icon(Icons.sms_rounded, color: Colors.white, size: 40),
+                        ),
+                        Text(
+                          'OmniSMS',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Mot de passe requis';
-                          }
-                          if (value.length < 6) {
-                            return 'Au moins 6 caractères';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                      
-                      // Login Button
-                      SizedBox(
-                        height: 50,
-                        child: ElevatedButton(
-                          onPressed: authProvider.isLoading ? null : _handleLogin,
-                          style: ElevatedButton.styleFrom(
-                            shape: RoundedRectangleBorder(
+                        const SizedBox(height: 6),
+                        Text(
+                          'Messagerie Sécurisée',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 40),
+
+                        // ── Error banner ──────────────────────────
+                        if (auth.error != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.red.withOpacity(0.3)),
+                            ),
+                            child: Text(
+                              auth.error!,
+                              style: const TextStyle(color: Colors.red, fontSize: 13),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+
+                        // ── Wakeup indicator ──────────────────────
+                        if (_isWakingUp && auth.isLoading) ...[
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                const SizedBox(
+                                  width: 16, height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.orange,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Démarrage du serveur en cours…\nCela peut prendre jusqu\'à 60 secondes.',
+                                    style: TextStyle(
+                                      color: Colors.orange.shade700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+
+                        // ── Email ─────────────────────────────────
+                        TextFormField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          autofillHints: const [AutofillHints.email],
+                          decoration: InputDecoration(
+                            labelText: 'Email',
+                            prefixIcon: const Icon(Icons.email_outlined),
+                            border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: authProvider.isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white,
+                          validator: (v) {
+                            if (v == null || v.isEmpty) return 'Email requis';
+                            if (!v.contains('@') || !v.contains('.')) return 'Email invalide';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // ── Password ──────────────────────────────
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          autofillHints: const [AutofillHints.password],
+                          decoration: InputDecoration(
+                            labelText: 'Mot de passe',
+                            prefixIcon: const Icon(Icons.lock_outlined),
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined),
+                              onPressed: () =>
+                                  setState(() => _obscurePassword = !_obscurePassword),
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          validator: (v) {
+                            if (v == null || v.isEmpty) return 'Mot de passe requis';
+                            if (v.length < 6) return 'Au moins 6 caractères';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 24),
+
+                        // ── Login button ──────────────────────────
+                        SizedBox(
+                          height: 52,
+                          child: ElevatedButton(
+                            onPressed: auth.isLoading ? null : _handleLogin,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0066FF),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: auth.isLoading
+                                ? const SizedBox(
+                                    height: 22, width: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Se connecter',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                )
-                              : const Text(
-                                  'Se connecter',
-                                  style: TextStyle(fontSize: 16),
-                                ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Register Link
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const RegisterScreen(),
-                            ),
-                          );
-                        },
-                        child: const Text('Pas de compte ? S\'inscrire'),
-                      ),
-                      
-                      const SizedBox(height: 16),
-                      
-                      // Skip Login (for testing)
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (_) => const DashboardScreen(),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          'Continuer sans compte',
-                          style: TextStyle(color: Colors.grey),
+                        const SizedBox(height: 16),
+
+                        // ── Register link ─────────────────────────
+                        const Center(child: Text('ou', style: TextStyle(color: Colors.grey))),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                          ),
+                          child: const Text('Pas de compte ? S\'inscrire'),
                         ),
-                      ),
-                    ],
+
+                        // ── Guest mode ────────────────────────────
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(builder: (_) => const DashboardScreen()),
+                          ),
+                          child: const Text(
+                            'Continuer sans compte',
+                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

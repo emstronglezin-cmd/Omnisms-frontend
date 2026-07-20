@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,9 +6,28 @@ import '../config/api_config.dart';
 import '../models/models.dart';
 
 class AuthService {
-  static const String _tokenKey = 'auth_token';
+  static const String _tokenKey  = 'auth_token';
   static const String _userIdKey = 'user_id';
 
+  // ── Helpers d'erreur ─────────────────────────────────────────
+  static String _friendlyError(dynamic e) {
+    final s = e.toString();
+    if (s.contains('TimeoutException') || s.contains('timeout')) {
+      return 'Le serveur met du temps à répondre (démarrage en cours). Veuillez réessayer dans quelques secondes.';
+    }
+    if (s.contains('SocketException') || s.contains('Failed host lookup') || s.contains('NetworkException')) {
+      return 'Impossible de joindre le serveur. Vérifiez votre connexion internet.';
+    }
+    if (s.contains('FormatException') || s.contains('SyntaxError')) {
+      return 'Réponse inattendue du serveur. Réessayez.';
+    }
+    if (s.contains('XMLHttpRequest') || s.contains('CORS')) {
+      return 'Erreur de connexion au serveur (CORS). Contactez le support.';
+    }
+    return 'Erreur réseau. Réessayez.';
+  }
+
+  // ── Register ─────────────────────────────────────────────────
   Future<Map<String, dynamic>> register({
     required String name,
     required String email,
@@ -22,9 +42,9 @@ class AuthService {
           'name': name,
           'email': email,
           'password': password,
-          'phone': phone,
+          if (phone != null && phone.isNotEmpty) 'phone': phone,
         }),
-      ).timeout(ApiConfig.requestTimeout);
+      ).timeout(ApiConfig.wakeupTimeout);
 
       final data = jsonDecode(response.body);
 
@@ -42,14 +62,20 @@ class AuthService {
       } else {
         return {
           'success': false,
-          'message': data['message'] ?? 'Erreur lors de l\'inscription',
+          'message': data['message'] ?? data['error'] ?? 'Erreur lors de l\'inscription',
         };
       }
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message': 'Le serveur met du temps à répondre (démarrage). Réessayez dans 10 secondes.',
+      };
     } catch (e) {
-      return {'success': false, 'message': 'Erreur de connexion: $e'};
+      return {'success': false, 'message': _friendlyError(e)};
     }
   }
 
+  // ── Login ─────────────────────────────────────────────────────
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
@@ -59,7 +85,7 @@ class AuthService {
         Uri.parse('${ApiConfig.baseUrl}/api/auth/login'),
         headers: ApiConfig.headers,
         body: jsonEncode({'email': email, 'password': password}),
-      ).timeout(ApiConfig.requestTimeout);
+      ).timeout(ApiConfig.wakeupTimeout);
 
       final data = jsonDecode(response.body);
 
@@ -75,16 +101,23 @@ class AuthService {
           'token': data['token'],
         };
       } else {
+        // Retourne le message exact du backend (ex: "Identifiants invalides")
         return {
           'success': false,
-          'message': data['message'] ?? 'Email ou mot de passe incorrect',
+          'message': data['message'] ?? data['error'] ?? 'Email ou mot de passe incorrect',
         };
       }
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message': 'Le serveur met du temps à répondre (démarrage). Réessayez dans 10 secondes.',
+      };
     } catch (e) {
-      return {'success': false, 'message': 'Erreur de connexion: $e'};
+      return {'success': false, 'message': _friendlyError(e)};
     }
   }
 
+  // ── Get current user ──────────────────────────────────────────
   Future<UserModel?> getCurrentUser() async {
     try {
       final token = await getToken();
@@ -103,6 +136,7 @@ class AuthService {
     }
   }
 
+  // ── Update profile ────────────────────────────────────────────
   Future<Map<String, dynamic>> updateProfile({
     String? name, String? email, String? phone, String? photoUrl,
   }) async {
@@ -113,9 +147,9 @@ class AuthService {
         Uri.parse('${ApiConfig.baseUrl}/api/auth/profile'),
         headers: {...ApiConfig.headers, 'Authorization': 'Bearer $token'},
         body: jsonEncode({
-          if (name != null) 'name': name,
-          if (email != null) 'email': email,
-          if (phone != null) 'phone': phone,
+          if (name != null)     'name': name,
+          if (email != null)    'email': email,
+          if (phone != null)    'phone': phone,
           if (photoUrl != null) 'photoUrl': photoUrl,
         }),
       ).timeout(ApiConfig.requestTimeout);
@@ -125,16 +159,18 @@ class AuthService {
       }
       return {'success': false, 'message': data['message'] ?? 'Erreur'};
     } catch (e) {
-      return {'success': false, 'message': 'Erreur: $e'};
+      return {'success': false, 'message': _friendlyError(e)};
     }
   }
 
+  // ── Logout ────────────────────────────────────────────────────
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.remove(_userIdKey);
   }
 
+  // ── Token storage ─────────────────────────────────────────────
   Future<void> _saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
