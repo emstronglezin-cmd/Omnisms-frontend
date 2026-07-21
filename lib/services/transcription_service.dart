@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 
@@ -26,7 +27,7 @@ class TranscriptionService {
         );
       }
     } catch (e) {
-      print('Erreur TranscriptionService.transcribeAudio: $e');
+      debugPrint('Erreur TranscriptionService.transcribeAudio: $e');
       return null;
     }
   }

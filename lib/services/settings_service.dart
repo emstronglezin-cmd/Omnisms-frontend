@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -45,7 +46,7 @@ class SettingsService {
         'activeGroups': 0,
       };
     } catch (e) {
-      print('Error getting statistics: $e');
+      debugPrint('Error getting statistics: $e');
       return {
         'messagesSent': 0,
         'messagesReceived': 0,
@@ -79,7 +80,7 @@ class SettingsService {
         ).timeout(ApiConfig.requestTimeout);
       }
     } catch (e) {
-      print('Error syncing notification settings: $e');
+      debugPrint('Error syncing notification settings: $e');
     }
   }
 
@@ -156,7 +157,7 @@ class SettingsService {
         'expiresAt': null,
       };
     } catch (e) {
-      print('Error getting subscription status: $e');
+      debugPrint('Error getting subscription status: $e');
       return {
         'active': false,
         'plan': 'free',

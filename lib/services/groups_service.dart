@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
@@ -27,7 +28,7 @@ class GroupsService {
       }
       return [];
     } catch (e) {
-      print('Error getting groups: $e');
+      debugPrint('Error getting groups: $e');
       return [];
     }
   }
@@ -61,7 +62,7 @@ class GroupsService {
       }
       return null;
     } catch (e) {
-      print('Error creating group: $e');
+      debugPrint('Error creating group: $e');
       return null;
     }
   }
@@ -96,7 +97,7 @@ class GroupsService {
       }
       return null;
     } catch (e) {
-      print('Error updating group: $e');
+      debugPrint('Error updating group: $e');
       return null;
     }
   }
@@ -118,7 +119,7 @@ class GroupsService {
 
       return response.statusCode == 200;
     } catch (e) {
-      print('Error adding member: $e');
+      debugPrint('Error adding member: $e');
       return false;
     }
   }
@@ -139,7 +140,7 @@ class GroupsService {
 
       return response.statusCode == 200;
     } catch (e) {
-      print('Error removing member: $e');
+      debugPrint('Error removing member: $e');
       return false;
     }
   }
@@ -160,7 +161,7 @@ class GroupsService {
 
       return response.statusCode == 200;
     } catch (e) {
-      print('Error deleting group: $e');
+      debugPrint('Error deleting group: $e');
       return false;
     }
   }
@@ -185,7 +186,7 @@ class GroupsService {
       }
       return [];
     } catch (e) {
-      print('Error getting group messages: $e');
+      debugPrint('Error getting group messages: $e');
       return [];
     }
   }
@@ -218,7 +219,7 @@ class GroupsService {
       }
       return null;
     } catch (e) {
-      print('Error sending group message: $e');
+      debugPrint('Error sending group message: $e');
       return null;
     }
   }

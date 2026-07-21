@@ -4,6 +4,14 @@ import '../../providers/contacts_provider_v2.dart';
 import '../../models/models.dart';
 import '../messaging/conversation_screen.dart';
 
+/// ContactsScreenV2 — Écran des contacts avec import et ajout
+///
+/// Fonctionnalités :
+///   - Chargement automatique depuis le backend au premier lancement
+///   - Demande de permission contacts (iOS/Android)
+///   - Bouton "+ Ajouter un contact" (POST /api/contacts/add)
+///   - Recherche locale
+///   - Ouvrir une conversation depuis un contact
 class ContactsScreenV2 extends StatefulWidget {
   const ContactsScreenV2({super.key});
 
@@ -13,28 +21,11 @@ class ContactsScreenV2 extends StatefulWidget {
 
 class _ContactsScreenV2State extends State<ContactsScreenV2> {
   final TextEditingController _searchController = TextEditingController();
-  
+
   @override
   void initState() {
     super.initState();
     _initializeContacts();
-  }
-
-  Future<void> _initializeContacts() async {
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final provider = context.read<ContactsProviderV2>();
-      
-      // Check permission status first
-      await provider.checkPermissionStatus();
-      
-      if (!provider.hasPermission) {
-        // Show permission request dialog
-        _showPermissionDialog();
-      } else if (provider.contacts.isEmpty) {
-        // Load contacts if permission already granted
-        await provider.loadContacts();
-      }
-    });
   }
 
   @override
@@ -43,13 +34,29 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
     super.dispose();
   }
 
+  // ── Initialisation au premier lancement ──────────────────────
+  Future<void> _initializeContacts() async {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final provider = context.read<ContactsProviderV2>();
+
+      await provider.checkPermissionStatus();
+
+      if (!provider.hasPermission) {
+        _showPermissionDialog();
+      } else {
+        // Permission OK → charger les contacts
+        await provider.loadContacts();
+      }
+    });
+  }
+
+  // ── Dialogue permission contacts ─────────────────────────────
   Future<void> _showPermissionDialog() async {
     if (!mounted) return;
-    
     final provider = context.read<ContactsProviderV2>();
-    
+
     if (provider.isPermissionPermanentlyDenied) {
-      // Show settings dialog
       _showSettingsDialog();
       return;
     }
@@ -57,27 +64,26 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                color: Theme.of(ctx).primaryColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                Icons.contacts,
-                color: Theme.of(context).primaryColor,
-                size: 28,
-              ),
+              child: Icon(Icons.contacts,
+                  color: Theme.of(ctx).primaryColor, size: 28),
             ),
             const SizedBox(width: 12),
             const Expanded(
               child: Text(
                 'Accès aux contacts',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style:
+                    TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -92,43 +98,35 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
             ),
             SizedBox(height: 12),
             _PermissionReasonItem(
-              icon: Icons.message,
-              text: 'Envoyer des messages à vos contacts',
-            ),
+                icon: Icons.message,
+                text: 'Envoyer des messages à vos contacts'),
             _PermissionReasonItem(
-              icon: Icons.group,
-              text: 'Trouver vos amis sur OmniSMS',
-            ),
+                icon: Icons.group,
+                text: 'Trouver vos amis sur OmniSMS'),
             _PermissionReasonItem(
-              icon: Icons.sync,
-              text: 'Synchroniser votre carnet d\'adresses',
-            ),
+                icon: Icons.sync,
+                text: 'Synchroniser votre carnet d\'adresses'),
             SizedBox(height: 12),
             Text(
               'Vos contacts restent privés et sécurisés.',
               style: TextStyle(
-                fontSize: 13,
-                fontStyle: FontStyle.italic,
-                color: Colors.grey,
-              ),
+                  fontSize: 13,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey),
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'Pas maintenant',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Pas maintenant',
+                style: TextStyle(color: Colors.grey[600])),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+                  borderRadius: BorderRadius.circular(12)),
             ),
             child: const Text('Autoriser'),
           ),
@@ -141,54 +139,222 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
     }
   }
 
+  // ── Dialogue paramètres (permission permanente refusée) ───────
   Future<void> _showSettingsDialog() async {
     if (!mounted) return;
-
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Icon(
-              Icons.settings,
-              color: Theme.of(context).primaryColor,
-              size: 28,
-            ),
+            Icon(Icons.settings,
+                color: Theme.of(ctx).primaryColor, size: 28),
             const SizedBox(width: 12),
             const Expanded(
-              child: Text(
-                'Permission requise',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
+              child: Text('Permission requise',
+                  style: TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
         content: const Text(
           'L\'accès aux contacts a été refusé. '
-          'Veuillez activer la permission dans les paramètres de votre appareil pour utiliser cette fonctionnalité.',
+          'Veuillez l\'activer dans les paramètres de votre appareil.',
           style: TextStyle(fontSize: 15),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Annuler')),
           FilledButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(ctx);
               context.read<ContactsProviderV2>().openSettings();
             },
             style: FilledButton.styleFrom(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+                  borderRadius: BorderRadius.circular(12)),
             ),
             child: const Text('Ouvrir paramètres'),
           ),
         ],
       ),
     );
+  }
+
+  // ── Dialogue Ajouter un contact ───────────────────────────────
+  Future<void> _showAddContactDialog() async {
+    final nameCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.person_add_rounded, size: 28),
+            SizedBox(width: 12),
+            Text('Ajouter un contact',
+                style:
+                    TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Nom
+              TextFormField(
+                controller: nameCtrl,
+                textCapitalization: TextCapitalization.words,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Nom complet *',
+                  prefixIcon: const Icon(Icons.person_outlined),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Le nom est requis';
+                  }
+                  if (v.trim().length > 60) {
+                    return 'Nom trop long (max 60 caractères)';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              // Téléphone
+              TextFormField(
+                controller: phoneCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(
+                  labelText: 'Numéro de téléphone *',
+                  hintText: '+22670000000',
+                  prefixIcon: const Icon(Icons.phone_outlined),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  helperText: 'Format international : +226XXXXXXXX',
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Le numéro est requis';
+                  }
+                  final cleaned = v.replaceAll(RegExp(r'[^\d+]'), '');
+                  if (cleaned.length < 8) {
+                    return 'Numéro trop court (min 8 chiffres)';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Le contact sera ajouté à votre liste. '
+                'S\'il a un compte OmniSMS, vous pourrez lui envoyer des messages.',
+                style: TextStyle(
+                    fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Annuler',
+                style: TextStyle(color: Colors.grey[600])),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(ctx, true);
+              }
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Ajouter'),
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      await _doAddContact(
+        name: nameCtrl.text.trim(),
+        phone: phoneCtrl.text.trim(),
+      );
+    }
+
+    nameCtrl.dispose();
+    phoneCtrl.dispose();
+  }
+
+  // ── Effectuer l'ajout du contact ─────────────────────────────
+  Future<void> _doAddContact({
+    required String name,
+    required String phone,
+  }) async {
+    if (!mounted) return;
+
+    final provider = context.read<ContactsProviderV2>();
+    final addResult = await provider.addContact(name: name, phone: phone);
+
+    if (!mounted) return;
+
+    if (addResult['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  addResult['message'] ?? 'Contact ajouté avec succès !',
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  addResult['error'] ?? 'Erreur lors de l\'ajout du contact.',
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Réessayer',
+            textColor: Colors.white,
+            onPressed: () =>
+                _doAddContact(name: name, phone: phone),
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -203,10 +369,10 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         actions: [
+          // Bouton Synchroniser
           Consumer<ContactsProviderV2>(
-            builder: (context, provider, _) {
+            builder: (ctx, provider, _) {
               if (!provider.hasPermission) return const SizedBox.shrink();
-              
               return IconButton(
                 icon: provider.isLoading
                     ? const SizedBox(
@@ -215,55 +381,64 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.refresh_rounded),
-                onPressed: provider.isLoading 
-                    ? null 
+                onPressed: provider.isLoading
+                    ? null
                     : () => provider.refreshContacts(),
                 tooltip: 'Actualiser',
               );
             },
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
         ],
       ),
+      // ── FAB Ajouter un contact ────────────────────────────────
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showAddContactDialog,
+        icon: const Icon(Icons.person_add_rounded),
+        label: const Text('Ajouter'),
+        tooltip: 'Ajouter un contact',
+      ),
       body: Consumer<ContactsProviderV2>(
-        builder: (context, provider, _) {
-          // Permission denied states
-          if (provider.loadingState == ContactsLoadingState.permissionDenied ||
-              provider.loadingState == ContactsLoadingState.permissionPermanentlyDenied) {
+        builder: (ctx, provider, _) {
+          // État permission refusée
+          if (provider.loadingState ==
+                  ContactsLoadingState.permissionDenied ||
+              provider.loadingState ==
+                  ContactsLoadingState.permissionPermanentlyDenied) {
             return _buildPermissionDeniedView(provider);
           }
 
-          // Initial or loading state
+          // Chargement initial
           if (provider.loadingState == ContactsLoadingState.initial ||
               (provider.isLoading && provider.contacts.isEmpty)) {
             return _buildLoadingView();
           }
 
-          // Error state
+          // Erreur
           if (provider.hasError && provider.contacts.isEmpty) {
             return _buildErrorView(provider);
           }
 
-          // Empty state
+          // Liste vide
           if (provider.contacts.isEmpty && !provider.isLoading) {
             return _buildEmptyView();
           }
 
-          // Contacts list
+          // Liste de contacts
           return Column(
             children: [
-              // Search bar
               _buildSearchBar(provider),
-              // Contacts list
-              Expanded(
-                child: _buildContactsList(provider),
-              ),
+              if (provider.isLoading)
+                const LinearProgressIndicator(minHeight: 2),
+              Expanded(child: _buildContactsList(provider)),
             ],
           );
         },
       ),
     );
   }
+
+  // ── Vues d'état ───────────────────────────────────────────────
 
   Widget _buildPermissionDeniedView(ContactsProviderV2 provider) {
     return Center(
@@ -292,49 +467,33 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
                   ? 'Permission refusée'
                   : 'Permission requise',
               style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+                  fontSize: 24, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
             Text(
               provider.isPermissionPermanentlyDenied
-                  ? 'L\'accès aux contacts a été refusé. Veuillez l\'activer dans les paramètres.'
-                  : 'OmniSMS a besoin d\'accéder à vos contacts pour afficher votre liste de contacts.',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+                  ? 'Activez l\'accès aux contacts dans les paramètres.'
+                  : 'OmniSMS a besoin d\'accéder à vos contacts.',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
             FilledButton.icon(
-              onPressed: () {
-                if (provider.isPermissionPermanentlyDenied) {
-                  provider.openSettings();
-                } else {
-                  _showPermissionDialog();
-                }
-              },
-              icon: Icon(
-                provider.isPermissionPermanentlyDenied
-                    ? Icons.settings
-                    : Icons.check_circle_outline,
-              ),
-              label: Text(
-                provider.isPermissionPermanentlyDenied
-                    ? 'Ouvrir paramètres'
-                    : 'Autoriser l\'accès',
-              ),
+              onPressed: () => provider.isPermissionPermanentlyDenied
+                  ? provider.openSettings()
+                  : _showPermissionDialog(),
+              icon: Icon(provider.isPermissionPermanentlyDenied
+                  ? Icons.settings
+                  : Icons.check_circle_outline),
+              label: Text(provider.isPermissionPermanentlyDenied
+                  ? 'Ouvrir paramètres'
+                  : 'Autoriser l\'accès'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
+                    horizontal: 32, vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ],
@@ -344,18 +503,15 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
   }
 
   Widget _buildLoadingView() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 24),
+          CircularProgressIndicator(),
+          SizedBox(height: 24),
           Text(
             'Chargement des contacts...',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 16, color: Colors.grey),
           ),
         ],
       ),
@@ -369,26 +525,15 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 80,
-              color: Colors.red[300],
-            ),
+            Icon(Icons.error_outline, size: 80, color: Colors.red[300]),
             const SizedBox(height: 24),
-            const Text(
-              'Erreur',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            const Text('Erreur',
+                style:
+                    TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Text(
               provider.errorMessage ?? 'Une erreur est survenue',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
@@ -398,12 +543,9 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
               label: const Text('Réessayer'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
+                    horizontal: 32, vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ],
@@ -419,27 +561,29 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.contacts_outlined,
-              size: 80,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.contacts_outlined, size: 80, color: Colors.grey[400]),
             const SizedBox(height: 24),
             const Text(
               'Aucun contact',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Text(
-              'Aucun contact trouvé sur votre appareil',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              'Ajoutez votre premier contact en cliquant sur le bouton + ci-dessous.',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            FilledButton.icon(
+              onPressed: _showAddContactDialog,
+              icon: const Icon(Icons.person_add_rounded),
+              label: const Text('Ajouter un contact'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
             ),
           ],
         ),
@@ -470,9 +614,11 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
           ),
           filled: true,
           fillColor: Theme.of(context).cardColor,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16, vertical: 12),
         ),
         onChanged: (value) {
+          setState(() {}); // pour afficher/masquer le bouton clear
           provider.searchContacts(value);
         },
       ),
@@ -481,10 +627,10 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
 
   Widget _buildContactsList(ContactsProviderV2 provider) {
     final contacts = provider.contacts;
-    
+
     return ListView.builder(
       itemCount: contacts.length,
-      itemBuilder: (context, index) {
+      itemBuilder: (ctx, index) {
         final contact = contacts[index];
         return _buildContactTile(contact);
       },
@@ -494,9 +640,12 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
   Widget _buildContactTile(ContactModel contact) {
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+        backgroundColor:
+            Theme.of(context).primaryColor.withOpacity(0.1),
         child: Text(
-          contact.name.isNotEmpty ? contact.name[0].toUpperCase() : '?',
+          contact.name.isNotEmpty
+              ? contact.name[0].toUpperCase()
+              : '?',
           style: TextStyle(
             color: Theme.of(context).primaryColor,
             fontWeight: FontWeight.bold,
@@ -507,28 +656,48 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
       title: Text(
         contact.name,
         style: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 16,
-        ),
+            fontWeight: FontWeight.w600, fontSize: 16),
       ),
       subtitle: Text(
         contact.phone ?? '',
-        style: TextStyle(
-          color: Colors.grey[600],
-          fontSize: 14,
-        ),
+        style: TextStyle(color: Colors.grey[600], fontSize: 14),
       ),
-      trailing: Icon(
-        Icons.message_rounded,
-        color: Theme.of(context).primaryColor,
-        size: 20,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (contact.isRegistered)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'OmniSMS',
+                style: TextStyle(
+                  color: Colors.green,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          const SizedBox(width: 8),
+          Icon(
+            Icons.message_rounded,
+            color: Theme.of(context).primaryColor,
+            size: 20,
+          ),
+        ],
       ),
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ConversationScreen(
-              contactId: contact.phone ?? '', // Using phone as contactId
+            builder: (_) => ConversationScreen(
+              contactId: contact.id.isNotEmpty
+                  ? contact.id
+                  : (contact.phone ?? ''),
               contactName: contact.name,
             ),
           ),
@@ -538,6 +707,7 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
   }
 }
 
+// ── Widget utilitaire ─────────────────────────────────────────
 class _PermissionReasonItem extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -559,19 +729,12 @@ class _PermissionReasonItem extends StatelessWidget {
               color: Theme.of(context).primaryColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              size: 18,
-              color: Theme.of(context).primaryColor,
-            ),
+            child: Icon(icon,
+                size: 18, color: Theme.of(context).primaryColor),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 14),
-            ),
-          ),
+              child: Text(text, style: const TextStyle(fontSize: 14))),
         ],
       ),
     );

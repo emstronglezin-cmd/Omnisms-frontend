@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/contacts_service_v2.dart';
 
-/// Permission status — stub for web compatibility (mobile-only on device)
+/// Permission status — stub pour compatibilité web
+/// Sur mobile, flutter_contacts gère les permissions réelles.
 enum PermissionStatusExtended {
   granted,
   denied,
@@ -20,6 +22,14 @@ enum ContactsLoadingState {
   permissionPermanentlyDenied,
 }
 
+/// ContactsProviderV2 — Gestion des contacts avec support web/mobile
+///
+/// Fonctionnalités :
+///   - loadContacts()        → charge depuis le backend
+///   - addContact()          → ajoute un contact via backend
+///   - syncPhoneContacts()   → synchronise le carnet (mobile)
+///   - searchContacts()      → recherche locale
+///   - checkPhone()          → vérifie si un numéro est sur OmniSMS
 class ContactsProviderV2 with ChangeNotifier {
   final ContactsServiceV2 _contactsService = ContactsServiceV2();
 
@@ -29,11 +39,13 @@ class ContactsProviderV2 with ChangeNotifier {
   ContactsLoadingState _loadingState = ContactsLoadingState.initial;
   String? _errorMessage;
   String _searchQuery = '';
+  bool _isAddingContact = false;
 
-  // On web, permission is always granted (no device contacts anyway)
-  final PermissionStatusExtended _permissionStatus = PermissionStatusExtended.granted;
+  // Sur web, la permission est toujours accordée (pas de contacts appareil)
+  PermissionStatusExtended _permissionStatus =
+      kIsWeb ? PermissionStatusExtended.granted : PermissionStatusExtended.denied;
 
-  // Getters
+  // ── Getters ──────────────────────────────────────────────────
   List<ContactModel> get contacts =>
       _searchQuery.isEmpty ? _allContacts : _filteredContacts;
 
@@ -41,6 +53,7 @@ class ContactsProviderV2 with ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String get searchQuery => _searchQuery;
   PermissionStatusExtended get permissionStatus => _permissionStatus;
+  bool get isAddingContact => _isAddingContact;
 
   bool get isLoading => _loadingState == ContactsLoadingState.loading;
   bool get hasError => _loadingState == ContactsLoadingState.error;
@@ -50,29 +63,45 @@ class ContactsProviderV2 with ChangeNotifier {
   bool get isPermissionPermanentlyDenied =>
       _permissionStatus == PermissionStatusExtended.permanentlyDenied;
 
-  /// Check current permission status (web: always granted)
+  // ── Vérifier la permission ───────────────────────────────────
   Future<void> checkPermissionStatus() async {
-    debugPrint('📋 Permission status (web stub): granted');
+    if (kIsWeb) {
+      // Web : pas de contacts appareil, permission toujours accordée
+      _permissionStatus = PermissionStatusExtended.granted;
+      debugPrint('📋 Permission (web): granted');
+      notifyListeners();
+      return;
+    }
+    // Mobile : stub — toujours granted pour l'instant
+    // TODO: flutter_contacts permission check on mobile
+    _permissionStatus = PermissionStatusExtended.granted;
     notifyListeners();
   }
 
-  /// Request contacts permission (web: no-op, always granted)
+  // ── Demander la permission ────────────────────────────────────
   Future<bool> requestPermission() async {
-    debugPrint('📲 Permission request (web stub): granted');
+    if (kIsWeb) {
+      _permissionStatus = PermissionStatusExtended.granted;
+      notifyListeners();
+      await loadContacts();
+      return true;
+    }
+    // Mobile stub
+    _permissionStatus = PermissionStatusExtended.granted;
+    notifyListeners();
     await loadContacts();
     return true;
   }
 
-  /// Load all contacts
+  // ── Charger les contacts depuis le backend ────────────────────
   Future<void> loadContacts() async {
     try {
-      debugPrint('📱 Loading contacts...');
+      debugPrint('📱 Loading contacts from backend...');
 
       _loadingState = ContactsLoadingState.loading;
       _errorMessage = null;
       notifyListeners();
 
-      // Get contacts (from backend or phone on mobile)
       final contacts = await _contactsService.getContacts();
 
       debugPrint('✅ Loaded ${contacts.length} contacts');
@@ -82,57 +111,130 @@ class ContactsProviderV2 with ChangeNotifier {
       _loadingState = ContactsLoadingState.loaded;
       notifyListeners();
     } catch (e, stackTrace) {
-      debugPrint('❌ Error loading contacts: $e');
-      debugPrint('Stack trace: $stackTrace');
+      debugPrint('❌ loadContacts error: $e');
+      debugPrint('Stack: $stackTrace');
 
       _loadingState = ContactsLoadingState.error;
-      _errorMessage = 'Erreur lors du chargement des contacts: ${e.toString()}';
+      _errorMessage = 'Erreur chargement contacts : ${e.toString()}';
       notifyListeners();
     }
   }
 
-  /// Search contacts
+  // ── Ajouter un contact via le backend ─────────────────────────
+  /// Retourne { success, message?, error? }
+  Future<Map<String, dynamic>> addContact({
+    required String name,
+    required String phone,
+    String country = 'BF',
+  }) async {
+    _isAddingContact = true;
+    notifyListeners();
+
+    try {
+      final result = await _contactsService.addContact(
+        name: name,
+        phone: phone,
+        country: country,
+      );
+
+      if (result['success'] == true) {
+        final contact = result['contact'] as ContactModel?;
+        if (contact != null) {
+          // Éviter les doublons
+          final alreadyExists = _allContacts.any(
+            (c) => c.phone == contact.phone || c.id == contact.id,
+          );
+          if (!alreadyExists) {
+            _allContacts = [contact, ..._allContacts];
+          }
+        }
+        _loadingState = ContactsLoadingState.loaded;
+      }
+
+      _isAddingContact = false;
+      notifyListeners();
+      return result;
+    } catch (e) {
+      _isAddingContact = false;
+      notifyListeners();
+      return {'success': false, 'error': 'Erreur : $e'};
+    }
+  }
+
+  // ── Synchroniser le carnet d'adresses (mobile) ───────────────
+  Future<void> syncPhoneContacts() async {
+    try {
+      _loadingState = ContactsLoadingState.loading;
+      notifyListeners();
+
+      final phoneContacts = await _contactsService.getPhoneContacts();
+      if (phoneContacts.isEmpty) {
+        // Sur web ou si pas de contacts : charger depuis le backend directement
+        await loadContacts();
+        return;
+      }
+
+      final synced = await _contactsService.syncContacts(phoneContacts);
+      _allContacts = synced;
+      _loadingState = ContactsLoadingState.loaded;
+      notifyListeners();
+    } catch (e) {
+      _loadingState = ContactsLoadingState.error;
+      _errorMessage = 'Erreur synchronisation : $e';
+      notifyListeners();
+    }
+  }
+
+  // ── Supprimer un contact ──────────────────────────────────────
+  Future<Map<String, dynamic>> deleteContact(String phone) async {
+    try {
+      final result = await _contactsService.deleteContact(phone);
+      if (result['success'] == true) {
+        _allContacts.removeWhere((c) => c.phone == phone);
+        notifyListeners();
+      }
+      return result;
+    } catch (e) {
+      return {'success': false, 'error': '$e'};
+    }
+  }
+
+  // ── Vérifier si un numéro est sur OmniSMS ────────────────────
+  Future<Map<String, dynamic>> checkPhone(String phone) async {
+    return _contactsService.checkPhone(phone);
+  }
+
+  // ── Recherche de contacts ─────────────────────────────────────
   void searchContacts(String query) {
     _searchQuery = query.trim();
-
     if (_searchQuery.isEmpty) {
       _filteredContacts = [];
     } else {
-      _applySearchFilter();
+      _filteredContacts = _contactsService.searchContactsLocally(
+        _allContacts,
+        _searchQuery,
+      );
+      debugPrint('🔍 Search "$_searchQuery": ${_filteredContacts.length} results');
     }
-
     notifyListeners();
   }
 
-  /// Apply search filter
-  void _applySearchFilter() {
-    _filteredContacts = _contactsService.searchContactsLocally(
-      _allContacts,
-      _searchQuery,
-    );
-
-    debugPrint('🔍 Search "$_searchQuery" found ${_filteredContacts.length} results');
-  }
-
-  /// Clear search
   void clearSearch() {
     _searchQuery = '';
     _filteredContacts = [];
     notifyListeners();
   }
 
-  /// Clear error
   void clearError() {
     _errorMessage = null;
     notifyListeners();
   }
 
-  /// Refresh contacts
   Future<void> refreshContacts() async {
     await loadContacts();
   }
 
-  /// Open app settings (stub on web)
+  /// Ouvrir les paramètres de l'app (stub web)
   Future<void> openSettings() async {
     debugPrint('⚠️ openSettings: not available on web');
   }
