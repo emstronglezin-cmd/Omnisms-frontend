@@ -37,7 +37,7 @@ class ContactsProvider with ChangeNotifier {
             notifyListeners();
           }
         }).catchError((e) {
-          print('Background sync error: $e');
+          debugPrint('Background sync error: $e');
         });
       } else {
         _hasPermission = false;
