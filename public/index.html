@@ -147,6 +147,9 @@
   <div id="tab-contacts" class="tab-content">
     <div class="tab-header">
       <h2>Contacts</h2>
+      <button class="icon-btn" title="Importer contacts" onclick="importWithContactPicker()" style="margin-right:4px">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
+      </button>
       <button class="icon-btn" title="Ajouter contact" onclick="openModal('modal-add-contact')">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
       </button>
@@ -203,13 +206,15 @@
             <div class="settings-row-sub">Gérer les notifications</div>
           </div>
         </div>
-        <div class="settings-row">
+        <div class="settings-row" onclick="handleSubscription()" style="cursor:pointer">
           <div class="settings-row-icon">
             <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm4.24 16L12 15.45 7.77 18l1.12-4.81-3.73-3.23 4.92-.42L12 5l1.92 4.53 4.92.42-3.73 3.23L16.23 18z"/></svg>
           </div>
           <div class="settings-row-info">
             <div class="settings-row-label">Abonnement</div>
-            <div class="settings-row-sub">Gérer mon plan</div>
+            <div class="settings-row-sub">
+              <button id="subscription-btn" class="btn-primary" style="font-size:12px;padding:6px 14px;margin-top:4px" onclick="event.stopPropagation();handleSubscription()">S'abonner au Premium</button>
+            </div>
           </div>
         </div>
         <div class="settings-row">
@@ -228,7 +233,7 @@
       </div>
 
       <div style="text-align:center;color:var(--text-muted);font-size:12px;padding:8px">
-        OmniSMS v2.2.0 — Messagerie Sécurisée
+        OmniSMS v2.5.0 — Messagerie Sécurisée
       </div>
     </div>
   </div>
@@ -259,22 +264,36 @@
 <div id="modal-add-contact" class="modal">
   <div class="modal-sheet">
     <div class="modal-header">
-      <span class="modal-title">Ajouter un contact</span>
+      <span class="modal-title">Contacts</span>
       <button class="modal-close" onclick="closeModal('modal-add-contact')">✕</button>
     </div>
+
+    <!-- Import buttons -->
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <button type="button" class="btn-ghost" style="flex:1;font-size:13px" onclick="importWithContactPicker()">
+        📱 Importer (téléphone)
+      </button>
+      <label style="flex:1;font-size:13px;cursor:pointer;text-align:center;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);color:var(--text-primary);display:flex;align-items:center;justify-content:center;gap:6px">
+        📂 Importer VCF
+        <input id="vcf-import-input" type="file" accept=".vcf,text/vcard" style="display:none">
+      </label>
+    </div>
+
+    <div style="text-align:center;color:var(--text-muted);font-size:12px;margin-bottom:16px">— ou ajouter manuellement —</div>
+
     <form id="add-contact-form">
       <div class="form-group">
         <label class="form-label">Nom</label>
         <input id="contact-name" type="text" class="form-input" placeholder="Jean Dupont" required>
       </div>
       <div class="form-group">
-        <label class="form-label">Téléphone</label>
-        <input id="contact-phone" type="tel" class="form-input" placeholder="+33612345678" required>
+        <label class="form-label">Téléphone (format international)</label>
+        <input id="contact-phone" type="tel" class="form-input" placeholder="+22670123456" required>
       </div>
       <div id="contact-error" class="field-error"></div>
       <div style="margin-top:20px;display:flex;gap:12px">
         <button type="button" class="btn-ghost" style="flex:1" onclick="closeModal('modal-add-contact')">Annuler</button>
-        <button type="submit" class="btn-primary" style="flex:2">Ajouter</button>
+        <button id="add-contact-submit" type="submit" class="btn-primary" style="flex:2">Ajouter</button>
       </div>
     </form>
   </div>
@@ -299,7 +318,7 @@
       <div id="group-error" class="field-error"></div>
       <div style="margin-top:20px;display:flex;gap:12px">
         <button type="button" class="btn-ghost" style="flex:1" onclick="closeModal('modal-create-group')">Annuler</button>
-        <button type="submit" class="btn-primary" style="flex:2">Créer</button>
+        <button id="create-group-submit" type="submit" class="btn-primary" style="flex:2">Créer</button>
       </div>
     </form>
   </div>
