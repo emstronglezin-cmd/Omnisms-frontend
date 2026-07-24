@@ -6,6 +6,7 @@ import 'contacts/contacts_screen_v2.dart';
 import 'groups/groups_screen.dart';
 import 'settings/settings_screen.dart';
 import 'messaging/conversation_screen.dart';
+import 'messaging/messages_list_page.dart';
 import 'groups/create_group_screen.dart';
 import 'transcription_screen.dart';
 import 'subscription_screen.dart';
@@ -26,7 +27,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
 
   final List<_NavItem> _navItems = const [
-    _NavItem(icon: Icons.home_outlined, activeIcon: Icons.home, label: 'Accueil'),
+    _NavItem(icon: Icons.chat_bubble_outline_rounded, activeIcon: Icons.chat_bubble_rounded, label: 'Messages'),
     _NavItem(icon: Icons.contacts_outlined, activeIcon: Icons.contacts, label: 'Contacts'),
     _NavItem(icon: Icons.group_outlined, activeIcon: Icons.group, label: 'Groupes'),
     _NavItem(icon: Icons.settings_outlined, activeIcon: Icons.settings, label: 'Paramètres'),
@@ -35,7 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildPage(int index) {
     switch (index) {
       case 0:
-        return const DashboardHomePage();
+        return const MessagesListPage();
       case 1:
         return const ContactsScreenV2();
       case 2:
@@ -43,7 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 3:
         return const SettingsScreen();
       default:
-        return const DashboardHomePage();
+        return const MessagesListPage();
     }
   }
 
@@ -368,6 +369,7 @@ class DashboardHomePage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => const ConversationScreen(
+                    conversationId: 'new',
                     contactId: 'new',
                     contactName: 'Nouveau message',
                   ),

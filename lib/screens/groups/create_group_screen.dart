@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/contacts_provider.dart';
+import '../../providers/contacts_provider_v2.dart';
 import '../../providers/groups_provider.dart';
+import '../../providers/messaging_provider.dart';
+import '../../models/models.dart';
+import '../messaging/conversation_screen.dart';
 
+/// CreateGroupScreen — create a new group and immediately open its conversation.
+///
+/// Uses ContactsProviderV2 (updated) instead of the old ContactsProvider.
 class CreateGroupScreen extends StatefulWidget {
   const CreateGroupScreen({super.key});
 
@@ -20,7 +26,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = context.read<ContactsProvider>();
+      final provider = context.read<ContactsProviderV2>();
       if (provider.contacts.isEmpty) {
         provider.loadContacts();
       }
@@ -42,37 +48,56 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       return;
     }
 
-    if (_selectedContactIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez sélectionner au moins un contact')),
-      );
-      return;
-    }
+    // Group can be created without members (creator-only)
+    setState(() => _isCreating = true);
 
-    setState(() {
-      _isCreating = true;
-    });
-
-    final success = await context.read<GroupsProvider>().createGroup(
-          name: _nameController.text.trim(),
-          description: _descController.text.trim().isEmpty ? null : _descController.text.trim(),
-          memberIds: _selectedContactIds.toList(),
-        );
+    final groupsProvider = context.read<GroupsProvider>();
+    final group = await groupsProvider.createGroupAndReturn(
+      name: _nameController.text.trim(),
+      description: _descController.text.trim().isEmpty
+          ? null
+          : _descController.text.trim(),
+      memberIds: _selectedContactIds.toList(),
+    );
 
     if (!mounted) return;
 
-    setState(() {
-      _isCreating = false;
-    });
+    setState(() => _isCreating = false);
 
-    if (success) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Groupe créé avec succès')),
+    if (group != null) {
+      // Add group conversation to MessagesListPage
+      final messaging = context.read<MessagingProvider>();
+      messaging.addOrUpdateConversation(
+        ConversationModel(
+          id: group.id,
+          otherUserId: group.id,
+          otherUserName: group.name,
+          lastMessage: null,
+          lastMessageTime: group.createdAt,
+          unreadCount: 0,
+          isGroup: true,
+          groupName: group.name,
+        ),
+      );
+
+      // Navigate: replace CreateGroupScreen with ConversationScreen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ConversationScreen(
+            conversationId: group.id,
+            contactId: group.id,
+            contactName: group.name,
+            isGroup: true,
+          ),
+        ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Échec de la création du groupe')),
+        const SnackBar(
+          content: Text('Échec de la création du groupe'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -111,7 +136,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 // Group avatar placeholder
                 CircleAvatar(
                   radius: 40,
-                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                  backgroundColor:
+                      Theme.of(context).colorScheme.primaryContainer,
                   child: Icon(
                     Icons.group,
                     size: 40,
@@ -124,7 +150,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 TextField(
                   controller: _nameController,
                   decoration: const InputDecoration(
-                    labelText: 'Nom du groupe',
+                    labelText: 'Nom du groupe *',
                     hintText: 'Ex: Famille, Travail...',
                     border: OutlineInputBorder(),
                   ),
@@ -157,13 +183,19 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   'Membres sélectionnés: ${_selectedContactIds.length}',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
+                const Spacer(),
+                Text(
+                  '(optionnel)',
+                  style: TextStyle(
+                      fontSize: 12, color: Colors.grey[500]),
+                ),
               ],
             ),
           ),
 
           // Contacts list
           Expanded(
-            child: Consumer<ContactsProvider>(
+            child: Consumer<ContactsProviderV2>(
               builder: (context, provider, _) {
                 if (provider.isLoading) {
                   return const Center(child: CircularProgressIndicator());
@@ -174,7 +206,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.contacts_outlined, size: 64, color: Colors.grey),
+                        const Icon(Icons.contacts_outlined,
+                            size: 64, color: Colors.grey),
                         const SizedBox(height: 16),
                         const Text(
                           'Aucun contact disponible',
@@ -194,7 +227,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   itemCount: provider.contacts.length,
                   itemBuilder: (context, index) {
                     final contact = provider.contacts[index];
-                    final isSelected = _selectedContactIds.contains(contact.id);
+                    final isSelected =
+                        _selectedContactIds.contains(contact.id);
 
                     return CheckboxListTile(
                       value: isSelected,
@@ -207,12 +241,14 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                           }
                         });
                       },
-                      title: Text(contact.displayName),
+                      title: Text(contact.name),
                       subtitle: Text(contact.phone ?? 'Pas de numéro'),
                       secondary: CircleAvatar(
                         backgroundColor: isSelected
                             ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context).colorScheme.primaryContainer,
+                            : Theme.of(context)
+                                .colorScheme
+                                .primaryContainer,
                         child: contact.photoUrl != null
                             ? ClipOval(
                                 child: Image.network(
@@ -221,21 +257,33 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                                   height: 40,
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) => Text(
-                                    contact.initials,
+                                    contact.name.isNotEmpty
+                                        ? contact.name[0].toUpperCase()
+                                        : '?',
                                     style: TextStyle(
                                       color: isSelected
-                                          ? Theme.of(context).colorScheme.onPrimary
-                                          : Theme.of(context).colorScheme.onPrimaryContainer,
+                                          ? Theme.of(context)
+                                              .colorScheme
+                                              .onPrimary
+                                          : Theme.of(context)
+                                              .colorScheme
+                                              .onPrimaryContainer,
                                     ),
                                   ),
                                 ),
                               )
                             : Text(
-                                contact.initials,
+                                contact.name.isNotEmpty
+                                    ? contact.name[0].toUpperCase()
+                                    : '?',
                                 style: TextStyle(
                                   color: isSelected
-                                      ? Theme.of(context).colorScheme.onPrimary
-                                      : Theme.of(context).colorScheme.onPrimaryContainer,
+                                      ? Theme.of(context)
+                                          .colorScheme
+                                          .onPrimary
+                                      : Theme.of(context)
+                                          .colorScheme
+                                          .onPrimaryContainer,
                                 ),
                               ),
                       ),

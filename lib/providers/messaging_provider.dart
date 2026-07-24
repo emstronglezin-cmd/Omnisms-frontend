@@ -1,182 +1,366 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/messaging_service.dart';
+import '../services/auth_service.dart';
 
+/// MessagingProvider — Central state for conversations + messages.
+///
+/// Architecture:
+///   _conversations     → List<ConversationModel>  (sorted newest-first)
+///   _messagesMap       → Map<conversationId, List<MessageModel>>
+///
+/// Real-time: periodic polling every 15 seconds (Socket.IO pkg not installed).
+/// On new message receipt: conversation bubbles to top, unread counter updated.
 class MessagingProvider with ChangeNotifier {
   final MessagingService _messagingService = MessagingService();
+  final AuthService _authService = AuthService();
 
-  Map<String, List<MessageModel>> _conversationsMessages = {};
-  bool _isLoading = false;
-  String? _error;
+  // ── Conversations list ──────────────────────────────────────
+  List<ConversationModel> _conversations = [];
+  bool _isLoadingConversations = false;
+  String? _conversationsError;
+
+  // ── Per-conversation messages ──────────────────────────────
+  final Map<String, List<MessageModel>> _messagesMap = {};
+  final Map<String, bool> _messagesLoading = {};
+
+  // ── Global state ───────────────────────────────────────────
   bool _isConnected = false;
+  String? _currentUserId;
 
-  List<MessageModel> getMessages(String contactId) {
-    return _conversationsMessages[contactId] ?? [];
-  }
+  // ── Polling timer ───────────────────────────────────────────
+  Timer? _pollingTimer;
+  static const Duration _pollingInterval = Duration(seconds: 15);
 
-  bool get isLoading => _isLoading;
-  String? get error => _error;
+  // ── Active conversation (for per-conv polling) ──────────────
+  String? _activeConversationId;
+
+  // ── Getters ─────────────────────────────────────────────────
+  List<ConversationModel> get conversations => _conversations;
+  bool get isLoadingConversations => _isLoadingConversations;
+  String? get conversationsError => _conversationsError;
   bool get isConnected => _isConnected;
 
+  List<MessageModel> getMessages(String conversationId) {
+    return _messagesMap[conversationId] ?? [];
+  }
+
+  bool isLoadingMessages(String conversationId) {
+    return _messagesLoading[conversationId] ?? false;
+  }
+
+  // Legacy compat
+  bool get isLoading => _isLoadingConversations;
+  String? get error => _conversationsError;
+
+  // ── Constructor ─────────────────────────────────────────────
   MessagingProvider() {
-    _initWebSocket();
+    _init();
   }
 
-  void _initWebSocket() {
+  Future<void> _init() async {
+    _currentUserId = await _authService.getUserId();
+    _isConnected = true;
+    // Load conversations on startup
+    await loadConversations();
+    // Start polling for real-time updates
+    _startPolling();
+  }
+
+  // ── Polling ──────────────────────────────────────────────────
+  void _startPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(_pollingInterval, (_) async {
+      await _pollConversations();
+      if (_activeConversationId != null) {
+        await _pollMessages(_activeConversationId!);
+      }
+    });
+  }
+
+  Future<void> _pollConversations() async {
     try {
-      _messagingService.connectWebSocket((message) {
-        _addMessageToConversation(message);
+      final updated = await _messagingService.getConversations();
+      if (updated.isNotEmpty || _conversations.isNotEmpty) {
+        _mergeConversations(updated);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _pollMessages(String conversationId) async {
+    try {
+      final messages = await _messagingService.getConversationHistory(
+        conversationId,
+        currentUserId: _currentUserId,
+      );
+      if (messages.isNotEmpty) {
+        _messagesMap[conversationId] = messages;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  /// Merge updated conversations into the list, preserving order (newest first).
+  void _mergeConversations(List<ConversationModel> updated) {
+    if (updated.isEmpty) return;
+
+    final Map<String, ConversationModel> existing = {
+      for (final c in _conversations) c.id: c,
+    };
+
+    for (final conv in updated) {
+      existing[conv.id] = conv;
+    }
+
+    _conversations = existing.values.toList()
+      ..sort((a, b) {
+        final at = a.lastMessageTime;
+        final bt = b.lastMessageTime;
+        if (at == null && bt == null) return 0;
+        if (at == null) return 1;
+        if (bt == null) return -1;
+        return bt.compareTo(at);
       });
-      _isConnected = true;
-      notifyListeners();
-    } catch (e) {
-      debugPrint('⚠️ WebSocket init error (non-blocking): $e');
-      _isConnected = false;
-    }
-  }
 
-  void _addMessageToConversation(MessageModel message) {
-    final contactId = message.isMe ? message.receiverId : message.senderId;
-    if (contactId == null) return;
-
-    if (!_conversationsMessages.containsKey(contactId)) {
-      _conversationsMessages[contactId] = [];
-    }
-    _conversationsMessages[contactId]!.add(message);
     notifyListeners();
   }
 
-  Future<void> loadMessages(String contactId) async {
-    _isLoading = true;
+  /// Set the currently open conversation (for focused polling).
+  void setActiveConversation(String? conversationId) {
+    _activeConversationId = conversationId;
+  }
+
+  // ── Load conversations list ──────────────────────────────────
+  Future<void> loadConversations() async {
+    _isLoadingConversations = true;
+    _conversationsError = null;
     notifyListeners();
 
     try {
-      final messages = await _messagingService.getMessages(contactId: contactId);
-      _conversationsMessages[contactId] = messages;
-      _isLoading = false;
+      final convs = await _messagingService.getConversations();
+      _conversations = convs;
+      _isLoadingConversations = false;
       notifyListeners();
     } catch (e) {
-      _error = 'Erreur lors du chargement des messages: $e';
-      _isLoading = false;
+      _conversationsError = 'Erreur chargement conversations: $e';
+      _isLoadingConversations = false;
       notifyListeners();
     }
   }
 
+  // ── Load messages for a conversation ────────────────────────
+  Future<void> loadMessages(String conversationId) async {
+    if (_messagesLoading[conversationId] == true) return;
+
+    _messagesLoading[conversationId] = true;
+    notifyListeners();
+
+    try {
+      // Refresh current user ID if needed
+      _currentUserId ??= await _authService.getUserId();
+
+      final messages = await _messagingService.getConversationHistory(
+        conversationId,
+        currentUserId: _currentUserId,
+      );
+      _messagesMap[conversationId] = messages;
+      _messagesLoading[conversationId] = false;
+      notifyListeners();
+    } catch (e) {
+      _conversationsError = 'Erreur chargement messages: $e';
+      _messagesLoading[conversationId] = false;
+      notifyListeners();
+    }
+  }
+
+  // ── Send text message ────────────────────────────────────────
   Future<bool> sendTextMessage({
-    required String contactId,
+    required String receiverId,
     required String content,
     String? conversationId,
+    String? contactId, // alias for receiverId (legacy compat)
   }) async {
+    final targetReceiver = receiverId.isNotEmpty ? receiverId : (contactId ?? '');
+    if (targetReceiver.isEmpty) return false;
+
     try {
+      _currentUserId ??= await _authService.getUserId();
+
       final message = await _messagingService.sendTextMessage(
-        receiverId: contactId,
+        receiverId: targetReceiver,
         content: content,
         conversationId: conversationId,
+        currentUserId: _currentUserId,
       );
 
       if (message != null) {
-        _addMessageToConversation(message);
+        // Add to local message list immediately (optimistic)
+        final convId = conversationId ??
+            (message.conversationId.isNotEmpty
+                ? message.conversationId
+                : _buildConversationId(_currentUserId ?? '', targetReceiver));
+
+        if (!_messagesMap.containsKey(convId)) {
+          _messagesMap[convId] = [];
+        }
+        _messagesMap[convId]!.add(message);
+
+        // Update conversation last message
+        _updateConversationLastMessage(convId, message);
+
+        notifyListeners();
+
+        // Refresh conversations after a brief delay
+        Future.delayed(const Duration(seconds: 2), loadConversations);
+
         return true;
       }
       return false;
     } catch (e) {
-      _error = 'Erreur lors de l\'envoi du message: $e';
-      notifyListeners();
+      debugPrint('sendTextMessage error: $e');
       return false;
     }
   }
 
-  /// Voice messages are not supported on web — stub returns false
+  /// Compute conversationId from two user IDs (same logic as backend).
+  String _buildConversationId(String uid1, String uid2) {
+    final sorted = [uid1, uid2]..sort();
+    return sorted.join('-');
+  }
+
+  /// Update the conversation in the list with the new last message.
+  void _updateConversationLastMessage(
+      String conversationId, MessageModel message) {
+    final idx = _conversations.indexWhere((c) => c.id == conversationId);
+    if (idx != -1) {
+      final updated = _conversations[idx].copyWith(
+        lastMessage: message.content,
+        lastMessageTime: message.timestamp,
+      );
+      _conversations.removeAt(idx);
+      _conversations.insert(0, updated);
+    }
+  }
+
+  // ── Send voice message ────────────────────────────────────────
   Future<bool> sendVoiceMessage({
     required String contactId,
-    required dynamic audioFile, // dynamic to avoid dart:io File on web
+    required dynamic audioFile,
     int? duration,
     String? conversationId,
   }) async {
     if (kIsWeb) {
-      _error = 'Messages vocaux non supportés sur le web';
-      notifyListeners();
       return false;
     }
     try {
+      _currentUserId ??= await _authService.getUserId();
       final message = await _messagingService.sendVoiceMessage(
         receiverId: contactId,
         audioFile: audioFile,
         duration: duration,
         conversationId: conversationId,
+        currentUserId: _currentUserId,
       );
 
       if (message != null) {
-        _addMessageToConversation(message);
+        final convId = conversationId ?? message.conversationId;
+        if (!_messagesMap.containsKey(convId)) {
+          _messagesMap[convId] = [];
+        }
+        _messagesMap[convId]!.add(message);
+        _updateConversationLastMessage(convId, message);
+        notifyListeners();
         return true;
       }
       return false;
     } catch (e) {
-      _error = 'Erreur lors de l\'envoi du message vocal: $e';
-      notifyListeners();
+      debugPrint('sendVoiceMessage error: $e');
       return false;
     }
   }
 
+  // ── React to message ──────────────────────────────────────────
   Future<bool> reactToMessage(String messageId, String emoji) async {
     try {
       return await _messagingService.reactToMessage(messageId, emoji);
     } catch (e) {
-      _error = 'Erreur lors de la réaction: $e';
-      notifyListeners();
       return false;
     }
   }
 
-  Future<bool> deleteMessage(String contactId, String messageId) async {
+  // ── Delete message ────────────────────────────────────────────
+  Future<bool> deleteMessage(String conversationId, String messageId) async {
     try {
       final success = await _messagingService.deleteMessage(messageId);
       if (success) {
-        _conversationsMessages[contactId]?.removeWhere((m) => m.id == messageId);
+        _messagesMap[conversationId]?.removeWhere((m) => m.id == messageId);
         notifyListeners();
       }
       return success;
     } catch (e) {
-      _error = 'Erreur lors de la suppression: $e';
-      notifyListeners();
       return false;
     }
   }
 
+  // ── Transcribe voice message ──────────────────────────────────
   Future<String?> transcribeMessage(String messageId) async {
     try {
       return await _messagingService.transcribeVoiceMessage(messageId);
     } catch (e) {
-      _error = 'Erreur lors de la transcription: $e';
-      notifyListeners();
       return null;
     }
   }
 
-  void updateMessageTranscription(String contactId, String messageId, String transcription) {
-    final messages = _conversationsMessages[contactId];
+  // ── Update transcription in local state ───────────────────────
+  void updateMessageTranscription(
+      String conversationId, String messageId, String transcription) {
+    final messages = _messagesMap[conversationId];
     if (messages != null) {
       final index = messages.indexWhere((m) => m.id == messageId);
       if (index != -1) {
-        messages[index] = messages[index].copyWith(transcription: transcription);
+        messages[index] =
+            messages[index].copyWith(transcription: transcription);
         notifyListeners();
       }
     }
   }
 
-  @override
-  void dispose() {
-    try {
-      _messagingService.disconnectWebSocket();
-    } catch (e) {
-      debugPrint('⚠️ WebSocket disconnect error: $e');
+  // ── Add conversation to list (after contact add / group create) ─
+  void addOrUpdateConversation(ConversationModel conversation) {
+    final idx = _conversations.indexWhere((c) => c.id == conversation.id);
+    if (idx != -1) {
+      _conversations[idx] = conversation;
+    } else {
+      _conversations.insert(0, conversation);
     }
-    super.dispose();
+    notifyListeners();
+  }
+
+  // ── Mark conversation as read ─────────────────────────────────
+  void markConversationAsRead(String conversationId) {
+    final idx = _conversations.indexWhere((c) => c.id == conversationId);
+    if (idx != -1) {
+      _conversations[idx] =
+          _conversations[idx].copyWith(unreadCount: 0);
+      notifyListeners();
+    }
+  }
+
+  // ── Force refresh ─────────────────────────────────────────────
+  Future<void> refresh() async {
+    await loadConversations();
   }
 
   void clearError() {
-    _error = null;
+    _conversationsError = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    super.dispose();
   }
 }

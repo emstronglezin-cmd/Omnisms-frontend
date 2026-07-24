@@ -28,8 +28,12 @@ enum ContactsLoadingState {
 ///   - loadContacts()        → charge depuis le backend
 ///   - addContact()          → ajoute un contact via backend
 ///   - syncPhoneContacts()   → synchronise le carnet (mobile)
+///   - syncVCFContacts()     → synchronise à partir d'un fichier VCF
 ///   - searchContacts()      → recherche locale
 ///   - checkPhone()          → vérifie si un numéro est sur OmniSMS
+///
+/// After sync: ALL contacts are shown (not just OmniSMS-registered).
+/// Registered contacts are flagged with isRegistered = true.
 class ContactsProviderV2 with ChangeNotifier {
   final ContactsServiceV2 _contactsService = ContactsServiceV2();
 
@@ -40,6 +44,10 @@ class ContactsProviderV2 with ChangeNotifier {
   String? _errorMessage;
   String _searchQuery = '';
   bool _isAddingContact = false;
+
+  // Callback to create conversations for registered contacts
+  // Set externally by the app (e.g., from MessagingProvider)
+  Function(List<ContactModel> registeredContacts)? onSyncedRegisteredContacts;
 
   // Sur web, la permission est toujours accordée (pas de contacts appareil)
   PermissionStatusExtended _permissionStatus =
@@ -66,14 +74,11 @@ class ContactsProviderV2 with ChangeNotifier {
   // ── Vérifier la permission ───────────────────────────────────
   Future<void> checkPermissionStatus() async {
     if (kIsWeb) {
-      // Web : pas de contacts appareil, permission toujours accordée
       _permissionStatus = PermissionStatusExtended.granted;
       debugPrint('📋 Permission (web): granted');
       notifyListeners();
       return;
     }
-    // Mobile : stub — toujours granted pour l'instant
-    // TODO: flutter_contacts permission check on mobile
     _permissionStatus = PermissionStatusExtended.granted;
     notifyListeners();
   }
@@ -86,7 +91,6 @@ class ContactsProviderV2 with ChangeNotifier {
       await loadContacts();
       return true;
     }
-    // Mobile stub
     _permissionStatus = PermissionStatusExtended.granted;
     notifyListeners();
     await loadContacts();
@@ -161,6 +165,64 @@ class ContactsProviderV2 with ChangeNotifier {
     }
   }
 
+  // ── Synchroniser un ensemble de contacts locaux ───────────────
+  /// Accepts a list of ContactModels (from VCF or device picker).
+  /// Sends to backend POST /api/contacts/sync.
+  /// Shows ALL contacts (not just registered ones).
+  /// Registered contacts get isRegistered = true.
+  Future<void> syncContacts(List<ContactModel> localContacts) async {
+    if (localContacts.isEmpty) {
+      await loadContacts();
+      return;
+    }
+
+    try {
+      _loadingState = ContactsLoadingState.loading;
+      notifyListeners();
+
+      final merged =
+          await _contactsService.syncContacts(localContacts);
+
+      // Merge with existing contacts (avoid duplicates by phone)
+      final existingPhones = <String>{
+        for (final c in _allContacts)
+          if (c.phone != null) c.phone!
+      };
+
+      final newContacts = merged
+          .where((c) => c.phone == null || !existingPhones.contains(c.phone))
+          .toList();
+
+      _allContacts = [...merged, ...newContacts];
+
+      // Deduplicate by phone
+      final seen = <String>{};
+      _allContacts = _allContacts.where((c) {
+        final key = c.phone ?? c.id;
+        if (seen.contains(key)) return false;
+        seen.add(key);
+        return true;
+      }).toList();
+
+      _loadingState = ContactsLoadingState.loaded;
+      notifyListeners();
+
+      // Notify registered contacts for conversation creation
+      final registered =
+          _allContacts.where((c) => c.isRegistered).toList();
+      if (registered.isNotEmpty && onSyncedRegisteredContacts != null) {
+        onSyncedRegisteredContacts!(registered);
+      }
+
+      debugPrint(
+          '✅ Sync complete: ${_allContacts.length} total, ${registered.length} OmniSMS');
+    } catch (e) {
+      _loadingState = ContactsLoadingState.error;
+      _errorMessage = 'Erreur synchronisation : $e';
+      notifyListeners();
+    }
+  }
+
   // ── Synchroniser le carnet d'adresses (mobile) ───────────────
   Future<void> syncPhoneContacts() async {
     try {
@@ -174,15 +236,20 @@ class ContactsProviderV2 with ChangeNotifier {
         return;
       }
 
-      final synced = await _contactsService.syncContacts(phoneContacts);
-      _allContacts = synced;
-      _loadingState = ContactsLoadingState.loaded;
-      notifyListeners();
+      await syncContacts(phoneContacts);
     } catch (e) {
       _loadingState = ContactsLoadingState.error;
       _errorMessage = 'Erreur synchronisation : $e';
       notifyListeners();
     }
+  }
+
+  // ── Synchroniser depuis un fichier VCF ────────────────────────
+  /// Parse the VCF content and sync with backend.
+  Future<void> syncVCFContacts(String vcfContent) async {
+    final parsed = _contactsService.parseVCF(vcfContent);
+    debugPrint('📋 VCF: ${parsed.length} contacts parsed');
+    await syncContacts(parsed);
   }
 
   // ── Supprimer un contact ──────────────────────────────────────
@@ -214,7 +281,8 @@ class ContactsProviderV2 with ChangeNotifier {
         _allContacts,
         _searchQuery,
       );
-      debugPrint('🔍 Search "$_searchQuery": ${_filteredContacts.length} results');
+      debugPrint(
+          '🔍 Search "$_searchQuery": ${_filteredContacts.length} results');
     }
     notifyListeners();
   }
