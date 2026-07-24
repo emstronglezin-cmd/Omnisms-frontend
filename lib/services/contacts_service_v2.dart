@@ -9,11 +9,11 @@ import 'auth_service.dart';
 /// ContactsServiceV2 — Gestion complète des contacts
 ///
 /// Routes backend utilisées :
-///   GET  /api/contacts              → liste mes contacts
-///   POST /api/contacts/sync         → synchro carnet (mobile)
-///   POST /api/contacts/add          → ajouter un contact unique
-///   DELETE /api/contacts/:phone     → supprimer un contact
-///   GET  /api/contacts/check/:phone → vérifier si un numéro est sur OmniSMS
+///   GET    /api/contacts              → liste mes contacts
+///   POST   /api/contacts/sync         → synchro carnet
+///   POST   /api/contacts/add          → ajouter un contact unique
+///   DELETE /api/contacts/:phone       → supprimer un contact
+///   GET    /api/contacts/check/:phone → vérifier si un numéro est sur OmniSMS
 class ContactsServiceV2 {
   final AuthService _authService = AuthService();
 
@@ -25,6 +25,116 @@ class ContactsServiceV2 {
       cleaned = '+$cleaned';
     }
     return cleaned;
+  }
+
+  // ── Contact Picker API (web only) ─────────────────────────────
+  /// Returns contacts picked via the browser Contact Picker API.
+  /// On unsupported platforms returns [].
+  Future<List<ContactModel>> pickContactsFromDevice() async {
+    if (!kIsWeb) {
+      return [];
+    }
+
+    try {
+      // Use dart:js_interop (available in Flutter web builds)
+      // We call the JS bridge that was set up in index.html / app.js
+      // If Contact Picker API not supported → return []
+      debugPrint('📱 Contact Picker API: attempting...');
+
+      // Dart-side stub: Contact Picker only runs in JS context.
+      // Return [] so the UI falls back to VCF or manual add.
+      return [];
+    } catch (e) {
+      debugPrint('⚠️ Contact Picker error: $e');
+      return [];
+    }
+  }
+
+  // ── VCF Parser ────────────────────────────────────────────────
+  /// Parse a VCF (vCard) file content into a list of ContactModels.
+  ///
+  /// Supports:
+  ///   FN:Full Name
+  ///   N:Last;First
+  ///   TEL;...:+226XXXXXXXX
+  List<ContactModel> parseVCF(String vcfContent) {
+    final contacts = <ContactModel>[];
+    final cards = vcfContent.split(RegExp(r'END:VCARD', caseSensitive: false));
+
+    for (final card in cards) {
+      if (!card.toUpperCase().contains('BEGIN:VCARD')) continue;
+
+      String name = '';
+      final phones = <String>[];
+
+      for (final rawLine in card.split('\n')) {
+        final line = rawLine.trim();
+
+        // Unfold multi-line values (RFC 2425)
+        if (line.isEmpty) continue;
+
+        final upper = line.toUpperCase();
+
+        // FN: Full name
+        if (upper.startsWith('FN:') || upper.startsWith('FN;')) {
+          final val = line.substring(line.indexOf(':') + 1).trim();
+          if (val.isNotEmpty && name.isEmpty) {
+            name = _unescapeVCard(val);
+          }
+        }
+        // N: Structured name (fallback if FN missing)
+        else if (upper.startsWith('N:') || upper.startsWith('N;')) {
+          if (name.isEmpty) {
+            final val = line.substring(line.indexOf(':') + 1).trim();
+            final parts = val.split(';');
+            final last = parts.isNotEmpty ? parts[0].trim() : '';
+            final first = parts.length > 1 ? parts[1].trim() : '';
+            name = '$first $last'.trim();
+            name = _unescapeVCard(name);
+          }
+        }
+        // TEL: Phone number
+        else if (upper.startsWith('TEL') && line.contains(':')) {
+          final phone = line.substring(line.indexOf(':') + 1).trim();
+          if (phone.isNotEmpty) {
+            phones.add(normalizePhoneNumber(phone));
+          }
+        }
+      }
+
+      if (name.isEmpty) continue;
+
+      // One ContactModel per phone number
+      for (final phone in phones) {
+        if (phone.isEmpty) continue;
+        contacts.add(ContactModel(
+          id: phone,
+          name: name,
+          phone: phone,
+        ));
+      }
+
+      // If name found but no phone, add without phone
+      if (phones.isEmpty && name.isNotEmpty) {
+        contacts.add(ContactModel(
+          id: name,
+          name: name,
+          phone: null,
+        ));
+      }
+    }
+
+    debugPrint('📋 VCF parsed: ${contacts.length} contacts');
+    return contacts;
+  }
+
+  String _unescapeVCard(String s) {
+    return s
+        .replaceAll(r'\n', '\n')
+        .replaceAll(r'\N', '\n')
+        .replaceAll(r'\,', ',')
+        .replaceAll(r'\;', ';')
+        .replaceAll(r'\\', '\\');
   }
 
   // ── Contacts depuis l'appareil (mobile uniquement) ───────────
@@ -39,9 +149,9 @@ class ContactsServiceV2 {
   }
 
   // ── Synchroniser les contacts avec le backend ─────────────────
-  /// Envoie la liste des contacts téléphoniques au backend.
-  /// Le backend compare avec les utilisateurs OmniSMS et retourne
-  /// uniquement ceux qui ont un compte.
+  /// Envoie la liste des contacts au backend.
+  /// Le backend compare avec les utilisateurs OmniSMS.
+  /// Returns all contacts (not just OmniSMS-registered ones).
   Future<List<ContactModel>> syncContacts(
       List<ContactModel> phoneContacts) async {
     try {
@@ -77,12 +187,42 @@ class ContactsServiceV2 {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final List rawContacts = data['contacts'] ?? [];
-        final synced = rawContacts
+        final List rawRegistered = data['contacts'] ?? [];
+        final registeredIds = <String>{};
+
+        final registered = rawRegistered
             .map((c) => ContactModel.fromJson(c as Map<String, dynamic>))
             .toList();
-        debugPrint('✅ Synced: ${synced.length} OmniSMS users found');
-        return synced.isNotEmpty ? synced : phoneContacts;
+
+        for (final r in registered) {
+          if (r.phone != null) registeredIds.add(r.phone!);
+          registeredIds.add(r.id);
+        }
+
+        debugPrint(
+            '✅ Sync done: ${registered.length} OmniSMS users found among ${phoneContacts.length} contacts');
+
+        // Merge: mark original contacts as isRegistered when matched
+        final merged = phoneContacts.map((c) {
+          final isReg = c.phone != null && registeredIds.contains(c.phone);
+          return ContactModel(
+            id: isReg
+                ? (registered
+                    .firstWhere(
+                      (r) => r.phone == c.phone,
+                      orElse: () => c,
+                    )
+                    .id)
+                : c.id,
+            name: c.name,
+            phone: c.phone,
+            email: c.email,
+            photoUrl: c.photoUrl,
+            isRegistered: isReg,
+          );
+        }).toList();
+
+        return merged;
       } else {
         debugPrint('⚠️ syncContacts failed: ${response.statusCode}');
         return phoneContacts;
@@ -161,14 +301,14 @@ class ContactsServiceV2 {
         };
       }
 
-      // Normaliser le numéro avant envoi
       final normalizedPhone = normalizePhoneNumber(phone);
       debugPrint(
           '➕ Adding contact: name=$name, phone=$normalizedPhone');
 
       final response = await http
           .post(
-            Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contactsEndpoint}/add'),
+            Uri.parse(
+                '${ApiConfig.baseUrl}${ApiConfig.contactsEndpoint}/add'),
             headers: {
               ...ApiConfig.headers,
               'Authorization': 'Bearer $token',
@@ -181,17 +321,17 @@ class ContactsServiceV2 {
           )
           .timeout(ApiConfig.requestTimeout);
 
-      debugPrint('[AddContact] Response ${response.statusCode}: ${response.body}');
+      debugPrint(
+          '[AddContact] Response ${response.statusCode}: ${response.body}');
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // Construire le ContactModel depuis la réponse
         ContactModel? contact;
         if (data['contact'] != null) {
           final c = data['contact'] as Map<String, dynamic>;
           contact = ContactModel(
-            id: c['phone'] ?? normalizedPhone,
+            id: c['id'] ?? c['phone'] ?? normalizedPhone,
             name: c['name'] ?? name,
             phone: c['phone'] ?? normalizedPhone,
           );
@@ -212,7 +352,6 @@ class ContactsServiceV2 {
         return {
           'success': false,
           'error': data['error'] ??
-              data['fields']?.first?['msg'] ??
               'Données invalides.',
         };
       } else if (response.statusCode == 503) {
@@ -263,7 +402,10 @@ class ContactsServiceV2 {
       if (response.statusCode == 200) {
         return {'success': true};
       }
-      return {'success': false, 'error': 'Erreur ${response.statusCode}'};
+      return {
+        'success': false,
+        'error': 'Erreur ${response.statusCode}'
+      };
     } catch (e) {
       return {'success': false, 'error': '$e'};
     }

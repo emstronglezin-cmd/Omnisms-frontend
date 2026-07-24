@@ -5,13 +5,18 @@
 class ApiConfig {
   // ── URLs du backend ───────────────────────────────────────────
   static const String baseUrl = 'https://omnisms-backend.onrender.com';
-  static const String wsUrl = 'wss://omnisms-backend.onrender.com';
+  // Socket.IO uses https:// (not wss://) — the library handles the upgrade
+  static const String wsUrl = 'https://omnisms-backend.onrender.com';
 
   // ── Endpoints API ─────────────────────────────────────────────
   static const String contactsEndpoint = '/api/contacts';
   static const String messagesEndpoint = '/api/messages';
+  // Conversations list: GET /api/messages
+  static const String conversationsEndpoint = '/api/messages';
+  // Send message: POST /api/messages/send
   static const String sendMessageEndpoint = '/api/messages/send';
-  static const String groupsEndpoint = '/api/groups';
+  // Groups: route mounted at /groups (NOT /api/groups)
+  static const String groupsEndpoint = '/groups';
   static const String transcriptionEndpoint = '/api/transcription';
 
   // Paiement LeekPay (routes correctes)

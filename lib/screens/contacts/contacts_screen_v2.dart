@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/contacts_provider_v2.dart';
+import '../../providers/messaging_provider.dart';
 import '../../models/models.dart';
 import '../messaging/conversation_screen.dart';
+import '../../services/auth_service.dart';
 
 /// ContactsScreenV2 — Écran des contacts avec import et ajout
 ///
@@ -637,6 +639,54 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
     );
   }
 
+  // ── Open or create a conversation for this contact ───────────
+  Future<void> _openContactConversation(
+      BuildContext context, ContactModel contact) async {
+    final authService = AuthService();
+    final currentUserId = await authService.getUserId() ?? '';
+    final contactId = contact.id.isNotEmpty ? contact.id : (contact.phone ?? '');
+
+    if (!mounted) return;
+
+    // Build conversationId: sorted UIDs joined with dash (mirrors backend logic)
+    String conversationId;
+    if (currentUserId.isNotEmpty && contactId.isNotEmpty) {
+      final parts = [currentUserId, contactId]..sort();
+      conversationId = parts.join('-');
+    } else {
+      conversationId = contactId;
+    }
+
+    // Add a placeholder conversation to MessagesListPage immediately
+    final messaging = context.read<MessagingProvider>();
+    messaging.addOrUpdateConversation(
+      ConversationModel(
+        id: conversationId,
+        otherUserId: contactId,
+        otherUserName: contact.name,
+        otherUserPhotoUrl: contact.photoUrl,
+        lastMessage: null,
+        lastMessageTime: null,
+        unreadCount: 0,
+        isGroup: false,
+      ),
+    );
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ConversationScreen(
+          conversationId: conversationId,
+          contactId: contactId,
+          contactName: contact.name,
+          contactImageUrl: contact.photoUrl,
+        ),
+      ),
+    );
+  }
+
   Widget _buildContactTile(ContactModel contact) {
     return ListTile(
       leading: CircleAvatar(
@@ -690,19 +740,7 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
           ),
         ],
       ),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ConversationScreen(
-              contactId: contact.id.isNotEmpty
-                  ? contact.id
-                  : (contact.phone ?? ''),
-              contactName: contact.name,
-            ),
-          ),
-        );
-      },
+      onTap: () => _openContactConversation(context, contact),
     );
   }
 }

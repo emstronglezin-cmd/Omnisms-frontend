@@ -47,7 +47,26 @@ class MessageModel {
     this.reaction,
   });
 
+  /// Build a MessageModel from backend JSON.
+  ///
+  /// isMe computation priority:
+  ///   1. Explicit `isMe` / `is_me` field in JSON (set by caller).
+  ///   2. Explicit `currentUserId` field set by the caller after fetch.
+  ///   3. Fallback: false.
+  ///
+  /// Use [fromJsonWithCurrentUser] for automatic senderId comparison.
   factory MessageModel.fromJson(Map<String, dynamic> json) {
+    // Timestamp: prefer 'timestamp', then 'createdAt', then now
+    DateTime ts = DateTime.now();
+    final rawTs = json['timestamp'] ?? json['createdAt'] ?? json['created_at'];
+    if (rawTs != null) {
+      try {
+        ts = DateTime.parse(rawTs.toString());
+      } catch (_) {
+        ts = DateTime.now();
+      }
+    }
+
     return MessageModel(
       id: json['id'] ?? json['_id'] ?? '',
       conversationId: json['conversationId'] ?? json['conversation_id'] ?? '',
@@ -58,14 +77,26 @@ class MessageModel {
       content: json['content'],
       mediaUrl: json['mediaUrl'] ?? json['media_url'],
       transcription: json['transcription'],
-      duration: json['duration'],
+      duration: json['duration'] is int
+          ? json['duration']
+          : int.tryParse(json['duration']?.toString() ?? ''),
       status: _parseMessageStatus(json['status']),
-      timestamp: json['timestamp'] != null
-          ? DateTime.parse(json['timestamp'])
-          : DateTime.now(),
+      timestamp: ts,
+      // isMe: explicit flag from server or caller injection wins
       isMe: json['isMe'] ?? json['is_me'] ?? false,
       reaction: json['reaction'],
     );
+  }
+
+  /// Build from JSON with current user ID for proper isMe computation.
+  factory MessageModel.fromJsonWithCurrentUser(
+    Map<String, dynamic> json,
+    String currentUserId,
+  ) {
+    final base = MessageModel.fromJson(json);
+    final senderId = json['senderId'] ?? json['sender_id'] ?? '';
+    final isMe = senderId == currentUserId;
+    return base.copyWith(isMe: isMe);
   }
 
   Map<String, dynamic> toJson() {

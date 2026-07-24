@@ -34,6 +34,20 @@ class GroupsProvider with ChangeNotifier {
     String? description,
     required List<String> memberIds,
   }) async {
+    final group = await createGroupAndReturn(
+      name: name,
+      description: description,
+      memberIds: memberIds,
+    );
+    return group != null;
+  }
+
+  /// Creates a group and returns the GroupModel (or null on failure).
+  Future<GroupModel?> createGroupAndReturn({
+    required String name,
+    String? description,
+    required List<String> memberIds,
+  }) async {
     try {
       final group = await _groupsService.createGroup(
         name: name,
@@ -44,13 +58,13 @@ class GroupsProvider with ChangeNotifier {
       if (group != null) {
         _groups.insert(0, group);
         notifyListeners();
-        return true;
+        return group;
       }
-      return false;
+      return null;
     } catch (e) {
       _error = 'Erreur lors de la création du groupe: $e';
       notifyListeners();
-      return false;
+      return null;
     }
   }
 
