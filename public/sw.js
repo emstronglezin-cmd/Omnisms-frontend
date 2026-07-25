@@ -1,5 +1,7 @@
 // OmniSMS Service Worker - PWA Native
-const CACHE_NAME = 'omnisms-v1';
+// IMPORTANT : mettre à jour CACHE_VERSION à chaque déploiement pour invalider l'ancien cache
+const CACHE_VERSION = 'v2.5.0';
+const CACHE_NAME = `omnisms-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -19,20 +21,24 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activation : supprime les anciens caches
+// Activation : supprime TOUS les anciens caches (noms différents de CACHE_NAME)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys
           .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
+          .map((key) => {
+            console.log('[SW] Suppression ancien cache :', key);
+            return caches.delete(key);
+          })
       );
     }).then(() => self.clients.claim())
   );
 });
 
-// Fetch : Cache-first pour les assets statiques, network-first pour l'API
+// Fetch : Network-first pour HTML/JS/CSS (toujours la dernière version),
+//         Cache-first pour images/fonts (assets immuables)
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
@@ -42,13 +48,42 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first pour les assets statiques
+  // Network-first pour les fichiers principaux de l'application
+  const isAppFile = ['/index.html', '/app.js', '/style.css', '/manifest.json', '/sw.js', '/'].some(
+    (path) => url.pathname === path || url.pathname === ''
+  );
+
+  if (isAppFile || event.request.mode === 'navigate') {
+    // Network-first : récupère toujours la version serveur, fallback cache si hors-ligne
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (!response || response.status !== 200 || response.type === 'opaque') {
+            return response;
+          }
+          const toCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, toCache));
+          return response;
+        })
+        .catch(() => {
+          // Hors-ligne : utiliser le cache
+          return caches.match(event.request).then((cached) => {
+            if (cached) return cached;
+            if (event.request.mode === 'navigate') {
+              return caches.match('/index.html');
+            }
+          });
+        })
+    );
+    return;
+  }
+
+  // Cache-first pour les assets statiques (images, icônes, fonts)
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
 
       return fetch(event.request).then((response) => {
-        // Ne cache que les réponses valides
         if (!response || response.status !== 200 || response.type === 'opaque') {
           return response;
         }
@@ -56,7 +91,6 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, toCache));
         return response;
       }).catch(() => {
-        // Fallback : retourner index.html pour les navigations
         if (event.request.mode === 'navigate') {
           return caches.match('/index.html');
         }
