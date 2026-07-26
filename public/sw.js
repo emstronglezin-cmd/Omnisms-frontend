@@ -1,6 +1,6 @@
 // OmniSMS Service Worker - PWA Native
 // IMPORTANT : mettre à jour CACHE_VERSION à chaque déploiement pour invalider l'ancien cache
-const CACHE_VERSION = 'v2.5.0';
+const CACHE_VERSION = 'v3.0.0';
 const CACHE_NAME = `omnisms-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
   '/',
