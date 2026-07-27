@@ -18,6 +18,8 @@ const State = {
   contacts:         [],
   groups:           [],
   pollTimer:        null,        // 15s polling timer
+  _pendingPhone:    null,        // téléphone en attente de vérification OTP
+  _pendingUserId:   null,        // userId en attente de vérification OTP
 };
 
 // ─── API ──────────────────────────────────────────────────────────────────────
@@ -39,9 +41,10 @@ const API = {
       const r = await fetch(API_BASE + path, {
         method: 'POST', headers: this.headers(), body: JSON.stringify(body)
       });
-      if (r.status === 401) { logout(); return { ok: false, data: { message: 'Session expirée' } }; }
-      return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
-    } catch(e) { return { ok: false, data: { message: 'Erreur réseau — serveur en cours de démarrage...' } }; }
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 401) { logout(); return { ok: false, status: 401, data: { message: 'Session expirée' } }; }
+      return { ok: r.ok, status: r.status, data };
+    } catch(e) { return { ok: false, status: 0, data: { message: 'Erreur réseau — serveur en cours de démarrage...' } }; }
   },
   async delete(path) {
     try {
@@ -59,30 +62,51 @@ function showScreen(id) {
 }
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
-async function login(email, password) {
+async function login(identifier, password) {
   setLoading('login-btn', true, 'Se connecter');
-  const res = await API.post('/api/auth/login', { email, password });
+  // Identifier peut être un numéro de téléphone ou un email
+  const isPhone = /^[+\d\s\-()+]{7,20}$/.test(identifier.trim()) && !identifier.includes('@');
+  const body = isPhone
+    ? { phone: identifier.trim(), password }
+    : { email: identifier.trim(), password };
+  const res = await API.post('/api/auth/login', body);
   setLoading('login-btn', false, 'Se connecter');
   if (res.ok && res.data.token) {
     State.token = res.data.token;
-    State.user  = res.data.user || { email };
+    State.user  = res.data.user || { phone: identifier };
     localStorage.setItem('auth_token', State.token);
     localStorage.setItem('user_data', JSON.stringify(State.user));
     showError('login-error', '');
     initDashboard();
+  } else if (res.status === 403 && res.data?.requiresOtp) {
+    // Numéro non vérifié → rediriger vers OTP
+    State._pendingUserId = res.data.userId;
+    State._pendingPhone  = res.data.phone || identifier;
+    showError('login-error', '');
+    await sendOtp(State._pendingPhone, State._pendingUserId);
+    showScreen('screen-otp');
   } else {
-    showError('login-error', res.data.message || 'Email ou mot de passe incorrect');
+    showError('login-error', res.data?.error || res.data?.message || 'Identifiants incorrects');
   }
 }
 
-async function register(name, email, password) {
+async function register(name, phone, password) {
   setLoading('register-btn', true, "S'inscrire");
-  const res = await API.post('/api/auth/register', { name, email, password });
+  const res = await API.post('/api/auth/register', { name, phone, password });
   setLoading('register-btn', false, "S'inscrire");
   if (res.ok) {
-    if (res.data.token) {
+    if (res.data.requiresOtp) {
+      // Stocker temporairement les infos pour l'étape OTP
+      State._pendingUserId = res.data.userId;
+      State._pendingPhone  = phone;
+      showError('register-error', '');
+      // Envoyer l'OTP automatiquement
+      await sendOtp(phone, res.data.userId);
+      showScreen('screen-otp');
+    } else if (res.data.token) {
+      // Compte activé directement (legacy)
       State.token = res.data.token;
-      State.user  = res.data.user || { name, email };
+      State.user  = res.data.user || { name, phone };
       localStorage.setItem('auth_token', State.token);
       localStorage.setItem('user_data', JSON.stringify(State.user));
       initDashboard();
@@ -92,7 +116,59 @@ async function register(name, email, password) {
       showScreen('screen-login');
     }
   } else {
-    showError('register-error', res.data.message || 'Erreur lors de la création du compte');
+    showError('register-error', res.data.message || res.data.error || 'Erreur lors de la création du compte');
+  }
+}
+
+// ─── OTP ──────────────────────────────────────────────────────────────────────
+async function sendOtp(phone, userId) {
+  const p = phone || State._pendingPhone;
+  const u = userId || State._pendingUserId;
+  if (!p) { showToast('Numéro de téléphone manquant'); return; }
+  setLoading('otp-send-btn', true, 'Envoi...');
+  const res = await API.post('/api/auth/send-otp', { phone: p, userId: u || undefined });
+  setLoading('otp-send-btn', false, 'Renvoyer');
+  if (res.ok) {
+    showToast(`Code envoyé au ${p}`);
+    const otpPhone = document.getElementById('otp-phone-display');
+    if (otpPhone) otpPhone.textContent = p;
+    // Mode dev : afficher le code
+    if (res.data?.devCode) {
+      const otpInput = document.getElementById('otp-code');
+      if (otpInput) otpInput.value = res.data.devCode;
+      showToast(`[DEV] Code OTP : ${res.data.devCode}`);
+    }
+  } else {
+    const msg = res.data?.error || res.data?.message || 'Impossible d\'envoyer le code';
+    showToast(msg);
+  }
+}
+
+async function verifyOtp() {
+  const codeEl = document.getElementById('otp-code');
+  const code   = codeEl?.value?.trim();
+  const phone  = State._pendingPhone;
+  if (!code) { showToast('Entrez le code reçu'); return; }
+  if (!phone) { showToast('Numéro manquant — recommencez l\'inscription'); showScreen('screen-register'); return; }
+
+  setLoading('otp-verify-btn', true, 'Vérification...');
+  const res = await API.post('/api/auth/verify-otp', { phone, code });
+  setLoading('otp-verify-btn', false, 'Valider');
+
+  if (res.ok && res.data.token) {
+    State.token = res.data.token;
+    State.user  = res.data.user || { phone };
+    localStorage.setItem('auth_token', State.token);
+    localStorage.setItem('user_data', JSON.stringify(State.user));
+    // Nettoyer état temporaire
+    State._pendingUserId = null;
+    State._pendingPhone  = null;
+    showError('otp-error', '');
+    showToast('Numéro vérifié ! Bienvenue 🎉');
+    initDashboard();
+  } else {
+    const msg = res.data?.error || res.data?.message || 'Code incorrect';
+    showError('otp-error', msg);
   }
 }
 
@@ -381,28 +457,50 @@ function renderContacts(contacts) {
       <div class="empty-state">
         <div class="empty-icon">👤</div>
         <h3>Aucun contact</h3>
-        <p>Ajoutez votre premier contact.</p>
+        <p>Ajoutez votre premier contact ou importez vos contacts.</p>
       </div>`;
     return;
   }
 
-  list.innerHTML = contacts.map(c => {
-    const name = c.name || c.displayName || c.phone || 'Contact';
+  // Séparer OmniSMS et SMS uniquement
+  const omniContacts = contacts.filter(c => c.isOnOmniSms || c.userId || c.registeredUserId);
+  const smsContacts  = contacts.filter(c => !c.isOnOmniSms && !c.userId && !c.registeredUserId);
+
+  function contactItem(c) {
+    const name  = c.name || c.displayName || c.phone || 'Contact';
     const phone = c.phone || c.phoneNumber || '';
     const uid   = c.userId || c.registeredUserId || '';
+    const isOmni = !!(c.isOnOmniSms || uid);
+    const onclick = isOmni
+      ? `openContactConversation('${escHtml(uid)}', '${escHtml(name)}')`
+      : `showToast('${escHtml(name)} n\\'utilise pas OmniSMS — SMS envoyé automatiquement')`;
     return `
-      <div class="contact-item" onclick="openContactConversation('${escHtml(uid || phone)}', '${escHtml(name)}')">
+      <div class="contact-item ${isOmni ? '' : 'contact-sms-only'}" onclick="${onclick}">
         <div class="contact-avatar">${getInitials(name)}</div>
         <div class="contact-info">
           <div class="contact-name">${escHtml(name)}</div>
           <div class="contact-phone">${escHtml(phone)}</div>
         </div>
         <div class="contact-actions">
-          ${uid ? '<span class="badge-registered">OmniSMS</span>' : ''}
+          ${isOmni ? '<span class="badge-registered">OmniSMS</span>' : '<span class="badge-sms">SMS</span>'}
           <button class="btn-icon" onclick="event.stopPropagation();confirmDeleteContact('${escHtml(phone)}','${escHtml(name)}')" title="Supprimer">🗑️</button>
         </div>
       </div>`;
-  }).join('');
+  }
+
+  let html = '';
+
+  if (omniContacts.length > 0) {
+    html += `<div class="contacts-section-header">OmniSMS — ${omniContacts.length} utilisateur(s)</div>`;
+    html += omniContacts.map(contactItem).join('');
+  }
+
+  if (smsContacts.length > 0) {
+    html += `<div class="contacts-section-header contacts-section-sms">SMS — ${smsContacts.length} contact(s)</div>`;
+    html += smsContacts.map(contactItem).join('');
+  }
+
+  list.innerHTML = html;
 }
 
 // Ouvrir une conversation depuis un contact (V3 : calcul du conversationId)
@@ -430,7 +528,7 @@ function searchContacts(q) {
 async function addContact(name, phone) {
   if (!name || !phone) { showToast('Nom et téléphone requis'); return; }
   setLoading('add-contact-btn', true, 'Ajouter');
-  const res = await API.post('/api/contacts', { name, phone });
+  const res = await API.post('/api/contacts/add', { name, phone });
   setLoading('add-contact-btn', false, 'Ajouter');
   if (res.ok) {
     closeModal('modal-add-contact');
@@ -521,13 +619,31 @@ function handleVCFFile(file) {
 
 async function syncContacts(contacts) {
   if (!contacts.length) return;
-  let added = 0;
-  for (const c of contacts) {
-    const res = await API.post('/api/contacts', { name: c.name, phone: c.phone });
-    if (res.ok) added++;
+  showToast('Synchronisation en cours...');
+
+  // Utiliser le endpoint /api/contacts/sync (bulk OmniSMS detection)
+  const res = await API.post('/api/contacts/sync', { contacts, country: 'BF' });
+  if (res.ok) {
+    const d = res.data;
+    const omni = d.registeredOnOmniSms || 0;
+    const sms  = d.smsOnly || 0;
+    showToast(`✓ ${omni} OmniSMS · ${sms} SMS uniquement`);
+    if (d.contacts && d.contacts.length > 0) {
+      State.contacts = d.contacts;
+      renderContacts(State.contacts);
+    } else {
+      loadContacts();
+    }
+  } else {
+    // Fallback : ajouter les contacts un par un
+    let added = 0;
+    for (const c of contacts) {
+      const r = await API.post('/api/contacts/add', { name: c.name, phone: c.phone });
+      if (r.ok) added++;
+    }
+    showToast(`${added} contact(s) synchronisé(s)`);
+    loadContacts();
   }
-  showToast(`${added} contact(s) synchronisé(s)`);
-  loadContacts();
 }
 
 // ─── GROUPES ──────────────────────────────────────────────────────────────────
@@ -671,26 +787,49 @@ function renderSettings() {
 async function loadPremiumStatus(userId) {
   if (!userId) return;
   const data = await API.get(`/api/payment/user-status?userId=${userId}`);
-  if (data?.isPremium) {
+  // Backend retourne isSubscribed ou premium (les deux champs)
+  if (data?.isSubscribed || data?.premium) {
     showToast('Statut : Premium ✨');
+    // Mettre à jour l'UI dans settings si possible
+    const el = document.getElementById('settings-content');
+    if (el) {
+      const premiumRow = el.querySelector('[onclick="handleSubscription()"]');
+      if (premiumRow) premiumRow.innerHTML = '<span>💎 Abonnement Premium</span><span style="color:var(--accent);font-size:12px">ACTIF ✓</span>';
+    }
   }
 }
 
 async function handleSubscription() {
-  setLoading('subscription-btn', true, 'Chargement...');
+  const userId = State.user?.id || State.user?._id;
+  if (!userId) { showToast('Connectez-vous pour accéder au paiement'); return; }
+
+  showToast('Redirection vers le paiement...');
   const res = await API.post('/api/payment/leekpay', {
-    userId:      State.user?.id || State.user?._id,
-    userEmail:   State.user?.email,
-    amount:      5,
-    currency:    'EUR',
-    description: 'Abonnement OmniSMS Premium',
-    returnUrl:   window.location.href,
+    userId,
+    email    : State.user?.email  || undefined,
+    name     : State.user?.name   || undefined,
+    phone    : State.user?.phone  || undefined,
+    amount   : 2000,
+    currency : 'XOF',
   });
-  setLoading('subscription-btn', false, "S'abonner au Premium");
-  if (res.ok && res.data.paymentUrl) {
-    window.location.href = res.data.paymentUrl;
+
+  if (res.ok) {
+    // Le backend retourne checkout_url (snake_case) ET checkoutUrl (camelCase)
+    const url = res.data?.checkout_url || res.data?.checkoutUrl || res.data?.paymentUrl;
+    if (url) {
+      window.location.href = url;
+    } else {
+      showToast('URL de paiement manquante — contactez le support');
+    }
   } else {
-    showToast(res.data?.message || 'Erreur lors du paiement');
+    const msg = res.data?.error || res.data?.message || 'Erreur lors du paiement';
+    if (res.data?.code === 'ALREADY_SUBSCRIBED') {
+      showToast('Vous êtes déjà abonné OmniSMS Premium ✨');
+    } else if (res.data?.code === 'LEEKPAY_NOT_CONFIGURED') {
+      showToast('Service de paiement temporairement indisponible');
+    } else {
+      showToast(msg);
+    }
   }
 }
 

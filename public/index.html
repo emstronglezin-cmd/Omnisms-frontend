@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" href="/icons/Icon-192.png">
   <link rel="apple-touch-icon" href="/icons/Icon-192.png">
   <title>OmniSMS</title>
-  <link rel="stylesheet" href="/style.css?v=3.0.0">
+  <link rel="stylesheet" href="/style.css?v=3.1.0">
 </head>
 <body>
 
@@ -37,8 +37,8 @@
 
     <form id="login-form">
       <div class="form-group">
-        <label class="form-label">Email</label>
-        <input id="login-email" type="email" class="form-input" placeholder="votre@email.com" autocomplete="email" required>
+        <label class="form-label">Téléphone ou Email</label>
+        <input id="login-email" type="text" class="form-input" placeholder="+22670123456 ou votre@email.com" autocomplete="username" required>
       </div>
       <div class="form-group">
         <label class="form-label">Mot de passe</label>
@@ -74,12 +74,12 @@
         <input id="reg-name" type="text" class="form-input" placeholder="Jean Dupont" required>
       </div>
       <div class="form-group">
-        <label class="form-label">Email</label>
-        <input id="reg-email" type="email" class="form-input" placeholder="votre@email.com" autocomplete="email" required>
+        <label class="form-label">Numéro de téléphone</label>
+        <input id="reg-phone" type="tel" class="form-input" placeholder="+22670123456" autocomplete="tel" required>
       </div>
       <div class="form-group">
         <label class="form-label">Mot de passe</label>
-        <input id="reg-pass" type="password" class="form-input" placeholder="••••••••" minlength="6" required>
+        <input id="reg-pass" type="password" class="form-input" placeholder="••••••••" minlength="8" required>
       </div>
       <div id="register-error" class="field-error"></div>
       <div style="margin-top:20px">
@@ -89,6 +89,34 @@
 
     <div class="form-divider" style="margin-top:16px"></div>
     <button class="btn-text" onclick="showScreen('screen-login')">Déjà un compte ? Se connecter</button>
+  </div>
+</div>
+
+<!-- ════════════════════ OTP VERIFICATION ════════════════════ -->
+<div id="screen-otp" class="screen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+    </div>
+    <div class="auth-title">Vérification</div>
+    <div class="auth-sub">Code envoyé au <span id="otp-phone-display" style="font-weight:600;color:var(--accent)"></span></div>
+
+    <div class="form-group" style="margin-top:24px">
+      <label class="form-label">Code OTP à 6 chiffres</label>
+      <input id="otp-code" type="number" class="form-input" placeholder="123456"
+             maxlength="6" inputmode="numeric" autocomplete="one-time-code"
+             style="letter-spacing:8px;font-size:24px;text-align:center;font-weight:700">
+    </div>
+    <div id="otp-error" class="field-error"></div>
+    <div style="margin-top:20px">
+      <button id="otp-verify-btn" class="btn-primary" onclick="verifyOtp()">Valider</button>
+    </div>
+    <div style="margin-top:16px;text-align:center">
+      <button id="otp-send-btn" class="btn-text" onclick="sendOtp()">Renvoyer le code</button>
+    </div>
+    <div style="margin-top:8px;text-align:center">
+      <button class="btn-text" style="color:var(--text-secondary);font-size:13px" onclick="showScreen('screen-register')">← Retour</button>
+    </div>
   </div>
 </div>
 
@@ -300,14 +328,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const lf = document.getElementById('login-form');
   if (lf) lf.addEventListener('submit', e => {
     e.preventDefault();
-    login(document.getElementById('login-email').value, document.getElementById('login-pass').value);
+    login(document.getElementById('login-email').value.trim(), document.getElementById('login-pass').value);
   });
 
   // Register form
   const rf = document.getElementById('register-form');
   if (rf) rf.addEventListener('submit', e => {
     e.preventDefault();
-    register(document.getElementById('reg-name').value, document.getElementById('reg-email').value, document.getElementById('reg-pass').value);
+    register(document.getElementById('reg-name').value, document.getElementById('reg-phone').value, document.getElementById('reg-pass').value);
   });
 
   // Add contact form
@@ -334,6 +362,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
-<script src="/app.js?v=3.0.0"></script>
+<script src="/app.js?v=3.1.0"></script>
 </body>
 </html>
