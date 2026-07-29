@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" href="/icons/Icon-192.png">
   <link rel="apple-touch-icon" href="/icons/Icon-192.png">
   <title>OmniSMS</title>
-  <link rel="stylesheet" href="/style.css?v=3.1.0">
+  <link rel="stylesheet" href="/style.css?v=3.2.0">
 </head>
 <body>
 
@@ -38,7 +38,7 @@
     <form id="login-form">
       <div class="form-group">
         <label class="form-label">Téléphone ou Email</label>
-        <input id="login-email" type="text" class="form-input" placeholder="+22670123456 ou votre@email.com" autocomplete="username" required>
+        <input id="login-identifier" type="text" class="form-input" placeholder="+22670123456 ou votre@email.com" autocomplete="username" required>
       </div>
       <div class="form-group">
         <label class="form-label">Mot de passe</label>
@@ -70,16 +70,24 @@
 
     <form id="register-form">
       <div class="form-group">
-        <label class="form-label">Nom complet</label>
-        <input id="reg-name" type="text" class="form-input" placeholder="Jean Dupont" required>
+        <label class="form-label">Nom complet <span style="color:var(--accent)">*</span></label>
+        <input id="reg-name" type="text" class="form-input" placeholder="Jean Dupont" autocomplete="name" required>
       </div>
       <div class="form-group">
-        <label class="form-label">Numéro de téléphone</label>
+        <label class="form-label">Téléphone <span style="color:var(--accent)">*</span></label>
         <input id="reg-phone" type="tel" class="form-input" placeholder="+22670123456" autocomplete="tel" required>
       </div>
       <div class="form-group">
-        <label class="form-label">Mot de passe</label>
-        <input id="reg-pass" type="password" class="form-input" placeholder="••••••••" minlength="8" required>
+        <label class="form-label">Email <span style="color:var(--text-muted);font-size:12px">(optionnel)</span></label>
+        <input id="reg-email" type="email" class="form-input" placeholder="votre@email.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mot de passe <span style="color:var(--accent)">*</span></label>
+        <input id="reg-pass" type="password" class="form-input" placeholder="••••••••" minlength="8" autocomplete="new-password" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirmer le mot de passe <span style="color:var(--accent)">*</span></label>
+        <input id="reg-pass-confirm" type="password" class="form-input" placeholder="••••••••" minlength="8" autocomplete="new-password" required>
       </div>
       <div id="register-error" class="field-error"></div>
       <div style="margin-top:20px">
@@ -92,39 +100,7 @@
   </div>
 </div>
 
-<!-- ════════════════════ OTP VERIFICATION ════════════════════ -->
-<div id="screen-otp" class="screen">
-  <div class="auth-card">
-    <div class="auth-logo">
-      <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
-    </div>
-    <div class="auth-title">Vérification</div>
-    <div class="auth-sub">Code envoyé au <span id="otp-phone-display" style="font-weight:600;color:var(--accent)"></span></div>
-
-    <div class="form-group" style="margin-top:24px">
-      <label class="form-label">Code OTP à 6 chiffres</label>
-      <input id="otp-code" type="number" class="form-input" placeholder="123456"
-             maxlength="6" inputmode="numeric" autocomplete="one-time-code"
-             style="letter-spacing:8px;font-size:24px;text-align:center;font-weight:700">
-    </div>
-    <div id="otp-error" class="field-error"></div>
-    <div style="margin-top:20px">
-      <button id="otp-verify-btn" class="btn-primary" onclick="verifyOtp()">Valider</button>
-    </div>
-    <div style="margin-top:16px;text-align:center">
-      <button id="otp-send-btn" class="btn-text" onclick="sendOtp()">Renvoyer le code</button>
-    </div>
-    <div style="margin-top:8px;text-align:center">
-      <button class="btn-text" style="color:var(--text-secondary);font-size:13px" onclick="showScreen('screen-register')">← Retour</button>
-    </div>
-  </div>
-</div>
-
-<!-- ════════════════════ DASHBOARD v3 ════════════════════
-     Architecture conversations-first (WhatsApp)
-     Tab 0 = Messages (MessagesListPage)
-     Navigation : Messages | Contacts | Groupes | Paramètres
--->
+<!-- ════════════════════ DASHBOARD v3 ════════════════════ -->
 <div id="screen-dashboard" class="screen">
 
   <!-- ── Top Bar ── -->
@@ -144,7 +120,7 @@
   <!-- ── Tab Content Area ── -->
   <div class="tab-content-area">
 
-    <!-- ─── TAB : Messages (MessagesListPage v3) ─── -->
+    <!-- ─── TAB : Messages ─── -->
     <div id="tab-messages" class="tab-pane active">
       <div class="tab-header">
         <h2>Messages</h2>
@@ -152,7 +128,6 @@
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
         </button>
       </div>
-      <!-- conv-list : liste des conversations GET /api/messages -->
       <div id="conv-list" class="list-area"></div>
     </div>
 
@@ -192,7 +167,7 @@
 
   </div><!-- /tab-content-area -->
 
-  <!-- ── Bottom Navigation Bar (4 onglets — v3) ── -->
+  <!-- ── Bottom Navigation Bar ── -->
   <nav class="bottom-nav">
     <button class="nav-btn active" data-tab="messages" onclick="switchTab('messages')">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-3 9H7V9h10v2zm-4 4H7v-2h6v2zm4-8H7V5h10v2z"/></svg>
@@ -214,11 +189,7 @@
 
 </div><!-- /screen-dashboard -->
 
-<!-- ════════════════════ CONVERSATION SCREEN (v3) ════════════════════
-     Écran plein-écran pour une conversation individuelle ou groupe.
-     conversationId = uid1-uid2 (trié) ou groupId
-     Input bar TOUJOURS visible.
--->
+<!-- ════════════════════ CONVERSATION SCREEN ════════════════════ -->
 <div id="screen-conversation" class="screen">
   <!-- App Bar -->
   <div class="conv-appbar">
@@ -237,8 +208,10 @@
   <!-- Messages List -->
   <div id="conv-messages" class="conv-messages-area"></div>
 
-  <!-- Input Bar (TOUJOURS visible) -->
+  <!-- Input Bar avec micro -->
   <div class="conv-input-bar">
+    <button id="mic-btn" class="mic-btn" onclick="startRecording()" title="Message vocal">🎤</button>
+    <span id="recording-timer" style="display:none;color:var(--accent);font-size:13px;min-width:36px">0:00</span>
     <textarea id="conv-msg-input" class="conv-input" placeholder="Message..." rows="1"
       onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"
       oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
@@ -328,14 +301,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const lf = document.getElementById('login-form');
   if (lf) lf.addEventListener('submit', e => {
     e.preventDefault();
-    login(document.getElementById('login-email').value.trim(), document.getElementById('login-pass').value);
+    login(
+      document.getElementById('login-identifier').value.trim(),
+      document.getElementById('login-pass').value
+    );
   });
 
   // Register form
   const rf = document.getElementById('register-form');
   if (rf) rf.addEventListener('submit', e => {
     e.preventDefault();
-    register(document.getElementById('reg-name').value, document.getElementById('reg-phone').value, document.getElementById('reg-pass').value);
+    const pass    = document.getElementById('reg-pass').value;
+    const confirm = document.getElementById('reg-pass-confirm').value;
+    if (pass !== confirm) {
+      document.getElementById('register-error').textContent = 'Les mots de passe ne correspondent pas.';
+      document.getElementById('register-error').style.display = 'block';
+      return;
+    }
+    register(
+      document.getElementById('reg-name').value,
+      document.getElementById('reg-phone').value,
+      document.getElementById('reg-email').value,
+      pass
+    );
   });
 
   // Add contact form
@@ -362,6 +350,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
-<script src="/app.js?v=3.1.0"></script>
+<script src="/app.js?v=3.2.0"></script>
 </body>
 </html>

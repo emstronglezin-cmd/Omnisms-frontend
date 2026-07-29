@@ -1,8 +1,6 @@
-// OmniSMS PWA v3.0 — Architecture Conversations-First (WhatsApp)
-// Correspond exactement à l'architecture Flutter v3 (commit a322984)
-// Tab 0 = MessagesListPage (GET /api/messages)
-// ConversationScreen utilise conversationId (uid1-uid2) + contactId pour l'envoi
-// Navigation 4 onglets : Messages | Contacts | Groupes | Paramètres
+// OmniSMS PWA v3.2 — Stabilisation Session 6
+// Architecture Conversations-First (WhatsApp)
+// Corrections : OTP supprimé, [object Object] fixé, lastMessage, voix, transcription, profil
 
 const API_BASE = 'https://omnisms-backend.onrender.com';
 
@@ -11,22 +9,26 @@ const State = {
   token:            localStorage.getItem('auth_token'),
   user:             JSON.parse(localStorage.getItem('user_data') || 'null'),
   currentTab:       'messages',
-  conversations:    [],          // ConversationModel[]  (GET /api/messages)
-  activeConvId:     null,        // conversationId ouvert
-  activeConvMsgs:   [],          // messages de la conv active
-  activeConvInfo:   null,        // { conversationId, contactId, contactName, isGroup }
+  conversations:    [],
+  activeConvId:     null,
+  activeConvMsgs:   [],
+  activeConvInfo:   null,
   contacts:         [],
   groups:           [],
-  pollTimer:        null,        // 15s polling timer
-  _pendingPhone:    null,        // téléphone en attente de vérification OTP
-  _pendingUserId:   null,        // userId en attente de vérification OTP
+  pollTimer:        null,
+  mediaRecorder:    null,
+  audioChunks:      [],
+  recordingTimer:   null,
+  recordingSeconds: 0,
+  isRecording:      false,
 };
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const API = {
-  headers() {
-    const h = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
-    if (State.token) h['Authorization'] = `Bearer ${State.token}`;
+  headers(isFormData = false) {
+    const h = { 'Accept': 'application/json' };
+    if (!isFormData) h['Content-Type'] = 'application/json';
+    if (State.token)  h['Authorization'] = `Bearer ${State.token}`;
     return h;
   },
   async get(path) {
@@ -46,6 +48,25 @@ const API = {
       return { ok: r.ok, status: r.status, data };
     } catch(e) { return { ok: false, status: 0, data: { message: 'Erreur réseau — serveur en cours de démarrage...' } }; }
   },
+  async postForm(path, formData) {
+    try {
+      const r = await fetch(API_BASE + path, {
+        method: 'POST', headers: this.headers(true), body: formData
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 401) { logout(); return { ok: false, status: 401, data: {} }; }
+      return { ok: r.ok, status: r.status, data };
+    } catch(e) { return { ok: false, status: 0, data: { message: 'Erreur réseau' } }; }
+  },
+  async put(path, body) {
+    try {
+      const r = await fetch(API_BASE + path, {
+        method: 'PUT', headers: this.headers(), body: JSON.stringify(body)
+      });
+      const data = await r.json().catch(() => ({}));
+      return { ok: r.ok, status: r.status, data };
+    } catch(e) { return { ok: false, status: 0, data: { message: 'Erreur réseau' } }; }
+  },
   async delete(path) {
     try {
       const r = await fetch(API_BASE + path, { method: 'DELETE', headers: this.headers() });
@@ -64,7 +85,6 @@ function showScreen(id) {
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 async function login(identifier, password) {
   setLoading('login-btn', true, 'Se connecter');
-  // Identifier peut être un numéro de téléphone ou un email
   const isPhone = /^[+\d\s\-()+]{7,20}$/.test(identifier.trim()) && !identifier.includes('@');
   const body = isPhone
     ? { phone: identifier.trim(), password }
@@ -78,97 +98,30 @@ async function login(identifier, password) {
     localStorage.setItem('user_data', JSON.stringify(State.user));
     showError('login-error', '');
     initDashboard();
-  } else if (res.status === 403 && res.data?.requiresOtp) {
-    // Numéro non vérifié → rediriger vers OTP
-    State._pendingUserId = res.data.userId;
-    State._pendingPhone  = res.data.phone || identifier;
-    showError('login-error', '');
-    await sendOtp(State._pendingPhone, State._pendingUserId);
-    showScreen('screen-otp');
   } else {
     showError('login-error', res.data?.error || res.data?.message || 'Identifiants incorrects');
   }
 }
 
-async function register(name, phone, password) {
+async function register(name, phone, email, password) {
   setLoading('register-btn', true, "S'inscrire");
-  const res = await API.post('/api/auth/register', { name, phone, password });
+  const body = { name, phone, password };
+  if (email && email.trim()) body.email = email.trim();
+  const res = await API.post('/api/auth/register', body);
   setLoading('register-btn', false, "S'inscrire");
-  if (res.ok) {
-    if (res.data.requiresOtp) {
-      // Stocker temporairement les infos pour l'étape OTP
-      State._pendingUserId = res.data.userId;
-      State._pendingPhone  = phone;
-      showError('register-error', '');
-      // Envoyer l'OTP automatiquement
-      await sendOtp(phone, res.data.userId);
-      showScreen('screen-otp');
-    } else if (res.data.token) {
-      // Compte activé directement (legacy)
-      State.token = res.data.token;
-      State.user  = res.data.user || { name, phone };
-      localStorage.setItem('auth_token', State.token);
-      localStorage.setItem('user_data', JSON.stringify(State.user));
-      initDashboard();
-    } else {
-      showError('register-error', '');
-      showToast('Compte créé ! Connectez-vous.');
-      showScreen('screen-login');
-    }
-  } else {
-    showError('register-error', res.data.message || res.data.error || 'Erreur lors de la création du compte');
-  }
-}
-
-// ─── OTP ──────────────────────────────────────────────────────────────────────
-async function sendOtp(phone, userId) {
-  const p = phone || State._pendingPhone;
-  const u = userId || State._pendingUserId;
-  if (!p) { showToast('Numéro de téléphone manquant'); return; }
-  setLoading('otp-send-btn', true, 'Envoi...');
-  const res = await API.post('/api/auth/send-otp', { phone: p, userId: u || undefined });
-  setLoading('otp-send-btn', false, 'Renvoyer');
-  if (res.ok) {
-    showToast(`Code envoyé au ${p}`);
-    const otpPhone = document.getElementById('otp-phone-display');
-    if (otpPhone) otpPhone.textContent = p;
-    // Mode dev : afficher le code
-    if (res.data?.devCode) {
-      const otpInput = document.getElementById('otp-code');
-      if (otpInput) otpInput.value = res.data.devCode;
-      showToast(`[DEV] Code OTP : ${res.data.devCode}`);
-    }
-  } else {
-    const msg = res.data?.error || res.data?.message || 'Impossible d\'envoyer le code';
-    showToast(msg);
-  }
-}
-
-async function verifyOtp() {
-  const codeEl = document.getElementById('otp-code');
-  const code   = codeEl?.value?.trim();
-  const phone  = State._pendingPhone;
-  if (!code) { showToast('Entrez le code reçu'); return; }
-  if (!phone) { showToast('Numéro manquant — recommencez l\'inscription'); showScreen('screen-register'); return; }
-
-  setLoading('otp-verify-btn', true, 'Vérification...');
-  const res = await API.post('/api/auth/verify-otp', { phone, code });
-  setLoading('otp-verify-btn', false, 'Valider');
-
   if (res.ok && res.data.token) {
     State.token = res.data.token;
-    State.user  = res.data.user || { phone };
+    State.user  = res.data.user || { name, phone };
     localStorage.setItem('auth_token', State.token);
     localStorage.setItem('user_data', JSON.stringify(State.user));
-    // Nettoyer état temporaire
-    State._pendingUserId = null;
-    State._pendingPhone  = null;
-    showError('otp-error', '');
-    showToast('Numéro vérifié ! Bienvenue 🎉');
+    showError('register-error', '');
     initDashboard();
+  } else if (res.ok) {
+    // Compte créé sans token direct (ne devrait plus arriver)
+    showToast('Compte créé ! Connectez-vous.');
+    showScreen('screen-login');
   } else {
-    const msg = res.data?.error || res.data?.message || 'Code incorrect';
-    showError('otp-error', msg);
+    showError('register-error', res.data?.error || res.data?.message || 'Erreur lors de la création du compte');
   }
 }
 
@@ -189,7 +142,7 @@ function initDashboard() {
   if (!State.token) { showScreen('screen-login'); return; }
   showScreen('screen-dashboard');
   renderUserInfo();
-  switchTab('messages');          // V3 : onglet Messages en premier
+  switchTab('messages');
   startPolling();
 }
 
@@ -198,41 +151,55 @@ function renderUserInfo() {
   const el = document.getElementById('user-name');
   if (el) el.textContent = name;
   const av = document.getElementById('user-avatar');
-  if (av) av.textContent = getInitials(name);
+  if (av) {
+    if (State.user?.avatar) {
+      av.innerHTML = `<img src="${escHtml(State.user.avatar)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
+    } else {
+      av.textContent = getInitials(name);
+    }
+  }
 }
 
-// ─── NAVIGATION 4 ONGLETS (Messages | Contacts | Groupes | Paramètres) ────────
+// ─── NAVIGATION ──────────────────────────────────────────────────────────────
 function switchTab(tab) {
   State.currentTab = tab;
-
-  // Mettre à jour les boutons de navigation
   document.querySelectorAll('.nav-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
-
-  // Afficher le bon panneau
   document.querySelectorAll('.tab-pane').forEach(p => {
     p.classList.toggle('active', p.id === `tab-${tab}`);
   });
-
-  // Charger les données selon l'onglet
   if (tab === 'messages')   loadConversations();
   if (tab === 'contacts')   loadContacts();
   if (tab === 'groups')     loadGroups();
   if (tab === 'settings')   renderSettings();
 }
 
-// ─── POLLING TEMPS RÉEL (15s) ────────────────────────────────────────────────
+// ─── POLLING TEMPS RÉEL (10s) ────────────────────────────────────────────────
 function startPolling() {
   clearInterval(State.pollTimer);
   State.pollTimer = setInterval(() => {
     if (State.currentTab === 'messages') loadConversations(true);
     if (State.activeConvId)             loadActiveConvMessages(true);
-  }, 15000);
+  }, 10000);
 }
 
-// ─── MESSAGES — LISTE DES CONVERSATIONS (MessagesListPage V3) ─────────────────
-// GET /api/messages → liste des conversations triées newest-first
+// ─── Extraire texte du lastMessage (fixe le bug [object Object]) ──────────────
+function extractLastMessage(conv) {
+  const lm = conv.lastMessage;
+  if (!lm) return conv.lastMessageContent || '';
+  if (typeof lm === 'string') return lm;
+  if (typeof lm === 'object') {
+    // C'est un objet message Firestore
+    if (lm.type === 'audio') return '🎤 Message vocal';
+    if (lm.type === 'image') return '📷 Photo';
+    if (lm.type === 'file')  return '📎 Fichier';
+    return lm.content || lm.text || lm.body || lm.message || '';
+  }
+  return String(lm);
+}
+
+// ─── MESSAGES — LISTE DES CONVERSATIONS ──────────────────────────────────────
 async function loadConversations(silent = false) {
   if (!silent) {
     document.getElementById('conv-list').innerHTML =
@@ -240,7 +207,6 @@ async function loadConversations(silent = false) {
   }
 
   const data = await API.get('/api/messages');
-
   if (!data) {
     if (!silent) {
       document.getElementById('conv-list').innerHTML =
@@ -253,13 +219,11 @@ async function loadConversations(silent = false) {
     return;
   }
 
-  // Normaliser : le backend peut retourner un tableau ou { conversations: [] }
   const rawList = Array.isArray(data) ? data : (data.conversations || data.messages || []);
 
-  // Trier newest-first
   State.conversations = rawList.sort((a, b) => {
-    const ta = a.lastMessageTime || a.updatedAt || a.createdAt || 0;
-    const tb = b.lastMessageTime || b.updatedAt || b.createdAt || 0;
+    const ta = a.lastMessageAt || a.lastMessageTime || a.updatedAt || a.createdAt || 0;
+    const tb = b.lastMessageAt || b.lastMessageTime || b.updatedAt || b.createdAt || 0;
     return new Date(tb) - new Date(ta);
   });
 
@@ -281,22 +245,24 @@ function renderConversationList() {
   }
 
   list.innerHTML = State.conversations.map(conv => {
-    const convId     = conv.id || conv.conversationId || conv._id;
-    const isGroup    = conv.isGroup || false;
-    const name       = isGroup ? (conv.groupName || conv.name || 'Groupe') : (conv.otherUserName || conv.contactName || 'Contact');
-    const lastMsg    = conv.lastMessage || conv.lastMessageContent || '';
-    const unread     = conv.unreadCount || 0;
-    const timestamp  = conv.lastMessageTime || conv.updatedAt || conv.createdAt;
-    const timeStr    = timestamp ? formatRelativeTime(timestamp) : '';
-    const otherUid   = conv.otherUserId || conv.contactId || '';
-    const initials   = getInitials(name);
-    const avatarBg   = isGroup ? '#1a3a5c' : '#1a4a3a';
-    const avatarTxt  = isGroup ? '👥' : initials;
+    const convId    = conv.id || conv.conversationId || conv._id;
+    const isGroup   = conv.isGroup || false;
+    const name      = isGroup
+      ? (conv.groupName || conv.name || 'Groupe')
+      : (conv.otherUserName || conv.contactName || conv.otherUserId || 'Contact');
+    // FIX [object Object] : extraire le texte proprement
+    const lastMsg   = extractLastMessage(conv);
+    const unread    = conv.unreadCount || 0;
+    const timestamp = conv.lastMessageAt || conv.lastMessageTime || conv.updatedAt || conv.createdAt;
+    const timeStr   = timestamp ? formatRelativeTime(timestamp) : '';
+    const otherUid  = conv.otherUserId || conv.contactId || '';
+    const initials  = getInitials(name);
+    const avatarBg  = isGroup ? '#1a3a5c' : '#1a4a3a';
 
     return `
       <div class="conv-item ${unread > 0 ? 'conv-unread' : ''}"
            onclick="openConversation('${escHtml(convId)}', '${escHtml(otherUid)}', '${escHtml(name)}', ${isGroup})">
-        <div class="conv-avatar" style="background:${avatarBg}">${isGroup ? '<span>👥</span>' : `<span>${initials}</span>`}</div>
+        <div class="conv-avatar" style="background:${avatarBg}"><span>${isGroup ? '👥' : initials}</span></div>
         <div class="conv-content">
           <div class="conv-header">
             <span class="conv-name">${escHtml(name)}</span>
@@ -311,19 +277,15 @@ function renderConversationList() {
   }).join('');
 }
 
-// ─── CONVERSATION SCREEN (ConversationScreen V3) ──────────────────────────────
-// conversationId = uid1-uid2 (trié) pour privé, groupId pour groupe
-// contactId = otherUserId pour POST /api/messages/send (receiverId)
+// ─── CONVERSATION SCREEN ──────────────────────────────────────────────────────
 function openConversation(conversationId, contactId, contactName, isGroup = false) {
   State.activeConvId   = conversationId;
   State.activeConvMsgs = [];
   State.activeConvInfo = { conversationId, contactId, contactName, isGroup };
 
-  // Marquer comme lu dans la liste
   const conv = State.conversations.find(c => (c.id || c.conversationId || c._id) === conversationId);
   if (conv) conv.unreadCount = 0;
 
-  // Afficher l'écran conversation
   const screen = document.getElementById('screen-conversation');
   if (!screen) return;
 
@@ -344,17 +306,16 @@ async function loadActiveConvMessages(silent = false) {
       `<div class="loading-state"><div class="spinner"></div></div>`;
   }
 
-  // GET /api/messages/:conversationId
   const data = await API.get(`/api/messages/${convId}`);
-  if (!data || State.activeConvId !== convId) return; // navigation changed
+  if (!data || State.activeConvId !== convId) return;
 
   const rawMsgs = Array.isArray(data) ? data : (data.messages || data.data || []);
   const currentUserId = State.user?.id || State.user?._id || '';
 
   State.activeConvMsgs = rawMsgs.map(m => ({
     ...m,
-    isMe: (m.senderId || m.from || m.userId) === currentUserId,
-    content: m.content || m.text || m.message || m.body || '',
+    isMe     : (m.senderId || m.from || m.userId) === currentUserId,
+    content  : m.content || m.text || m.message || m.body || '',
     timestamp: m.timestamp || m.createdAt || m.sentAt || new Date().toISOString(),
   }));
 
@@ -372,15 +333,114 @@ function renderMessages() {
         <p>Aucun message. Envoyez le premier !</p>
       </div>`;
   } else {
-    container.innerHTML = State.activeConvMsgs.map(m => `
-      <div class="msg-bubble ${m.isMe ? 'msg-me' : 'msg-them'}">
-        <div class="msg-content">${escHtml(m.content)}</div>
-        <div class="msg-time">${formatTime(m.timestamp)}</div>
-      </div>`).join('');
+    container.innerHTML = State.activeConvMsgs.map(m => {
+      if (m.type === 'audio' && (m.audioUrl || m.url)) {
+        return renderAudioMessage(m);
+      }
+      return `
+        <div class="msg-bubble ${m.isMe ? 'msg-me' : 'msg-them'}">
+          <div class="msg-content">${escHtml(m.content)}</div>
+          <div class="msg-time">${formatTime(m.timestamp)}${m.isMe ? renderMsgStatus(m.status) : ''}</div>
+        </div>`;
+    }).join('');
   }
 
-  // Scroll to bottom
   container.scrollTop = container.scrollHeight;
+}
+
+function renderMsgStatus(status) {
+  if (status === 'seen')      return ' <span style="color:#4fc3f7">✓✓</span>';
+  if (status === 'delivered') return ' <span style="color:#aaa">✓✓</span>';
+  if (status === 'sent')      return ' <span style="color:#aaa">✓</span>';
+  return '';
+}
+
+function renderAudioMessage(m) {
+  const audioUrl = m.audioUrl || m.url || '';
+  const duration = m.durationFormatted || (m.duration ? `${Math.floor(m.duration/60)}:${String(Math.round(m.duration%60)).padStart(2,'0')}` : '');
+  const msgId    = m.id || m._id || '';
+  const transcript = m.transcription || '';
+  const tStatus    = m.transcriptionStatus || 'pending';
+
+  return `
+    <div class="msg-bubble ${m.isMe ? 'msg-me' : 'msg-them'}" id="msg-${escHtml(msgId)}">
+      <div class="msg-audio-player">
+        <button class="audio-play-btn" onclick="toggleAudio('audio-${escHtml(msgId)}', this)" title="Lecture">▶</button>
+        <audio id="audio-${escHtml(msgId)}" src="${escHtml(audioUrl)}" preload="metadata"
+               onended="resetPlayBtn('audio-${escHtml(msgId)}')"></audio>
+        <div class="audio-info">
+          <span class="audio-duration">${escHtml(duration)}</span>
+          <span class="audio-label">Message vocal</span>
+        </div>
+        ${msgId && tStatus !== 'done' ? `<button class="btn-transcribe" onclick="requestTranscription('${escHtml(msgId)}')" title="Transcrire">📝 Transcrire</button>` : ''}
+      </div>
+      ${transcript ? `<div class="msg-transcript">${escHtml(transcript)}</div>` : ''}
+      <div class="msg-time">${formatTime(m.timestamp)}${m.isMe ? renderMsgStatus(m.status) : ''}</div>
+    </div>`;
+}
+
+function toggleAudio(audioId, btn) {
+  const audio = document.getElementById(audioId);
+  if (!audio) return;
+  if (audio.paused) {
+    // Stopper tous les autres audios
+    document.querySelectorAll('audio').forEach(a => { if (a !== audio) { a.pause(); a.currentTime = 0; } });
+    document.querySelectorAll('.audio-play-btn').forEach(b => { if (b !== btn) b.textContent = '▶'; });
+    audio.play().catch(() => {});
+    btn.textContent = '⏸';
+  } else {
+    audio.pause();
+    btn.textContent = '▶';
+  }
+}
+
+function resetPlayBtn(audioId) {
+  const audio = document.getElementById(audioId);
+  if (audio) {
+    audio.currentTime = 0;
+    const btn = audio.previousElementSibling;
+    if (btn) btn.textContent = '▶';
+  }
+}
+
+async function requestTranscription(msgId) {
+  if (!msgId) return;
+  const btn = document.querySelector(`#msg-${msgId} .btn-transcribe`);
+  if (btn) { btn.textContent = '⏳...'; btn.disabled = true; }
+
+  // Try audio.v2 endpoint first, then transcription.v2
+  let res = await API.post(`/api/audio/transcribe/${msgId}`, {});
+  if (!res.ok) res = await API.post(`/api/transcription`, { audioId: msgId });
+
+  if (res.ok) {
+    showToast('Transcription lancée — résultat dans quelques secondes.');
+    // Poll for result
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      if (attempts > 20) { clearInterval(poll); return; }
+      const statusData = await API.get(`/api/audio/${msgId}`);
+      if (statusData?.transcriptionStatus === 'done' && statusData?.transcription) {
+        clearInterval(poll);
+        const el = document.querySelector(`#msg-${msgId} .msg-transcript`);
+        if (el) {
+          el.textContent = statusData.transcription;
+        } else {
+          const bubble = document.getElementById(`msg-${msgId}`);
+          if (bubble) {
+            const div = document.createElement('div');
+            div.className = 'msg-transcript';
+            div.textContent = statusData.transcription;
+            bubble.insertBefore(div, bubble.querySelector('.msg-time'));
+          }
+        }
+        if (btn) btn.style.display = 'none';
+      }
+    }, 3000);
+  } else {
+    showToast('Impossible de lancer la transcription.');
+    if (btn) { btn.textContent = '📝 Transcrire'; btn.disabled = false; }
+  }
 }
 
 async function sendMessage() {
@@ -391,39 +451,27 @@ async function sendMessage() {
   const { conversationId, contactId, isGroup } = State.activeConvInfo;
   input.value = '';
 
-  // Affichage optimiste
   const optimisticMsg = {
-    isMe: true,
-    content: text,
-    timestamp: new Date().toISOString(),
-    _optimistic: true,
+    isMe: true, content: text, timestamp: new Date().toISOString(), _optimistic: true, status: 'sending',
   };
   State.activeConvMsgs.push(optimisticMsg);
   renderMessages();
 
   let res;
   if (isGroup) {
-    // POST /groups/:groupId/messages
     res = await API.post(`/groups/${contactId}/messages`, { content: text });
   } else {
-    // POST /api/messages/send  { receiverId, content }
-    res = await API.post('/api/messages/send', {
-      receiverId: contactId,
-      content:    text,
-    });
+    res = await API.post('/api/messages/send', { receiverId: contactId, content: text });
   }
 
   if (res && res.ok) {
-    // Mettre à jour la liste des conversations
     const conv = State.conversations.find(c => (c.id || c.conversationId || c._id) === conversationId);
     if (conv) {
-      conv.lastMessage = text;
-      conv.lastMessageTime = new Date().toISOString();
+      conv.lastMessage    = text;
+      conv.lastMessageAt  = new Date().toISOString();
     }
-    // Recharger les messages en arrière-plan
     setTimeout(() => loadActiveConvMessages(true), 500);
   } else {
-    // Retirer le message optimiste en cas d'erreur
     State.activeConvMsgs = State.activeConvMsgs.filter(m => !m._optimistic);
     renderMessages();
     showToast('Échec de l\'envoi. Réessayez.');
@@ -434,8 +482,132 @@ function closeConversation() {
   State.activeConvId   = null;
   State.activeConvInfo = null;
   State.activeConvMsgs = [];
+  if (State.isRecording) stopRecording(false);
   showScreen('screen-dashboard');
   if (State.currentTab === 'messages') renderConversationList();
+}
+
+// ─── VOICE MESSAGES ───────────────────────────────────────────────────────────
+async function startRecording() {
+  if (State.isRecording) { stopRecording(true); return; }
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('Enregistrement audio non supporté sur cet appareil.');
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    State.audioChunks = [];
+    State.isRecording = true;
+
+    const options = { mimeType: 'audio/webm;codecs=opus' };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+      delete options.mimeType; // fallback
+    }
+    State.mediaRecorder = new MediaRecorder(stream, options);
+
+    State.mediaRecorder.ondataavailable = e => {
+      if (e.data && e.data.size > 0) State.audioChunks.push(e.data);
+    };
+
+    State.mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+    };
+
+    State.mediaRecorder.start(250);
+
+    // Update mic button
+    const micBtn = document.getElementById('mic-btn');
+    if (micBtn) { micBtn.textContent = '⏹'; micBtn.classList.add('recording'); }
+
+    // Timer
+    State.recordingSeconds = 0;
+    const timerEl = document.getElementById('recording-timer');
+    if (timerEl) timerEl.style.display = 'inline';
+    State.recordingTimer = setInterval(() => {
+      State.recordingSeconds++;
+      if (timerEl) timerEl.textContent = formatRecordingTime(State.recordingSeconds);
+      if (State.recordingSeconds >= 300) stopRecording(true); // max 5 min
+    }, 1000);
+
+  } catch(err) {
+    State.isRecording = false;
+    showToast('Impossible d\'accéder au microphone : ' + (err.message || err.name));
+  }
+}
+
+function formatRecordingTime(secs) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function stopRecording(send = true) {
+  clearInterval(State.recordingTimer);
+  State.isRecording = false;
+
+  const micBtn  = document.getElementById('mic-btn');
+  const timerEl = document.getElementById('recording-timer');
+  if (micBtn)  { micBtn.textContent = '🎤'; micBtn.classList.remove('recording'); }
+  if (timerEl) { timerEl.style.display = 'none'; timerEl.textContent = '0:00'; }
+
+  if (!State.mediaRecorder) return;
+
+  State.mediaRecorder.onstop = async () => {
+    const stream = State.mediaRecorder.stream;
+    if (stream) stream.getTracks().forEach(t => t.stop());
+
+    if (send && State.audioChunks.length > 0) {
+      await uploadVoiceMessage();
+    }
+    State.audioChunks  = [];
+    State.mediaRecorder = null;
+  };
+
+  try {
+    if (State.mediaRecorder.state !== 'inactive') State.mediaRecorder.stop();
+  } catch (_) {}
+}
+
+async function uploadVoiceMessage() {
+  if (!State.activeConvInfo || State.audioChunks.length === 0) return;
+
+  showToast('Envoi du message vocal...');
+  const mimeType = State.audioChunks[0]?.type || 'audio/webm';
+  const ext      = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm';
+  const blob     = new Blob(State.audioChunks, { type: mimeType });
+  const formData = new FormData();
+  formData.append('audio', blob, `voice_${Date.now()}.${ext}`);
+
+  const uploadRes = await API.postForm('/api/audio/upload', formData);
+
+  if (!uploadRes.ok) {
+    showToast('Échec de l\'upload audio.');
+    return;
+  }
+
+  const { id: audioId, url: audioUrl, duration, durationFormatted } = uploadRes.data;
+
+  // Envoyer comme message in-app
+  const { contactId, isGroup, conversationId } = State.activeConvInfo;
+  let res;
+  if (isGroup) {
+    res = await API.post(`/groups/${contactId}/messages`, {
+      content: '', type: 'audio', audioUrl, duration,
+    });
+  } else {
+    res = await API.post('/api/messages/send', {
+      receiverId: contactId, content: '', type: 'audio', audioUrl, duration,
+    });
+  }
+
+  if (res?.ok) {
+    showToast('Message vocal envoyé !');
+    setTimeout(() => loadActiveConvMessages(true), 500);
+  } else {
+    showToast('Message vocal uploadé mais envoi échoué.');
+  }
 }
 
 // ─── CONTACTS ─────────────────────────────────────────────────────────────────
@@ -462,7 +634,6 @@ function renderContacts(contacts) {
     return;
   }
 
-  // Séparer OmniSMS et SMS uniquement
   const omniContacts = contacts.filter(c => c.isOnOmniSms || c.userId || c.registeredUserId);
   const smsContacts  = contacts.filter(c => !c.isOnOmniSms && !c.userId && !c.registeredUserId);
 
@@ -489,12 +660,10 @@ function renderContacts(contacts) {
   }
 
   let html = '';
-
   if (omniContacts.length > 0) {
     html += `<div class="contacts-section-header">OmniSMS — ${omniContacts.length} utilisateur(s)</div>`;
     html += omniContacts.map(contactItem).join('');
   }
-
   if (smsContacts.length > 0) {
     html += `<div class="contacts-section-header contacts-section-sms">SMS — ${smsContacts.length} contact(s)</div>`;
     html += smsContacts.map(contactItem).join('');
@@ -503,14 +672,12 @@ function renderContacts(contacts) {
   list.innerHTML = html;
 }
 
-// Ouvrir une conversation depuis un contact (V3 : calcul du conversationId)
 function openContactConversation(otherUserId, contactName) {
   if (!otherUserId || otherUserId === 'null' || otherUserId === 'undefined') {
     showToast('Contact non enregistré sur OmniSMS');
     return;
   }
   const myId = State.user?.id || State.user?._id || '';
-  // conversationId = [uid1, uid2].sort().join('-')  — même logique que le backend
   const parts = [myId, otherUserId].sort();
   const conversationId = parts.join('-');
   openConversation(conversationId, otherUserId, contactName, false);
@@ -548,30 +715,38 @@ async function confirmDeleteContact(phone, name) {
   else         showToast('Erreur lors de la suppression');
 }
 
-// ─── CONTACT PICKER API ───────────────────────────────────────────────────────
+// ─── CONTACT PICKER (fallback silencieux vers VCF) ───────────────────────────
 async function importWithContactPicker() {
-  if (!('contacts' in navigator && 'ContactsManager' in window)) {
-    showToast('Contact Picker non supporté — utilisez l\'import VCF');
-    return;
+  if ('contacts' in navigator && 'ContactsManager' in window) {
+    try {
+      const props    = ['name', 'tel'];
+      const selected = await navigator.contacts.select(props, { multiple: true });
+      const contacts = selected.map(c => ({
+        name:  c.name?.[0] || 'Contact',
+        phone: c.tel?.[0]  || '',
+      })).filter(c => c.phone);
+      if (contacts.length === 0) { showToast('Aucun contact sélectionné'); return; }
+      await syncContacts(contacts);
+    } catch(e) {
+      if (e.name !== 'AbortError') {
+        // Fallback silencieux vers VCF — pas de message d'erreur
+        triggerVcfImport();
+      }
+    }
+  } else {
+    // Fallback silencieux : proposer l'import VCF sans toast d'erreur
+    triggerVcfImport();
   }
-  try {
-    const props    = ['name', 'tel'];
-    const selected = await navigator.contacts.select(props, { multiple: true });
-    const contacts = selected.map(c => ({
-      name:  c.name?.[0] || 'Contact',
-      phone: c.tel?.[0]  || '',
-    })).filter(c => c.phone);
-    if (contacts.length === 0) { showToast('Aucun contact sélectionné'); return; }
-    await syncContacts(contacts);
-  } catch(e) {
-    if (e.name !== 'AbortError') showToast('Erreur Contact Picker');
-  }
+}
+
+function triggerVcfImport() {
+  const vcfInput = document.getElementById('vcf-import-input');
+  if (vcfInput) vcfInput.click();
 }
 
 // ─── VCF IMPORT ───────────────────────────────────────────────────────────────
 function parseVCF(text) {
   const contacts = [];
-  // Unfold (RFC 6350 — lignes qui commencent par espace/tab)
   const unfolded = text.replace(/\r\n[ \t]/g, '').replace(/\r\n/g, '\n');
   const vcards   = unfolded.split(/BEGIN:VCARD/i).slice(1);
 
@@ -582,10 +757,8 @@ function parseVCF(text) {
     for (const line of lines) {
       const l = line.trim();
       if (!l || l.toUpperCase() === 'END:VCARD') continue;
-      // FN:Nom Prénom
       const fnMatch = l.match(/^FN(?:;[^:]*)?:(.*)/i);
       if (fnMatch) { name = fnMatch[1].trim().replace(/\\,/g, ','); continue; }
-      // N:Nom;Prénom;;;
       const nMatch = l.match(/^N(?:;[^:]*)?:(.*)/i);
       if (nMatch && !name) {
         const parts = nMatch[1].split(';');
@@ -594,7 +767,6 @@ function parseVCF(text) {
         name = [first, last].filter(Boolean).join(' ');
         continue;
       }
-      // TEL:+33600000000
       const telMatch = l.match(/^TEL(?:;[^:]*)?:(.*)/i);
       if (telMatch && !phone) {
         phone = telMatch[1].trim().replace(/\s+/g, '');
@@ -621,7 +793,6 @@ async function syncContacts(contacts) {
   if (!contacts.length) return;
   showToast('Synchronisation en cours...');
 
-  // Utiliser le endpoint /api/contacts/sync (bulk OmniSMS detection)
   const res = await API.post('/api/contacts/sync', { contacts, country: 'BF' });
   if (res.ok) {
     const d = res.data;
@@ -635,7 +806,6 @@ async function syncContacts(contacts) {
       loadContacts();
     }
   } else {
-    // Fallback : ajouter les contacts un par un
     let added = 0;
     for (const c of contacts) {
       const r = await API.post('/api/contacts/add', { name: c.name, phone: c.phone });
@@ -678,9 +848,7 @@ function renderGroups() {
       <div class="conv-item" onclick="openGroupConversation('${escHtml(gid)}', '${escHtml(name)}')">
         <div class="conv-avatar" style="background:#1a3a5c"><span>👥</span></div>
         <div class="conv-content">
-          <div class="conv-header">
-            <span class="conv-name">${escHtml(name)}</span>
-          </div>
+          <div class="conv-header"><span class="conv-name">${escHtml(name)}</span></div>
           <div class="conv-footer">
             <span class="conv-last-msg">${members} membre(s)${g.description ? ' · ' + escHtml(g.description) : ''}</span>
           </div>
@@ -689,25 +857,18 @@ function renderGroups() {
   }).join('');
 }
 
-// Ouvrir conversation groupe (V3 : conversationId = groupId)
 function openGroupConversation(groupId, groupName) {
   openConversation(groupId, groupId, groupName, true);
 }
 
 async function createGroup(name, description) {
   if (!name.trim()) { showToast('Nom du groupe requis'); return; }
-
-  // Récupérer les membres sélectionnés
   const checked = document.querySelectorAll('#group-member-list input[type=checkbox]:checked');
   const memberIds = Array.from(checked).map(c => c.value);
   if (memberIds.length === 0) { showToast('Sélectionnez au moins un membre'); return; }
 
   setLoading('create-group-btn', true, 'Créer');
-  const res = await API.post('/groups', {
-    name:        name.trim(),
-    description: description.trim(),
-    members:     memberIds,
-  });
+  const res = await API.post('/groups', { name: name.trim(), description: description.trim(), members: memberIds });
   setLoading('create-group-btn', false, 'Créer');
 
   if (res.ok) {
@@ -717,8 +878,6 @@ async function createGroup(name, description) {
     const gid   = group?.id || group?._id;
     const gname = group?.name || name;
     await loadGroups();
-
-    // V3 : ouvrir immédiatement la conversation groupe
     if (gid) openGroupConversation(gid, gname);
   } else {
     showToast(res.data.message || 'Erreur lors de la création');
@@ -726,7 +885,6 @@ async function createGroup(name, description) {
 }
 
 function openCreateGroupModal() {
-  // Peupler la liste des membres avec les contacts enregistrés sur OmniSMS
   const registeredContacts = State.contacts.filter(c => c.userId || c.registeredUserId);
   const container = document.getElementById('group-member-list');
   if (container) {
@@ -736,11 +894,7 @@ function openCreateGroupModal() {
       container.innerHTML = registeredContacts.map(c => {
         const uid  = c.userId || c.registeredUserId;
         const name = c.name || c.displayName || c.phone;
-        return `
-          <label class="member-checkbox">
-            <input type="checkbox" value="${escHtml(uid)}">
-            <span>${escHtml(name)}</span>
-          </label>`;
+        return `<label class="member-checkbox"><input type="checkbox" value="${escHtml(uid)}"><span>${escHtml(name)}</span></label>`;
       }).join('');
     }
   }
@@ -752,16 +906,50 @@ function renderSettings() {
   const name  = State.user?.name  || '';
   const email = State.user?.email || '';
   const phone = State.user?.phone || '';
+  const avatar = State.user?.avatar || null;
 
   const el = document.getElementById('settings-content');
   if (!el) return;
+
   el.innerHTML = `
     <div class="settings-card">
-      <div class="settings-avatar">${getInitials(name || email)}</div>
+      <div class="settings-avatar-wrapper" onclick="document.getElementById('avatar-upload-input').click()">
+        ${avatar
+          ? `<img src="${escHtml(avatar)}" class="settings-avatar-img" alt="Photo de profil">`
+          : `<div class="settings-avatar">${getInitials(name || email)}</div>`
+        }
+        <div class="settings-avatar-overlay">📷</div>
+      </div>
+      <input id="avatar-upload-input" type="file" accept="image/*" style="display:none"
+             onchange="uploadAvatar(this.files[0])">
       <h3>${escHtml(name || email)}</h3>
       <p class="text-muted">${escHtml(email)}</p>
       ${phone ? `<p class="text-muted">${escHtml(phone)}</p>` : ''}
     </div>
+
+    <div class="settings-section">
+      <h4>Modifier le profil</h4>
+      <div class="form-group">
+        <label class="form-label">Nom</label>
+        <input id="settings-name" type="text" class="form-input" value="${escHtml(name)}" placeholder="Votre nom">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input id="settings-email" type="email" class="form-input" value="${escHtml(email)}" placeholder="votre@email.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Téléphone</label>
+        <input id="settings-phone" type="tel" class="form-input" value="${escHtml(phone)}" placeholder="+22670123456">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nouveau mot de passe (laisser vide pour ne pas changer)</label>
+        <input id="settings-password" type="password" class="form-input" placeholder="••••••••" minlength="8">
+      </div>
+      <button class="btn-primary" style="width:100%;margin-top:12px" onclick="saveProfile()">
+        💾 Sauvegarder
+      </button>
+    </div>
+
     <div class="settings-section">
       <h4>Compte</h4>
       <div class="settings-row" onclick="handleSubscription()">
@@ -777,20 +965,62 @@ function renderSettings() {
       <h4>Application</h4>
       <div class="settings-row">
         <span>📱 Version</span>
-        <span class="text-muted">3.0.0</span>
+        <span class="text-muted">3.2.0</span>
       </div>
     </div>`;
 
   loadPremiumStatus(State.user?.id || State.user?._id);
 }
 
+async function saveProfile() {
+  const name     = document.getElementById('settings-name')?.value?.trim();
+  const email    = document.getElementById('settings-email')?.value?.trim();
+  const phone    = document.getElementById('settings-phone')?.value?.trim();
+  const password = document.getElementById('settings-password')?.value;
+
+  const body = {};
+  if (name)     body.name     = name;
+  if (email)    body.email    = email;
+  if (phone)    body.phone    = phone;
+  if (password && password.length >= 8) body.password = password;
+
+  if (Object.keys(body).length === 0) { showToast('Aucune modification'); return; }
+
+  const res = await API.put('/api/me/profile', body);
+  if (res.ok) {
+    // Mettre à jour le state local
+    if (name)  State.user.name  = name;
+    if (email) State.user.email = email;
+    if (phone) State.user.phone = phone;
+    localStorage.setItem('user_data', JSON.stringify(State.user));
+    renderUserInfo();
+    showToast('Profil mis à jour ✓');
+  } else {
+    showToast(res.data?.error || 'Erreur lors de la sauvegarde');
+  }
+}
+
+async function uploadAvatar(file) {
+  if (!file) return;
+  showToast('Upload de la photo...');
+  const formData = new FormData();
+  formData.append('avatar', file);
+  const res = await API.postForm('/api/me/avatar', formData);
+  if (res.ok && res.data.avatarUrl) {
+    State.user.avatar = res.data.avatarUrl;
+    localStorage.setItem('user_data', JSON.stringify(State.user));
+    renderUserInfo();
+    renderSettings();
+    showToast('Photo de profil mise à jour ✓');
+  } else {
+    showToast(res.data?.error || 'Échec de l\'upload');
+  }
+}
+
 async function loadPremiumStatus(userId) {
   if (!userId) return;
   const data = await API.get(`/api/payment/user-status?userId=${userId}`);
-  // Backend retourne isSubscribed ou premium (les deux champs)
   if (data?.isSubscribed || data?.premium) {
-    showToast('Statut : Premium ✨');
-    // Mettre à jour l'UI dans settings si possible
     const el = document.getElementById('settings-content');
     if (el) {
       const premiumRow = el.querySelector('[onclick="handleSubscription()"]');
@@ -806,15 +1036,14 @@ async function handleSubscription() {
   showToast('Redirection vers le paiement...');
   const res = await API.post('/api/payment/leekpay', {
     userId,
-    email    : State.user?.email  || undefined,
-    name     : State.user?.name   || undefined,
-    phone    : State.user?.phone  || undefined,
-    amount   : 2000,
-    currency : 'XOF',
+    email   : State.user?.email  || undefined,
+    name    : State.user?.name   || undefined,
+    phone   : State.user?.phone  || undefined,
+    amount  : 2000,
+    currency: 'XOF',
   });
 
   if (res.ok) {
-    // Le backend retourne checkout_url (snake_case) ET checkoutUrl (camelCase)
     const url = res.data?.checkout_url || res.data?.checkoutUrl || res.data?.paymentUrl;
     if (url) {
       window.location.href = url;
@@ -822,13 +1051,12 @@ async function handleSubscription() {
       showToast('URL de paiement manquante — contactez le support');
     }
   } else {
-    const msg = res.data?.error || res.data?.message || 'Erreur lors du paiement';
     if (res.data?.code === 'ALREADY_SUBSCRIBED') {
       showToast('Vous êtes déjà abonné OmniSMS Premium ✨');
     } else if (res.data?.code === 'LEEKPAY_NOT_CONFIGURED') {
       showToast('Service de paiement temporairement indisponible');
     } else {
-      showToast(msg);
+      showToast(res.data?.error || res.data?.message || 'Erreur lors du paiement');
     }
   }
 }
@@ -843,7 +1071,6 @@ function closeModal(id) {
   if (m) { m.style.display = 'none'; m.classList.remove('active'); }
 }
 
-// Fermer modal en cliquant sur le fond
 document.addEventListener('click', e => {
   if (e.target.classList.contains('modal')) closeModal(e.target.id);
 });
@@ -851,14 +1078,19 @@ document.addEventListener('click', e => {
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 function escHtml(s) {
   if (s == null) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
 }
 
 function getInitials(name) {
   if (!name) return '?';
-  const parts = name.trim().split(/\s+/);
+  const parts = String(name).trim().split(/\s+/);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return name[0].toUpperCase();
+  return String(name)[0].toUpperCase();
 }
 
 function formatTime(ts) {
@@ -870,11 +1102,16 @@ function formatTime(ts) {
 
 function formatRelativeTime(ts) {
   if (!ts) return '';
-  const d   = new Date(ts);
+  let d;
+  // Handle Firestore Timestamp objects
+  if (ts && typeof ts === 'object' && ts._seconds) {
+    d = new Date(ts._seconds * 1000);
+  } else {
+    d = new Date(ts);
+  }
   if (isNaN(d)) return '';
   const now  = new Date();
   const diff = now - d;
-
   const sameDay = d.toDateString() === now.toDateString();
   if (sameDay) {
     return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -894,14 +1131,14 @@ function showError(id, msg) {
 function setLoading(btnId, loading, label) {
   const btn = document.getElementById(btnId);
   if (!btn) return;
-  btn.disabled   = loading;
+  btn.disabled    = loading;
   btn.textContent = loading ? 'Chargement...' : label;
 }
 
 function showToast(msg, duration = 3000) {
   const t = document.getElementById('toast');
   if (!t) return;
-  t.textContent  = msg;
+  t.textContent   = msg;
   t.style.opacity = '1';
   t.style.display = 'block';
   clearTimeout(t._timer);
@@ -910,19 +1147,16 @@ function showToast(msg, duration = 3000) {
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // Enregistrement du Service Worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
 
-  // Restaurer session
   if (State.token && State.user) {
     initDashboard();
   } else {
     showScreen('screen-login');
   }
 
-  // Gestion splash
   setTimeout(() => {
     if (document.getElementById('screen-splash')?.classList.contains('active')) {
       showScreen(State.token && State.user ? 'screen-dashboard' : 'screen-login');

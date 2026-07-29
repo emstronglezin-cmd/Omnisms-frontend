@@ -663,3 +663,64 @@ html, body {
 #otp-code::-webkit-outer-spin-button,
 #otp-code::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 #otp-code[type=number] { -moz-appearance: textfield; }
+
+/* ─── VOICE MESSAGES ──────────────────────────────────────────────────────── */
+.mic-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 20px; padding: 8px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: background 0.2s; color: var(--text-primary);
+}
+.mic-btn:hover { background: rgba(255,255,255,0.08); }
+.mic-btn.recording {
+  background: rgba(255,50,50,0.2); color: #ff5555;
+  animation: pulse-record 1s infinite;
+}
+@keyframes pulse-record {
+  0%,100% { opacity: 1; } 50% { opacity: 0.6; }
+}
+
+.msg-audio-player {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 0; min-width: 180px; max-width: 280px;
+}
+.audio-play-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(0,212,255,0.2); border: none; cursor: pointer;
+  font-size: 14px; display: flex; align-items: center; justify-content: center;
+  color: var(--accent); flex-shrink: 0; transition: background 0.2s;
+}
+.audio-play-btn:hover { background: rgba(0,212,255,0.35); }
+.audio-info { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.audio-duration { font-size: 12px; color: var(--text-secondary); }
+.audio-label { font-size: 11px; color: var(--text-muted); }
+.btn-transcribe {
+  background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+  color: var(--text-secondary); font-size: 11px; padding: 3px 8px;
+  border-radius: 12px; cursor: pointer; white-space: nowrap;
+  transition: all 0.2s;
+}
+.btn-transcribe:hover { background: rgba(0,212,255,0.1); color: var(--accent); }
+.msg-transcript {
+  font-size: 13px; color: var(--text-secondary);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 6px; margin-top: 4px; font-style: italic;
+  line-height: 1.4;
+}
+
+/* ─── SETTINGS PROFILE PHOTO ─────────────────────────────────────────────── */
+.settings-avatar-wrapper {
+  position: relative; width: 80px; height: 80px;
+  border-radius: 50%; margin: 0 auto 12px; cursor: pointer;
+}
+.settings-avatar-img {
+  width: 100%; height: 100%; border-radius: 50%;
+  object-fit: cover; border: 2px solid rgba(0,212,255,0.3);
+}
+.settings-avatar-overlay {
+  position: absolute; bottom: 0; right: 0;
+  background: var(--accent); border-radius: 50%;
+  width: 26px; height: 26px; display: flex;
+  align-items: center; justify-content: center;
+  font-size: 14px; border: 2px solid var(--bg-primary);
+}
