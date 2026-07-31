@@ -1,6 +1,6 @@
-// OmniSMS PWA v3.2 — Stabilisation Session 6
+// OmniSMS PWA v3.2.1 — Session 7 — Stabilisation définitive
 // Architecture Conversations-First (WhatsApp)
-// Corrections : OTP supprimé, [object Object] fixé, lastMessage, voix, transcription, profil
+// Corrections : Redis MemoryStore, LeekPay officiel, payment_url, polling fallback
 
 const API_BASE = 'https://omnisms-backend.onrender.com';
 
@@ -965,7 +965,7 @@ function renderSettings() {
       <h4>Application</h4>
       <div class="settings-row">
         <span>📱 Version</span>
-        <span class="text-muted">3.2.0</span>
+        <span class="text-muted">3.2.1</span>
       </div>
     </div>`;
 
@@ -1044,9 +1044,20 @@ async function handleSubscription() {
   });
 
   if (res.ok) {
-    const url = res.data?.checkout_url || res.data?.checkoutUrl || res.data?.paymentUrl;
+    // data.payment_url est le champ officiel LeekPay
+    // checkout_url / checkoutUrl sont des alias de compatibilité
+    const url = res.data?.payment_url
+             || res.data?.checkout_url
+             || res.data?.checkoutUrl
+             || res.data?.paymentUrl;
+    const checkoutId = res.data?.checkout_id || res.data?.checkoutId;
+
     if (url) {
-      window.location.href = url;
+      // Stocker checkoutId pour le polling de retour
+      if (checkoutId) localStorage.setItem('leekpay_pending', JSON.stringify({ checkoutId, userId, ts: Date.now() }));
+      window.open(url, '_blank') || (window.location.href = url);
+      // Lancer le polling : si le webhook n'est pas reçu, on poll manuellement
+      if (checkoutId) startLeekPayPolling(checkoutId, userId);
     } else {
       showToast('URL de paiement manquante — contactez le support');
     }
@@ -1060,6 +1071,63 @@ async function handleSubscription() {
     }
   }
 }
+
+// ─── LEEKPAY POLLING ─────────────────────────────────────────────────────────
+// Polling officiel GET /api/v1/checkout/:id jusqu'à status = "paid"
+// Utilisé en fallback si le webhook n'est pas reçu dans les 30s
+function startLeekPayPolling(checkoutId, userId, maxAttempts = 15) {
+  let attempts = 0;
+  showToast('Paiement en attente — ne fermez pas la page...');
+
+  const poll = async () => {
+    attempts++;
+    if (attempts > maxAttempts) {
+      showToast('Délai expiré — si vous avez payé, votre compte sera activé sous 24h.');
+      localStorage.removeItem('leekpay_pending');
+      return;
+    }
+
+    try {
+      const res = await API.post(`/api/payment/poll/${encodeURIComponent(checkoutId)}`, { userId });
+      if (res.ok) {
+        if (res.data?.isPaid || res.data?.status === 'paid') {
+          localStorage.removeItem('leekpay_pending');
+          showToast('✅ Paiement confirmé ! Abonnement Premium activé.', 6000);
+          // Rafraîchir le profil utilisateur
+          if (State.user) { State.user.isSubscribed = true; State.user.premium = true; }
+          localStorage.setItem('user_data', JSON.stringify(State.user));
+          renderSettings();
+          return;
+        }
+        if (['failed', 'cancelled', 'expired'].includes(res.data?.status)) {
+          localStorage.removeItem('leekpay_pending');
+          showToast('Paiement annulé ou échoué.');
+          return;
+        }
+      }
+    } catch (_) {}
+
+    // Continuer le polling
+    setTimeout(poll, 10000);  // toutes les 10s
+  };
+
+  setTimeout(poll, 15000);  // premier check après 15s
+}
+
+// Reprendre un polling en cours au chargement de la page (retour du paiement)
+(function resumeLeekPayPolling() {
+  try {
+    const pending = JSON.parse(localStorage.getItem('leekpay_pending') || 'null');
+    if (!pending) return;
+    const age = Date.now() - (pending.ts || 0);
+    // Ignorer si plus de 30 minutes
+    if (age > 30 * 60 * 1000) { localStorage.removeItem('leekpay_pending'); return; }
+    // Reprendre le polling
+    setTimeout(() => startLeekPayPolling(pending.checkoutId, pending.userId, 10), 3000);
+  } catch (_) {
+    localStorage.removeItem('leekpay_pending');
+  }
+})();
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
 function openModal(id)  {
