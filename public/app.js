@@ -1,6 +1,6 @@
-// OmniSMS PWA v3.2.1 — Session 7 — Stabilisation définitive
+// OmniSMS PWA v3.3 — Session 8 — Version complète
 // Architecture Conversations-First (WhatsApp)
-// Corrections : Redis MemoryStore, LeekPay officiel, payment_url, polling fallback
+// v3.3 : username, contacts non-OmniSMS ouverts, Mettre à jour, S'abonner, Socket.IO, groupes
 
 const API_BASE = 'https://omnisms-backend.onrender.com';
 
@@ -97,7 +97,17 @@ async function login(identifier, password) {
     localStorage.setItem('auth_token', State.token);
     localStorage.setItem('user_data', JSON.stringify(State.user));
     showError('login-error', '');
-    initDashboard();
+    // Si le compte n'a pas de téléphone (vieux compte Google/email), forcer l'ajout
+    if (State.user.needsPhone || !State.user.phone) {
+      initDashboard();
+      // Afficher le panneau settings avec message d'avertissement
+      setTimeout(() => {
+        switchTab('settings');
+        showToast('⚠️ Merci d\'ajouter votre numéro de téléphone dans Paramètres.');
+      }, 800);
+    } else {
+      initDashboard();
+    }
   } else {
     showError('login-error', res.data?.error || res.data?.message || 'Identifiants incorrects');
   }
@@ -105,8 +115,11 @@ async function login(identifier, password) {
 
 async function register(name, phone, email, password) {
   setLoading('register-btn', true, "S'inscrire");
+  const usernameEl = document.getElementById('reg-username');
+  const username   = usernameEl?.value?.trim() || '';
   const body = { name, phone, password };
-  if (email && email.trim()) body.email = email.trim();
+  if (email    && email.trim())    body.email    = email.trim();
+  if (username && username.trim()) body.username = username.trim();
   const res = await API.post('/api/auth/register', body);
   setLoading('register-btn', false, "S'inscrire");
   if (res.ok && res.data.token) {
@@ -127,6 +140,7 @@ async function register(name, phone, email, password) {
 
 function logout() {
   clearInterval(State.pollTimer);
+  if (_socket) { try { _socket.disconnect(); } catch (_) {} _socket = null; }
   State.token  = null;
   State.user   = null;
   State.conversations = [];
@@ -144,6 +158,17 @@ function initDashboard() {
   renderUserInfo();
   switchTab('messages');
   startPolling();
+  // Tenter connexion Socket.IO (dépend du chargement du script io)
+  if (typeof io !== 'undefined') {
+    initSocketIO();
+  } else {
+    // Charger socket.io dynamiquement
+    const s = document.createElement('script');
+    s.src = `${API_BASE}/socket.io/socket.io.js`;
+    s.onload = () => initSocketIO();
+    s.onerror = () => console.warn('[Socket.IO] Script non chargé — polling uniquement');
+    document.head.appendChild(s);
+  }
 }
 
 function renderUserInfo() {
@@ -153,10 +178,11 @@ function renderUserInfo() {
   const av = document.getElementById('user-avatar');
   if (av) {
     if (State.user?.avatar) {
-      av.innerHTML = `<img src="${escHtml(State.user.avatar)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
+      av.innerHTML = `<img src="${escHtml(State.user.avatar)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="avatar">`;
     } else {
       av.textContent = getInitials(name);
     }
+    av.title = name;
   }
 }
 
@@ -175,13 +201,91 @@ function switchTab(tab) {
   if (tab === 'settings')   renderSettings();
 }
 
-// ─── POLLING TEMPS RÉEL (10s) ────────────────────────────────────────────────
+// ─── POLLING TEMPS RÉEL (10s) + SOCKET.IO ────────────────────────────────────
+let _socket = null;
+
 function startPolling() {
   clearInterval(State.pollTimer);
+  // Réduire le polling à 15s si Socket.IO est connecté, 10s sinon
+  const interval = _socket?.connected ? 15000 : 10000;
   State.pollTimer = setInterval(() => {
     if (State.currentTab === 'messages') loadConversations(true);
     if (State.activeConvId)             loadActiveConvMessages(true);
-  }, 10000);
+  }, interval);
+}
+
+function initSocketIO() {
+  // Socket.IO CDN — chargé dynamiquement
+  if (typeof io === 'undefined') return;
+  if (_socket && _socket.connected) return;
+
+  try {
+    _socket = io(API_BASE, {
+      auth    : { token: State.token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 3000,
+      reconnectionAttempts: 5,
+    });
+
+    _socket.on('connect', () => {
+      console.log('[Socket.IO] Connecté:', _socket.id);
+      // Rejoindre sa room personnelle
+      const uid = State.user?.id || State.user?._id;
+      if (uid) _socket.emit('join', { userId: uid });
+      // Réduire le polling maintenant que socket est actif
+      startPolling();
+    });
+
+    _socket.on('disconnect', () => {
+      console.log('[Socket.IO] Déconnecté — repli sur polling 10s');
+      startPolling();
+    });
+
+    // Nouveau message reçu en temps réel
+    _socket.on('new_message', (msg) => {
+      if (!msg) return;
+      // Rafraîchir les conversations
+      loadConversations(true);
+      // Si la conversation active est concernée, rafraîchir les messages
+      if (State.activeConvId && (
+        msg.conversationId === State.activeConvId ||
+        msg.groupId === State.activeConvId
+      )) {
+        loadActiveConvMessages(true);
+      }
+    });
+
+    _socket.on('message:receive', (msg) => {
+      if (!msg) return;
+      loadConversations(true);
+      if (State.activeConvId && msg.conversationId === State.activeConvId) {
+        loadActiveConvMessages(true);
+      }
+    });
+
+    // Mise à jour de transcription
+    _socket.on('transcription:update', (data) => {
+      if (!data?.messageId) return;
+      const msg = State.activeConvMsgs.find(m => (m.id || m._id) === data.messageId);
+      if (msg && data.status === 'done') {
+        msg.transcription       = data.text;
+        msg.transcriptionStatus = 'done';
+        renderMessages();
+      }
+    });
+
+    // SMS entrant (Cas 3)
+    _socket.on('sms:inbound', (data) => {
+      loadConversations(true);
+      if (State.activeConvId && data.conversationId === State.activeConvId) {
+        loadActiveConvMessages(true);
+      }
+    });
+
+  } catch (err) {
+    console.warn('[Socket.IO] Erreur init:', err.message);
+  }
 }
 
 // ─── Extraire texte du lastMessage (fixe le bug [object Object]) ──────────────
@@ -642,9 +746,11 @@ function renderContacts(contacts) {
     const phone = c.phone || c.phoneNumber || '';
     const uid   = c.userId || c.registeredUserId || '';
     const isOmni = !!(c.isOnOmniSms || uid);
+    // v3.3 : TOUS les contacts sont ouverts — le frontend ne bloque jamais
+    // Si OmniSMS → ouvrir par uid, sinon → ouvrir par téléphone (backend décide du canal)
     const onclick = isOmni
       ? `openContactConversation('${escHtml(uid)}', '${escHtml(name)}')`
-      : `showToast('${escHtml(name)} n\\'utilise pas OmniSMS — SMS envoyé automatiquement')`;
+      : `openContactByPhone('${escHtml(phone)}', '${escHtml(name)}')`;
     return `
       <div class="contact-item ${isOmni ? '' : 'contact-sms-only'}" onclick="${onclick}">
         <div class="contact-avatar">${getInitials(name)}</div>
@@ -674,13 +780,27 @@ function renderContacts(contacts) {
 
 function openContactConversation(otherUserId, contactName) {
   if (!otherUserId || otherUserId === 'null' || otherUserId === 'undefined') {
-    showToast('Contact non enregistré sur OmniSMS');
+    // Fallback : si on n'a pas d'uid, ouvrir par téléphone (montré comme SMS)
+    showToast('Ouverture de la conversation...');
     return;
   }
   const myId = State.user?.id || State.user?._id || '';
   const parts = [myId, otherUserId].sort();
   const conversationId = parts.join('-');
   openConversation(conversationId, otherUserId, contactName, false);
+}
+
+// v3.3 — Ouvrir une conversation avec un contact non-OmniSMS (via téléphone)
+// Le backend decide ensuite si envoyer via OmniSMS ou Infobip SMS
+function openContactByPhone(phone, contactName) {
+  if (!phone) { showToast('Numéro de téléphone manquant'); return; }
+  // Utiliser le téléphone comme identifier de conversation
+  // Format conversationId : sorted([myId, phone]).join('-')
+  const myId = State.user?.id || State.user?._id || '';
+  const normalizedPhone = phone.replace(/\s/g, '');
+  const parts = [myId, normalizedPhone].sort();
+  const conversationId = parts.join('-');
+  openConversation(conversationId, normalizedPhone, contactName || phone, false);
 }
 
 function searchContacts(q) {
@@ -840,21 +960,64 @@ function renderGroups() {
     return;
   }
 
+  const myId = State.user?.id || State.user?._id || '';
   list.innerHTML = State.groups.map(g => {
-    const gid  = g.id || g._id;
-    const name = g.name || 'Groupe';
+    const gid     = g.id || g._id;
+    const name    = g.name || 'Groupe';
     const members = g.members?.length || g.memberCount || 0;
+    const isOwner = g.ownerId === myId;
+    const img     = g.image || g.icon || null;
     return `
       <div class="conv-item" onclick="openGroupConversation('${escHtml(gid)}', '${escHtml(name)}')">
-        <div class="conv-avatar" style="background:#1a3a5c"><span>👥</span></div>
+        <div class="conv-avatar" style="background:#1a3a5c">
+          ${img ? `<img src="${escHtml(img)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : '<span>👥</span>'}
+        </div>
         <div class="conv-content">
-          <div class="conv-header"><span class="conv-name">${escHtml(name)}</span></div>
+          <div class="conv-header">
+            <span class="conv-name">${escHtml(name)}</span>
+            ${isOwner ? `<button class="btn-icon" style="font-size:14px" onclick="event.stopPropagation();openEditGroupModal('${escHtml(gid)}','${escHtml(name)}','${escHtml(g.description||'')}','${escHtml(img||'')}')">✏️</button>` : ''}
+          </div>
           <div class="conv-footer">
             <span class="conv-last-msg">${members} membre(s)${g.description ? ' · ' + escHtml(g.description) : ''}</span>
           </div>
         </div>
       </div>`;
   }).join('');
+}
+
+function openEditGroupModal(gid, name, description, image) {
+  // Remplir le modal d'édition
+  const el = document.getElementById('edit-group-id');
+  if (el) el.value = gid;
+  const nameEl = document.getElementById('edit-group-name');
+  if (nameEl) nameEl.value = name;
+  const descEl = document.getElementById('edit-group-desc');
+  if (descEl) descEl.value = description || '';
+  const imgEl = document.getElementById('edit-group-image');
+  if (imgEl) imgEl.value = image || '';
+  openModal('modal-edit-group');
+}
+
+async function saveGroupEdits() {
+  const gid  = document.getElementById('edit-group-id')?.value;
+  const name = document.getElementById('edit-group-name')?.value?.trim();
+  const desc = document.getElementById('edit-group-desc')?.value?.trim();
+  const img  = document.getElementById('edit-group-image')?.value?.trim();
+
+  if (!gid) return;
+  const body = {};
+  if (name) body.name = name;
+  if (desc !== undefined) body.description = desc;
+  if (img)  body.image = img;
+
+  const res = await API.put(`/groups/${gid}`, body);
+  if (res.ok) {
+    closeModal('modal-edit-group');
+    showToast('Groupe mis à jour ✓');
+    loadGroups();
+  } else {
+    showToast(res.data?.error || 'Erreur lors de la mise à jour');
+  }
 }
 
 function openGroupConversation(groupId, groupName) {
@@ -903,10 +1066,11 @@ function openCreateGroupModal() {
 
 // ─── PARAMÈTRES ───────────────────────────────────────────────────────────────
 function renderSettings() {
-  const name  = State.user?.name  || '';
-  const email = State.user?.email || '';
-  const phone = State.user?.phone || '';
-  const avatar = State.user?.avatar || null;
+  const name     = State.user?.name     || '';
+  const email    = State.user?.email    || '';
+  const phone    = State.user?.phone    || '';
+  const username = State.user?.username || '';
+  const avatar   = State.user?.avatar   || null;
 
   const el = document.getElementById('settings-content');
   if (!el) return;
@@ -923,8 +1087,8 @@ function renderSettings() {
       <input id="avatar-upload-input" type="file" accept="image/*" style="display:none"
              onchange="uploadAvatar(this.files[0])">
       <h3>${escHtml(name || email)}</h3>
-      <p class="text-muted">${escHtml(email)}</p>
-      ${phone ? `<p class="text-muted">${escHtml(phone)}</p>` : ''}
+      ${username ? `<p class="text-muted">@${escHtml(username)}</p>` : ''}
+      ${phone ? `<p class="text-muted">${escHtml(phone)}</p>` : '<p class="text-muted" style="color:var(--accent)">⚠️ Téléphone non renseigné</p>'}
     </div>
 
     <div class="settings-section">
@@ -934,28 +1098,40 @@ function renderSettings() {
         <input id="settings-name" type="text" class="form-input" value="${escHtml(name)}" placeholder="Votre nom">
       </div>
       <div class="form-group">
-        <label class="form-label">Email</label>
-        <input id="settings-email" type="email" class="form-input" value="${escHtml(email)}" placeholder="votre@email.com">
+        <label class="form-label">Nom d'utilisateur</label>
+        <input id="settings-username" type="text" class="form-input" value="${escHtml(username)}" placeholder="@monpseudo">
       </div>
       <div class="form-group">
-        <label class="form-label">Téléphone</label>
+        <label class="form-label">Téléphone <span style="color:var(--accent)">*</span></label>
         <input id="settings-phone" type="tel" class="form-input" value="${escHtml(phone)}" placeholder="+22670123456">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input id="settings-email" type="email" class="form-input" value="${escHtml(email)}" placeholder="votre@email.com">
       </div>
       <div class="form-group">
         <label class="form-label">Nouveau mot de passe (laisser vide pour ne pas changer)</label>
         <input id="settings-password" type="password" class="form-input" placeholder="••••••••" minlength="8">
       </div>
       <button class="btn-primary" style="width:100%;margin-top:12px" onclick="saveProfile()">
-        💾 Sauvegarder
+        ✅ Mettre à jour
       </button>
     </div>
 
     <div class="settings-section">
-      <h4>Compte</h4>
-      <div class="settings-row" onclick="handleSubscription()">
-        <span>💎 Abonnement Premium</span>
-        <span class="settings-arrow">›</span>
+      <h4>Abonnement</h4>
+      <div class="subscribe-banner" onclick="handleSubscription()" id="subscribe-banner">
+        <div class="subscribe-banner-icon">💎</div>
+        <div class="subscribe-banner-text">
+          <div class="subscribe-banner-title">Passer à Premium</div>
+          <div class="subscribe-banner-sub">SMS illimités, vocaux, transcriptions</div>
+        </div>
+        <button class="btn-subscribe" onclick="event.stopPropagation();handleSubscription()">S'abonner</button>
       </div>
+    </div>
+
+    <div class="settings-section">
+      <h4>Compte</h4>
       <div class="settings-row" onclick="logout()">
         <span>🚪 Déconnexion</span>
         <span class="settings-arrow">›</span>
@@ -965,7 +1141,7 @@ function renderSettings() {
       <h4>Application</h4>
       <div class="settings-row">
         <span>📱 Version</span>
-        <span class="text-muted">3.2.1</span>
+        <span class="text-muted">3.3</span>
       </div>
     </div>`;
 
@@ -977,23 +1153,33 @@ async function saveProfile() {
   const email    = document.getElementById('settings-email')?.value?.trim();
   const phone    = document.getElementById('settings-phone')?.value?.trim();
   const password = document.getElementById('settings-password')?.value;
+  const username = document.getElementById('settings-username')?.value?.trim();
 
   const body = {};
   if (name)     body.name     = name;
   if (email)    body.email    = email;
   if (phone)    body.phone    = phone;
+  if (username) body.username = username;
   if (password && password.length >= 8) body.password = password;
 
   if (Object.keys(body).length === 0) { showToast('Aucune modification'); return; }
 
+  const saveBtn = document.querySelector('[onclick="saveProfile()"]');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Mise à jour...'; }
+
   const res = await API.put('/api/me/profile', body);
+
+  if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '✅ Mettre à jour'; }
+
   if (res.ok) {
     // Mettre à jour le state local
-    if (name)  State.user.name  = name;
-    if (email) State.user.email = email;
-    if (phone) State.user.phone = phone;
+    if (name)     State.user.name     = name;
+    if (email)    State.user.email    = email;
+    if (phone)    State.user.phone    = phone;
+    if (username) State.user.username = username;
     localStorage.setItem('user_data', JSON.stringify(State.user));
     renderUserInfo();
+    renderSettings();
     showToast('Profil mis à jour ✓');
   } else {
     showToast(res.data?.error || 'Erreur lors de la sauvegarde');
@@ -1021,10 +1207,15 @@ async function loadPremiumStatus(userId) {
   if (!userId) return;
   const data = await API.get(`/api/payment/user-status?userId=${userId}`);
   if (data?.isSubscribed || data?.premium) {
-    const el = document.getElementById('settings-content');
-    if (el) {
-      const premiumRow = el.querySelector('[onclick="handleSubscription()"]');
-      if (premiumRow) premiumRow.innerHTML = '<span>💎 Abonnement Premium</span><span style="color:var(--accent);font-size:12px">ACTIF ✓</span>';
+    const banner = document.getElementById('subscribe-banner');
+    if (banner) {
+      banner.innerHTML = `
+        <div class="subscribe-banner-icon">💎</div>
+        <div class="subscribe-banner-text">
+          <div class="subscribe-banner-title">Abonnement Premium</div>
+          <div class="subscribe-banner-sub" style="color:var(--accent)">ACTIF ✓</div>
+        </div>`;
+      banner.style.cursor = 'default';
     }
   }
 }
