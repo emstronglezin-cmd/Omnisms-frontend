@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" href="/icons/Icon-192.png">
   <link rel="apple-touch-icon" href="/icons/Icon-192.png">
   <title>OmniSMS</title>
-  <link rel="stylesheet" href="/style.css?v=3.2.1">
+  <link rel="stylesheet" href="/style.css?v=3.3.0">
 </head>
 <body>
 
@@ -72,6 +72,10 @@
       <div class="form-group">
         <label class="form-label">Nom complet <span style="color:var(--accent)">*</span></label>
         <input id="reg-name" type="text" class="form-input" placeholder="Jean Dupont" autocomplete="name" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nom d'utilisateur <span style="color:var(--text-muted);font-size:12px">(optionnel)</span></label>
+        <input id="reg-username" type="text" class="form-input" placeholder="@monpseudo" autocomplete="username">
       </div>
       <div class="form-group">
         <label class="form-label">Téléphone <span style="color:var(--accent)">*</span></label>
@@ -294,6 +298,35 @@
 <!-- Toast -->
 <div id="toast"></div>
 
+<!-- ════════════════════ MODAL EDIT GROUPE ════════════════════ -->
+<div id="modal-edit-group" class="modal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span class="modal-title">Modifier le groupe</span>
+      <button class="modal-close" onclick="closeModal('modal-edit-group')">✕</button>
+    </div>
+    <form id="edit-group-form">
+      <input id="edit-group-id" type="hidden">
+      <div class="form-group">
+        <label class="form-label">Nom du groupe</label>
+        <input id="edit-group-name" type="text" class="form-input" placeholder="Nom du groupe" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <input id="edit-group-desc" type="text" class="form-input" placeholder="Description (optionnel)">
+      </div>
+      <div class="form-group">
+        <label class="form-label">URL Image / Icône</label>
+        <input id="edit-group-image" type="url" class="form-input" placeholder="https://...">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button type="button" class="btn-ghost" style="flex:1" onclick="closeModal('modal-edit-group')">Annuler</button>
+        <button type="submit" class="btn-primary" style="flex:2">✅ Mettre à jour</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 // ── Gestion des formulaires ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -347,9 +380,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Contact search
   const cs = document.getElementById('contact-search');
   if (cs) cs.addEventListener('input', e => searchContacts(e.target.value));
+
+  // Edit group form
+  const egf = document.getElementById('edit-group-form');
+  if (egf) egf.addEventListener('submit', e => {
+    e.preventDefault();
+    saveGroupEdits();
+  });
 });
 </script>
 
-<script src="/app.js?v=3.2.1"></script>
+<script src="/app.js?v=3.3.0"></script>
 </body>
 </html>
