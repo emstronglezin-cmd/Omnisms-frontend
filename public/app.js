@@ -460,42 +460,38 @@ function renderMsgStatus(status) {
 }
 
 function renderAudioMessage(m) {
-  const audioUrl = m.audioUrl || m.url || '';
-  const duration = m.durationFormatted || (m.duration ? `${Math.floor(m.duration/60)}:${String(Math.round(m.duration%60)).padStart(2,'0')}` : '');
-  const msgId    = m.id || m._id || '';
-  const transcript = m.transcription || '';
-  const tStatus    = m.transcriptionStatus || 'pending';
-
+  const audioUrl  = m.audioUrl || m.url || '';
+  const totalSecs = m.duration || 0;
+  const durFmt    = m.durationFormatted || (totalSecs ? `${Math.floor(totalSecs/60)}:${String(Math.round(totalSecs%60)).padStart(2,'0')}` : '0:00');
+  const msgId     = m.id || m._id || '';
+  const transcript= m.transcription || '';
+  const tStatus   = m.transcriptionStatus || 'pending';
+  const safeId    = escHtml(msgId);
+  const safeUrl   = escHtml(audioUrl);
   return `
-    <div class="msg-bubble ${m.isMe ? 'msg-me' : 'msg-them'}" id="msg-${escHtml(msgId)}">
+    <div class="msg-bubble ${m.isMe ? 'msg-me' : 'msg-them'}" id="msg-${safeId}">
       <div class="msg-audio-player">
-        <button class="audio-play-btn" onclick="toggleAudio('audio-${escHtml(msgId)}', this)" title="Lecture">▶</button>
-        <audio id="audio-${escHtml(msgId)}" src="${escHtml(audioUrl)}" preload="metadata"
-               onended="resetPlayBtn('audio-${escHtml(msgId)}')"></audio>
-        <div class="audio-info">
-          <span class="audio-duration">${escHtml(duration)}</span>
-          <span class="audio-label">Message vocal</span>
+        <button class="audio-play-btn" id="playbtn-${safeId}" onclick="toggleAudioWA('${safeId}')" title="Lecture/Pause">&#9654;</button>
+        <audio id="audio-${safeId}" src="${safeUrl}" preload="metadata"
+               onended="onAudioEnded('${safeId}')"
+               ontimeupdate="onAudioTimeUpdate('${safeId}')"
+               onloadedmetadata="onAudioMeta('${safeId}')"></audio>
+        <div class="audio-progress-wrap">
+          <input type="range" class="audio-progress" id="prog-${safeId}" value="0" min="0" max="100" step="0.1"
+                 oninput="seekAudio('${safeId}', this.value)">
+          <div class="audio-times">
+            <span id="cur-${safeId}">0:00</span>
+            <span id="dur-${safeId}">${escHtml(durFmt)}</span>
+          </div>
         </div>
-        ${msgId && tStatus !== 'done' ? `<button class="btn-transcribe" onclick="requestTranscription('${escHtml(msgId)}')" title="Transcrire">📝 Transcrire</button>` : ''}
+        <div class="audio-actions">
+          ${msgId && tStatus !== 'done' ? `<button class="btn-transcribe" id="transcbtn-${safeId}" onclick="requestTranscription('${safeId}')">&#128221;</button>` : ''}
+          ${audioUrl ? `<a class="audio-download-btn" href="${safeUrl}" download title="Telecharger">&#8681;</a>` : ''}
+        </div>
       </div>
-      ${transcript ? `<div class="msg-transcript">${escHtml(transcript)}</div>` : ''}
+      ${transcript ? `<div class="msg-transcript">&#128172; ${escHtml(transcript)}</div>` : (tStatus === 'processing' ? `<div class="msg-transcript" style="opacity:.6">&#9203; Transcription...</div>` : '')}
       <div class="msg-time">${formatTime(m.timestamp)}${m.isMe ? renderMsgStatus(m.status) : ''}</div>
     </div>`;
-}
-
-function toggleAudio(audioId, btn) {
-  const audio = document.getElementById(audioId);
-  if (!audio) return;
-  if (audio.paused) {
-    // Stopper tous les autres audios
-    document.querySelectorAll('audio').forEach(a => { if (a !== audio) { a.pause(); a.currentTime = 0; } });
-    document.querySelectorAll('.audio-play-btn').forEach(b => { if (b !== btn) b.textContent = '▶'; });
-    audio.play().catch(() => {});
-    btn.textContent = '⏸';
-  } else {
-    audio.pause();
-    btn.textContent = '▶';
-  }
 }
 
 function resetPlayBtn(audioId) {
@@ -507,6 +503,55 @@ function resetPlayBtn(audioId) {
   }
 }
 
+// ─── WHATSAPP-STYLE AUDIO PLAYER ─────────────────────────────────────────────
+function fmtAudioTime(s) {
+  if (!s || isNaN(s)) return '0:00';
+  return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+}
+function toggleAudioWA(id) {
+  const audio = document.getElementById('audio-'+id);
+  const btn   = document.getElementById('playbtn-'+id);
+  if (!audio || !btn) return;
+  if (audio.paused) {
+    document.querySelectorAll('audio').forEach(a => { if (a !== audio) { a.pause(); a.currentTime=0; } });
+    document.querySelectorAll('.audio-play-btn').forEach(b => { if (b.id !== 'playbtn-'+id) b.innerHTML='&#9654;'; });
+    audio.play().catch(()=>{});
+    btn.innerHTML = '&#9646;&#9646;';
+  } else {
+    audio.pause();
+    btn.innerHTML = '&#9654;';
+  }
+}
+function onAudioEnded(id) {
+  const btn  = document.getElementById('playbtn-'+id);
+  const prog = document.getElementById('prog-'+id);
+  if (btn)  btn.innerHTML  = '&#9654;';
+  if (prog) prog.value     = 0;
+  const cur = document.getElementById('cur-'+id);
+  if (cur)  cur.textContent = '0:00';
+}
+function onAudioTimeUpdate(id) {
+  const audio = document.getElementById('audio-'+id);
+  if (!audio || !audio.duration) return;
+  const pct  = (audio.currentTime / audio.duration) * 100;
+  const prog = document.getElementById('prog-'+id);
+  if (prog) prog.value = pct;
+  const cur  = document.getElementById('cur-'+id);
+  if (cur)  cur.textContent = fmtAudioTime(audio.currentTime);
+}
+function onAudioMeta(id) {
+  const audio = document.getElementById('audio-'+id);
+  if (!audio) return;
+  const dur = document.getElementById('dur-'+id);
+  if (dur && audio.duration && !isNaN(audio.duration)) dur.textContent = fmtAudioTime(audio.duration);
+}
+function seekAudio(id, pct) {
+  const audio = document.getElementById('audio-'+id);
+  if (audio && audio.duration) audio.currentTime = (pct/100)*audio.duration;
+}
+// Legacy compat
+function toggleAudio(audioId, btn) { toggleAudioWA(audioId.replace('audio-','')); }
+function resetPlayBtn(audioId) { onAudioEnded(audioId.replace('audio-','')); }
 async function requestTranscription(msgId) {
   if (!msgId) return;
   const btn = document.querySelector(`#msg-${msgId} .btn-transcribe`);
@@ -1062,6 +1107,90 @@ function openCreateGroupModal() {
     }
   }
   openModal('modal-create-group');
+}
+
+// ─── GROUPS MEMBER MANAGEMENT ────────────────────────────────────────────────
+async function openGroupMembersModal(gid, gname) {
+  const data = await API.get('/groups/' + gid + '/members').catch(()=>null)
+             || await API.get('/groups').then(d=>(Array.isArray(d)?d:d?.groups||[]).find(g=>(g.id||g._id)===gid)).catch(()=>null);
+  const group = data;
+  const myId  = State.user?.id || State.user?._id || '';
+  const isOwner = group?.ownerId === myId;
+  const members = group?.members || [];
+
+  // Build member list from contacts cache
+  const contactMap = {};
+  State.contacts.forEach(c=>{ if(c.userId||c.registeredUserId) contactMap[c.userId||c.registeredUserId]={name:c.name||c.phone,phone:c.phone}; });
+
+  let html = `<h4 style="margin-bottom:12px">Membres — ${escHtml(gname)}</h4>`;
+  html += members.map(uid => {
+    const info = contactMap[uid] || {};
+    const name = uid === myId ? (State.user?.name||'Moi') : (info.name || uid.slice(-8));
+    const isAdmin = uid === group?.ownerId;
+    return `<div class="member-list-item">
+      <div class="member-info">
+        <div class="member-avatar-sm">${getInitials(name)}</div>
+        <div><div class="member-name">${escHtml(name)}</div><div class="member-role">${isAdmin?'Admin':''}</div></div>
+      </div>
+      ${isOwner && uid !== myId ? `<div class="member-actions">
+        <button class="btn-admin-transfer" onclick="transferAdmin('${escHtml(gid)}','${escHtml(uid)}','${escHtml(name)}')">Admin</button>
+        <button class="btn-remove-member"  onclick="removeMember('${escHtml(gid)}','${escHtml(uid)}','${escHtml(name)}')">Retirer</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+
+  if (isOwner) {
+    // Add member section
+    const notInGroup = State.contacts.filter(c=>{
+      const cuid=c.userId||c.registeredUserId; return cuid && !members.includes(cuid);
+    });
+    if (notInGroup.length > 0) {
+      html += `<hr style="margin:12px 0;border-color:var(--border)"><h5 style="margin-bottom:8px">Ajouter un membre</h5>`;
+      html += notInGroup.map(c=>{
+        const cuid=c.userId||c.registeredUserId;
+        const nm=c.name||c.phone;
+        return `<div class="member-list-item">
+          <div class="member-info"><div class="member-avatar-sm">${getInitials(nm)}</div><div class="member-name">${escHtml(nm)}</div></div>
+          <button class="btn-admin-transfer" onclick="addMember('${escHtml(gid)}','${escHtml(cuid)}','${escHtml(nm)}')">+ Ajouter</button>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  const modal = document.getElementById('modal-group-members');
+  if (modal) {
+    const body = modal.querySelector('.modal-body') || modal;
+    body.innerHTML = html;
+    openModal('modal-group-members');
+  } else {
+    // Fallback: use edit group modal
+    const el = document.getElementById('edit-group-id');
+    if (el) {
+      const content2 = document.getElementById('modal-edit-group');
+      if (content2) content2.querySelector('.modal-body').innerHTML = html;
+    }
+    showToast('Membres: ' + members.length + ' | ' + gname);
+  }
+}
+
+async function addMember(gid, uid, name) {
+  const res = await API.post('/groups/'+gid+'/members', { members:[uid] });
+  if (res.ok) { showToast(name+' ajouté(e) ✓'); loadGroups(); closeModal('modal-group-members'); }
+  else         showToast(res.data?.error||'Erreur ajout membre');
+}
+
+async function removeMember(gid, uid, name) {
+  if (!confirm('Retirer '+name+' du groupe ?')) return;
+  const res = await API.delete('/groups/'+gid+'/members/'+uid);
+  if (res.ok) { showToast(name+' retiré(e) ✓'); loadGroups(); closeModal('modal-group-members'); }
+  else         showToast(res.data?.error||'Erreur suppression membre');
+}
+
+async function transferAdmin(gid, uid, name) {
+  if (!confirm('Transférer l\'admin à '+name+' ?')) return;
+  const res = await API.put('/groups/'+gid+'/admin', { newOwner: uid });
+  if (res.ok) { showToast('Admin transféré à '+name+' ✓'); loadGroups(); closeModal('modal-group-members'); }
+  else         showToast(res.data?.error||'Erreur transfert admin');
 }
 
 // ─── PARAMÈTRES ───────────────────────────────────────────────────────────────
