@@ -141,13 +141,24 @@ async function register(name, phone, email, password) {
 function logout() {
   clearInterval(State.pollTimer);
   if (_socket) { try { _socket.disconnect(); } catch (_) {} _socket = null; }
+  // Clear all state
   State.token  = null;
   State.user   = null;
   State.conversations = [];
   State.contacts = [];
   State.groups   = [];
+  State.activeConvId   = null;
+  State.activeConvMsgs = [];
+  State.activeConvInfo = null;
+  // Clear storage
   localStorage.removeItem('auth_token');
   localStorage.removeItem('user_data');
+  localStorage.removeItem('leekpay_pending');
+  sessionStorage.clear();
+  // Effacer les caches Service Worker pour forcer rechargement propre
+  if ('caches' in window) {
+    caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+  }
   showScreen('screen-login');
 }
 
@@ -158,6 +169,8 @@ function initDashboard() {
   renderUserInfo();
   switchTab('messages');
   startPolling();
+  // Rafraîchir le profil depuis l'API pour synchroniser avatar, username, etc.
+  refreshUserProfile();
   // Tenter connexion Socket.IO (dépend du chargement du script io)
   if (typeof io !== 'undefined') {
     initSocketIO();
@@ -168,6 +181,27 @@ function initDashboard() {
     s.onload = () => initSocketIO();
     s.onerror = () => console.warn('[Socket.IO] Script non chargé — polling uniquement');
     document.head.appendChild(s);
+  }
+}
+
+/**
+ * Rafraîchit le profil utilisateur depuis GET /api/me
+ * et met à jour State.user + localStorage + UI.
+ * Appelé au démarrage du dashboard et après chaque saveProfile().
+ */
+async function refreshUserProfile() {
+  if (!State.token) return;
+  try {
+    const data = await API.get('/api/me');
+    if (!data) return;
+    // Merge: keep local data but overwrite with fresh server data
+    State.user = { ...(State.user || {}), ...data };
+    localStorage.setItem('user_data', JSON.stringify(State.user));
+    renderUserInfo();
+    // Si les paramètres sont ouverts, re-rendre pour afficher les nouvelles valeurs
+    if (State.currentTab === 'settings') renderSettings();
+  } catch (_) {
+    // Silently fail — stale local data is acceptable
   }
 }
 
@@ -362,11 +396,16 @@ function renderConversationList() {
     const otherUid  = conv.otherUserId || conv.contactId || '';
     const initials  = getInitials(name);
     const avatarBg  = isGroup ? '#1a3a5c' : '#1a4a3a';
+    const otherAvatar = conv.otherUserAvatar || conv.avatar || null;
+
+    const convAvatarHtml = otherAvatar && !isGroup
+      ? `<div class="conv-avatar" style="background:${avatarBg};padding:0;overflow:hidden"><img src="${escHtml(otherAvatar)}" alt="${escHtml(name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>`
+      : `<div class="conv-avatar" style="background:${avatarBg}"><span>${isGroup ? '👥' : initials}</span></div>`;
 
     return `
       <div class="conv-item ${unread > 0 ? 'conv-unread' : ''}"
            onclick="openConversation('${escHtml(convId)}', '${escHtml(otherUid)}', '${escHtml(name)}', ${isGroup})">
-        <div class="conv-avatar" style="background:${avatarBg}"><span>${isGroup ? '👥' : initials}</span></div>
+        ${convAvatarHtml}
         <div class="conv-content">
           <div class="conv-header">
             <span class="conv-name">${escHtml(name)}</span>
@@ -563,27 +602,52 @@ async function requestTranscription(msgId) {
 
   if (res.ok) {
     showToast('Transcription lancée — résultat dans quelques secondes.');
-    // Poll for result
+    // Poll for result — check both audio_messages and transcription collections
     let attempts = 0;
     const poll = setInterval(async () => {
       attempts++;
-      if (attempts > 20) { clearInterval(poll); return; }
-      const statusData = await API.get(`/api/audio/${msgId}`);
-      if (statusData?.transcriptionStatus === 'done' && statusData?.transcription) {
+      if (attempts > 24) { clearInterval(poll); return; }
+
+      // Try multiple endpoints to find the transcription result
+      let transcriptText = null;
+
+      // 1. Check audio_messages endpoint
+      const audioData = await API.get(`/api/audio/${msgId}`);
+      if (audioData?.transcriptionStatus === 'done' && audioData?.transcription) {
+        transcriptText = audioData.transcription;
+      }
+
+      // 2. Check transcription endpoint
+      if (!transcriptText) {
+        const trData = await API.get(`/api/transcription/${msgId}`);
+        if (trData?.status === 'done' && trData?.text) {
+          transcriptText = trData.text;
+        }
+      }
+
+      if (transcriptText) {
         clearInterval(poll);
+        // Update in-memory message
+        const msg = State.activeConvMsgs.find(m => (m.id || m._id) === msgId);
+        if (msg) {
+          msg.transcription = transcriptText;
+          msg.transcriptionStatus = 'done';
+        }
+        // Update DOM directly
         const el = document.querySelector(`#msg-${msgId} .msg-transcript`);
         if (el) {
-          el.textContent = statusData.transcription;
+          el.innerHTML = `&#128172; ${escHtml(transcriptText)}`;
         } else {
           const bubble = document.getElementById(`msg-${msgId}`);
           if (bubble) {
             const div = document.createElement('div');
             div.className = 'msg-transcript';
-            div.textContent = statusData.transcription;
+            div.innerHTML = `&#128172; ${escHtml(transcriptText)}`;
             bubble.insertBefore(div, bubble.querySelector('.msg-time'));
           }
         }
         if (btn) btn.style.display = 'none';
+        showToast('Transcription terminée ✓');
       }
     }, 3000);
   } else {
@@ -790,15 +854,19 @@ function renderContacts(contacts) {
     const name  = c.name || c.displayName || c.phone || 'Contact';
     const phone = c.phone || c.phoneNumber || '';
     const uid   = c.userId || c.registeredUserId || '';
+    const avatar= c.avatar || null;
     const isOmni = !!(c.isOnOmniSms || uid);
     // v3.3 : TOUS les contacts sont ouverts — le frontend ne bloque jamais
     // Si OmniSMS → ouvrir par uid, sinon → ouvrir par téléphone (backend décide du canal)
     const onclick = isOmni
       ? `openContactConversation('${escHtml(uid)}', '${escHtml(name)}')`
       : `openContactByPhone('${escHtml(phone)}', '${escHtml(name)}')`;
+    const avatarHtml = avatar
+      ? `<div class="contact-avatar contact-avatar-img"><img src="${escHtml(avatar)}" alt="${escHtml(name)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>`
+      : `<div class="contact-avatar">${getInitials(name)}</div>`;
     return `
       <div class="contact-item ${isOmni ? '' : 'contact-sms-only'}" onclick="${onclick}">
-        <div class="contact-avatar">${getInitials(name)}</div>
+        ${avatarHtml}
         <div class="contact-info">
           <div class="contact-name">${escHtml(name)}</div>
           <div class="contact-phone">${escHtml(phone)}</div>
@@ -1270,7 +1338,7 @@ function renderSettings() {
       <h4>Application</h4>
       <div class="settings-row">
         <span>📱 Version</span>
-        <span class="text-muted">3.3</span>
+        <span class="text-muted">3.2.0</span>
       </div>
     </div>`;
 
@@ -1301,7 +1369,7 @@ async function saveProfile() {
   if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '✅ Mettre à jour'; }
 
   if (res.ok) {
-    // Mettre à jour le state local
+    // Mettre à jour le state local immédiatement
     if (name)     State.user.name     = name;
     if (email)    State.user.email    = email;
     if (phone)    State.user.phone    = phone;
@@ -1310,6 +1378,8 @@ async function saveProfile() {
     renderUserInfo();
     renderSettings();
     showToast('Profil mis à jour ✓');
+    // Rafraîchir depuis le serveur pour confirmer la persistance
+    await refreshUserProfile();
   } else {
     showToast(res.data?.error || 'Erreur lors de la sauvegarde');
   }
