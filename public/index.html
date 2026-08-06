@@ -74,8 +74,8 @@
         <input id="reg-name" type="text" class="form-input" placeholder="Jean Dupont" autocomplete="name" required>
       </div>
       <div class="form-group">
-        <label class="form-label">Nom d'utilisateur <span style="color:var(--text-muted);font-size:12px">(optionnel)</span></label>
-        <input id="reg-username" type="text" class="form-input" placeholder="@monpseudo" autocomplete="username">
+        <label class="form-label">Nom d'utilisateur <span style="color:var(--accent)">*</span></label>
+        <input id="reg-username" type="text" class="form-input" placeholder="@monpseudo" autocomplete="username" required>
       </div>
       <div class="form-group">
         <label class="form-label">Téléphone <span style="color:var(--accent)">*</span></label>
@@ -316,7 +316,17 @@
         <input id="edit-group-desc" type="text" class="form-input" placeholder="Description (optionnel)">
       </div>
       <div class="form-group">
-        <label class="form-label">URL Image / Icône</label>
+        <label class="form-label">Photo du groupe</label>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div id="edit-group-photo-preview" style="width:56px;height:56px;border-radius:50%;background:#1a3a5c;display:flex;align-items:center;justify-content:center;font-size:24px;overflow:hidden;flex-shrink:0">👥</div>
+          <div style="flex:1">
+            <button type="button" class="btn-ghost" style="width:100%;font-size:13px" onclick="document.getElementById('edit-group-photo-input').click()">📷 Choisir une photo</button>
+            <input id="edit-group-photo-input" type="file" accept="image/*" style="display:none" onchange="previewGroupPhoto(this)">
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">URL Image / Icône (optionnel)</label>
         <input id="edit-group-image" type="url" class="form-input" placeholder="https://...">
       </div>
       <div style="display:flex;gap:8px;margin-top:16px">

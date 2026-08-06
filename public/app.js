@@ -117,9 +117,19 @@ async function register(name, phone, email, password) {
   setLoading('register-btn', true, "S'inscrire");
   const usernameEl = document.getElementById('reg-username');
   const username   = usernameEl?.value?.trim() || '';
-  const body = { name, phone, password };
-  if (email    && email.trim())    body.email    = email.trim();
-  if (username && username.trim()) body.username = username.trim();
+  // Username est maintenant obligatoire
+  if (!username) {
+    setLoading('register-btn', false, "S'inscrire");
+    showError('register-error', "Le nom d'utilisateur est requis.");
+    return;
+  }
+  if (!/^[a-zA-Z0-9_.-]{2,50}$/.test(username)) {
+    setLoading('register-btn', false, "S'inscrire");
+    showError('register-error', "Le nom d'utilisateur ne peut contenir que des lettres, chiffres, _ . - (2-50 caractères).");
+    return;
+  }
+  const body = { name, phone, password, username };
+  if (email && email.trim()) body.email = email.trim();
   const res = await API.post('/api/auth/register', body);
   setLoading('register-btn', false, "S'inscrire");
   if (res.ok && res.data.token) {
@@ -1108,7 +1118,32 @@ function openEditGroupModal(gid, name, description, image) {
   if (descEl) descEl.value = description || '';
   const imgEl = document.getElementById('edit-group-image');
   if (imgEl) imgEl.value = image || '';
+  // Réinitialiser la preview photo
+  const preview = document.getElementById('edit-group-photo-preview');
+  if (preview) {
+    if (image && image.startsWith('http')) {
+      preview.innerHTML = `<img src="${escHtml(image)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" alt="photo">`;
+    } else {
+      preview.innerHTML = '👥';
+    }
+  }
+  // Réinitialiser le fichier sélectionné
+  const photoInput = document.getElementById('edit-group-photo-input');
+  if (photoInput) photoInput.value = '';
   openModal('modal-edit-group');
+}
+
+function previewGroupPhoto(input) {
+  const file = input?.files?.[0];
+  if (!file) return;
+  const preview = document.getElementById('edit-group-photo-preview');
+  if (preview) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" alt="preview">`;
+    };
+    reader.readAsDataURL(file);
+  }
 }
 
 async function saveGroupEdits() {
@@ -1116,21 +1151,40 @@ async function saveGroupEdits() {
   const name = document.getElementById('edit-group-name')?.value?.trim();
   const desc = document.getElementById('edit-group-desc')?.value?.trim();
   const img  = document.getElementById('edit-group-image')?.value?.trim();
+  const photoFile = document.getElementById('edit-group-photo-input')?.files?.[0];
 
   if (!gid) return;
+
+  // Si une photo a été sélectionnée, l'uploader en premier
+  if (photoFile) {
+    showToast('Upload de la photo...');
+    const formData = new FormData();
+    formData.append('image', photoFile);   // backend attend 'image' (groups.js groupImageUpload.single('image'))
+    const uploadRes = await API.postForm(`/groups/${gid}/avatar`, formData);
+    if (!uploadRes.ok) {
+      showToast(uploadRes.data?.error || "Échec de l'upload de la photo");
+      return;
+    }
+    // La photo est sauvegardée — continuer pour mettre à jour les autres champs
+  }
+
   const body = {};
   if (name) body.name = name;
   if (desc !== undefined) body.description = desc;
   if (img)  body.image = img;
 
-  const res = await API.put(`/groups/${gid}`, body);
-  if (res.ok) {
-    closeModal('modal-edit-group');
-    showToast('Groupe mis à jour ✓');
-    loadGroups();
-  } else {
-    showToast(res.data?.error || 'Erreur lors de la mise à jour');
+  // Mettre à jour le groupe si des champs texte ont changé
+  if (Object.keys(body).length > 0) {
+    const res = await API.put(`/groups/${gid}`, body);
+    if (!res.ok) {
+      showToast(res.data?.error || 'Erreur lors de la mise à jour');
+      return;
+    }
   }
+
+  closeModal('modal-edit-group');
+  showToast('Groupe mis à jour ✓');
+  loadGroups();
 }
 
 function openGroupConversation(groupId, groupName) {
@@ -1338,7 +1392,7 @@ function renderSettings() {
       <h4>Application</h4>
       <div class="settings-row">
         <span>📱 Version</span>
-        <span class="text-muted">3.2.0</span>
+        <span class="text-muted">4.0.0</span>
       </div>
     </div>`;
 
@@ -1397,6 +1451,8 @@ async function uploadAvatar(file) {
     renderUserInfo();
     renderSettings();
     showToast('Photo de profil mise à jour ✓');
+    // Resynchroniser depuis le serveur pour confirmer la persistance
+    await refreshUserProfile();
   } else {
     showToast(res.data?.error || 'Échec de l\'upload');
   }
