@@ -308,14 +308,25 @@ function initSocketIO() {
       }
     });
 
-    // Mise à jour de transcription
+    // Mise à jour de transcription en temps réel (Socket.IO)
     _socket.on('transcription:update', (data) => {
       if (!data?.messageId) return;
       const msg = State.activeConvMsgs.find(m => (m.id || m._id) === data.messageId);
-      if (msg && data.status === 'done') {
+      if (!msg) return;
+
+      if (data.status === 'done' && data.text) {
         msg.transcription       = data.text;
         msg.transcriptionStatus = 'done';
         renderMessages();
+        showToast('Transcription terminée ✓');
+      } else if (data.status === 'processing') {
+        msg.transcriptionStatus = 'processing';
+        renderMessages();
+      } else if (data.status === 'error') {
+        msg.transcriptionStatus = 'error';
+        msg.transcriptionError  = data.error;
+        renderMessages();
+        showToast('Transcription indisponible — ' + (data.error || 'erreur inconnue'));
       }
     });
 
@@ -538,7 +549,14 @@ function renderAudioMessage(m) {
           ${audioUrl ? `<a class="audio-download-btn" href="${safeUrl}" download title="Telecharger">&#8681;</a>` : ''}
         </div>
       </div>
-      ${transcript ? `<div class="msg-transcript">&#128172; ${escHtml(transcript)}</div>` : (tStatus === 'processing' ? `<div class="msg-transcript" style="opacity:.6">&#9203; Transcription...</div>` : '')}
+      ${transcript
+        ? `<div class="msg-transcript">&#128172; ${escHtml(transcript)}</div>`
+        : tStatus === 'processing'
+          ? `<div class="msg-transcript" style="opacity:.6">&#9203; Transcription en cours…</div>`
+          : tStatus === 'error'
+            ? `<div class="msg-transcript" style="opacity:.5;color:#e57373">&#9888; Transcription indisponible</div>`
+            : ''
+      }
       <div class="msg-time">${formatTime(m.timestamp)}${m.isMe ? renderMsgStatus(m.status) : ''}</div>
     </div>`;
 }
@@ -603,67 +621,79 @@ function toggleAudio(audioId, btn) { toggleAudioWA(audioId.replace('audio-',''))
 function resetPlayBtn(audioId) { onAudioEnded(audioId.replace('audio-','')); }
 async function requestTranscription(msgId) {
   if (!msgId) return;
-  const btn = document.querySelector(`#msg-${msgId} .btn-transcribe`);
-  if (btn) { btn.textContent = '⏳...'; btn.disabled = true; }
+  const btn = document.querySelector(`#transcbtn-${msgId}`);
+  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
 
-  // Try audio.v2 endpoint first, then transcription.v2
-  let res = await API.post(`/api/audio/transcribe/${msgId}`, {});
-  if (!res.ok) res = await API.post(`/api/transcription`, { audioId: msgId });
+  // Afficher "Transcription en cours..." dans la bulle
+  const msg = State.activeConvMsgs.find(m => (m.id || m._id) === msgId);
+  if (msg) { msg.transcriptionStatus = 'processing'; renderMessages(); }
 
-  if (res.ok) {
-    showToast('Transcription lancée — résultat dans quelques secondes.');
-    // Poll for result — check both audio_messages and transcription collections
-    let attempts = 0;
-    const poll = setInterval(async () => {
-      attempts++;
-      if (attempts > 24) { clearInterval(poll); return; }
+  // Lancer la transcription via audio.v2
+  const res = await API.post(`/api/audio/transcribe/${msgId}`, { language: 'fr' });
 
-      // Try multiple endpoints to find the transcription result
-      let transcriptText = null;
-
-      // 1. Check audio_messages endpoint
-      const audioData = await API.get(`/api/audio/${msgId}`);
-      if (audioData?.transcriptionStatus === 'done' && audioData?.transcription) {
-        transcriptText = audioData.transcription;
-      }
-
-      // 2. Check transcription endpoint
-      if (!transcriptText) {
-        const trData = await API.get(`/api/transcription/${msgId}`);
-        if (trData?.status === 'done' && trData?.text) {
-          transcriptText = trData.text;
-        }
-      }
-
-      if (transcriptText) {
-        clearInterval(poll);
-        // Update in-memory message
-        const msg = State.activeConvMsgs.find(m => (m.id || m._id) === msgId);
-        if (msg) {
-          msg.transcription = transcriptText;
-          msg.transcriptionStatus = 'done';
-        }
-        // Update DOM directly
-        const el = document.querySelector(`#msg-${msgId} .msg-transcript`);
-        if (el) {
-          el.innerHTML = `&#128172; ${escHtml(transcriptText)}`;
-        } else {
-          const bubble = document.getElementById(`msg-${msgId}`);
-          if (bubble) {
-            const div = document.createElement('div');
-            div.className = 'msg-transcript';
-            div.innerHTML = `&#128172; ${escHtml(transcriptText)}`;
-            bubble.insertBefore(div, bubble.querySelector('.msg-time'));
-          }
-        }
-        if (btn) btn.style.display = 'none';
-        showToast('Transcription terminée ✓');
-      }
-    }, 3000);
-  } else {
+  if (!res.ok) {
     showToast('Impossible de lancer la transcription.');
-    if (btn) { btn.textContent = '📝 Transcrire'; btn.disabled = false; }
+    if (msg) { msg.transcriptionStatus = 'pending'; renderMessages(); }
+    const btn2 = document.querySelector(`#transcbtn-${msgId}`);
+    if (btn2) { btn2.textContent = '📝'; btn2.disabled = false; }
+    return;
   }
+
+  showToast('Transcription en cours…');
+
+  // Polling de résultat — max 40 tentatives × 3s = 120s max
+  // Le Socket.IO peut aussi livrer le résultat en temps réel
+  let attempts = 0;
+  const MAX_ATTEMPTS = 40;   // 120s total
+  const POLL_INTERVAL = 3000;
+
+  const poll = setInterval(async () => {
+    attempts++;
+
+    // Timeout: arrêter après 120s
+    if (attempts > MAX_ATTEMPTS) {
+      clearInterval(poll);
+      // Vérifier le statut final avant d'afficher une erreur
+      const finalData = await API.get(`/api/audio/${msgId}`);
+      if (finalData?.transcriptionStatus === 'error') {
+        if (msg) { msg.transcriptionStatus = 'error'; renderMessages(); }
+        showToast('Transcription indisponible (timeout 120s).');
+      } else if (finalData?.transcriptionStatus !== 'done') {
+        if (msg) { msg.transcriptionStatus = 'error'; renderMessages(); }
+        showToast('Transcription indisponible.');
+      }
+      return;
+    }
+
+    // Vérifier le résultat
+    let transcriptText = null;
+    let isError = false;
+
+    const audioData = await API.get(`/api/audio/${msgId}`);
+    if (audioData?.transcriptionStatus === 'done' && audioData?.transcription) {
+      transcriptText = audioData.transcription;
+    } else if (audioData?.transcriptionStatus === 'error') {
+      isError = true;
+    }
+
+    if (isError) {
+      clearInterval(poll);
+      if (msg) { msg.transcriptionStatus = 'error'; renderMessages(); }
+      showToast('Transcription indisponible — ' + (audioData?.transcriptionError || 'erreur'));
+      return;
+    }
+
+    if (transcriptText) {
+      clearInterval(poll);
+      // Mettre à jour le message en mémoire
+      if (msg) {
+        msg.transcription       = transcriptText;
+        msg.transcriptionStatus = 'done';
+      }
+      renderMessages();
+      showToast('Transcription terminée ✓');
+    }
+  }, POLL_INTERVAL);
 }
 
 async function sendMessage() {
