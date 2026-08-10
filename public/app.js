@@ -302,9 +302,23 @@ function initSocketIO() {
 
     _socket.on('message:receive', (msg) => {
       if (!msg) return;
+      // Always refresh conversation list (updates lastMessage)
       loadConversations(true);
+      // If the active conversation matches, inject message directly for instant display
       if (State.activeConvId && msg.conversationId === State.activeConvId) {
-        loadActiveConvMessages(true);
+        const currentUserId = State.user?.id || State.user?._id || '';
+        const normalized = {
+          ...msg,
+          isMe     : (msg.senderId || msg.from) === currentUserId,
+          content  : msg.content || msg.text || msg.message || msg.body || '',
+          timestamp: msg.timestamp || msg.createdAt || new Date().toISOString(),
+        };
+        // Avoid duplicate (if already loaded via HTTP poll)
+        const exists = State.activeConvMsgs.some(m => (m.id || m._id) === (msg.id || msg._id));
+        if (!exists) {
+          State.activeConvMsgs.push(normalized);
+          renderMessages();
+        }
       }
     });
 
@@ -1263,38 +1277,68 @@ function openCreateGroupModal() {
 
 // ─── GROUPS MEMBER MANAGEMENT ────────────────────────────────────────────────
 async function openGroupMembersModal(gid, gname) {
-  const data = await API.get('/groups/' + gid + '/members').catch(()=>null)
-             || await API.get('/groups').then(d=>(Array.isArray(d)?d:d?.groups||[]).find(g=>(g.id||g._id)===gid)).catch(()=>null);
-  const group = data;
-  const myId  = State.user?.id || State.user?._id || '';
-  const isOwner = group?.ownerId === myId;
-  const members = group?.members || [];
+  // Try the dedicated /members endpoint first (returns enriched member data)
+  let group = null;
+  const membersRes = await API.get('/groups/' + gid + '/members');
+  if (membersRes && membersRes.members) {
+    // New endpoint: { id, name, ownerId, members: [{uid, name, avatar, isOwner}] }
+    group = membersRes;
+  } else {
+    // Fallback to group list
+    const listData = await API.get('/groups');
+    const groups = Array.isArray(listData) ? listData : (listData?.groups || []);
+    const found = groups.find(g => (g.id || g._id) === gid);
+    if (found) {
+      // Convert plain member UIDs to member objects
+      group = {
+        ...found,
+        members: (found.members || []).map(uid => ({ uid, name: uid, isOwner: uid === found.ownerId })),
+      };
+    }
+  }
 
-  // Build member list from contacts cache
+  const myId    = State.user?.id || State.user?._id || '';
+  const isOwner = group?.ownerId === myId;
+  // Support both old (array of UIDs) and new (array of objects) member formats
+  const rawMembers = group?.members || [];
+  const members = rawMembers.map(m => {
+    if (typeof m === 'string') return { uid: m, name: m, isOwner: m === group?.ownerId };
+    return m;
+  });
+
+  // Build member list from contacts cache (for name enrichment fallback)
   const contactMap = {};
   State.contacts.forEach(c=>{ if(c.userId||c.registeredUserId) contactMap[c.userId||c.registeredUserId]={name:c.name||c.phone,phone:c.phone}; });
 
   let html = `<h4 style="margin-bottom:12px">Membres — ${escHtml(gname)}</h4>`;
-  html += members.map(uid => {
+  html += members.map(m => {
+    const uid  = m.uid;
     const info = contactMap[uid] || {};
-    const name = uid === myId ? (State.user?.name||'Moi') : (info.name || uid.slice(-8));
-    const isAdmin = uid === group?.ownerId;
+    // Prefer: member object name > contact cache name > truncated UID
+    const displayName = uid === myId
+      ? (State.user?.name || 'Moi')
+      : (m.name && m.name !== uid ? m.name : (info.name || uid.slice(-8)));
+    const isAdmin = m.isOwner || uid === group?.ownerId;
+    const avatarHtml = m.avatar
+      ? `<div class="member-avatar-sm" style="padding:0;overflow:hidden"><img src="${escHtml(m.avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>`
+      : `<div class="member-avatar-sm">${getInitials(displayName)}</div>`;
     return `<div class="member-list-item">
       <div class="member-info">
-        <div class="member-avatar-sm">${getInitials(name)}</div>
-        <div><div class="member-name">${escHtml(name)}</div><div class="member-role">${isAdmin?'Admin':''}</div></div>
+        ${avatarHtml}
+        <div><div class="member-name">${escHtml(displayName)}</div><div class="member-role">${isAdmin?'Admin':''}</div></div>
       </div>
       ${isOwner && uid !== myId ? `<div class="member-actions">
-        <button class="btn-admin-transfer" onclick="transferAdmin('${escHtml(gid)}','${escHtml(uid)}','${escHtml(name)}')">Admin</button>
-        <button class="btn-remove-member"  onclick="removeMember('${escHtml(gid)}','${escHtml(uid)}','${escHtml(name)}')">Retirer</button>
+        <button class="btn-admin-transfer" onclick="transferAdmin('${escHtml(gid)}','${escHtml(uid)}','${escHtml(displayName)}')">Admin</button>
+        <button class="btn-remove-member"  onclick="removeMember('${escHtml(gid)}','${escHtml(uid)}','${escHtml(displayName)}')">Retirer</button>
       </div>` : ''}
     </div>`;
   }).join('');
 
   if (isOwner) {
-    // Add member section
+    // Add member section — members is now array of objects with uid field
+    const memberUids = members.map(m => m.uid);
     const notInGroup = State.contacts.filter(c=>{
-      const cuid=c.userId||c.registeredUserId; return cuid && !members.includes(cuid);
+      const cuid=c.userId||c.registeredUserId; return cuid && !memberUids.includes(cuid);
     });
     if (notInGroup.length > 0) {
       html += `<hr style="margin:12px 0;border-color:var(--border)"><h5 style="margin-bottom:8px">Ajouter un membre</h5>`;
@@ -1417,12 +1461,16 @@ function renderSettings() {
         <span>🚪 Déconnexion</span>
         <span class="settings-arrow">›</span>
       </div>
+      <div class="settings-row" onclick="deleteAccount()" style="color:#ef4444">
+        <span>🗑️ Supprimer mon compte</span>
+        <span class="settings-arrow">›</span>
+      </div>
     </div>
     <div class="settings-section">
       <h4>Application</h4>
       <div class="settings-row">
         <span>📱 Version</span>
-        <span class="text-muted">4.0.0</span>
+        <span class="text-muted">4.1.0</span>
       </div>
     </div>`;
 
@@ -1453,11 +1501,16 @@ async function saveProfile() {
   if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '✅ Mettre à jour'; }
 
   if (res.ok) {
-    // Mettre à jour le state local immédiatement
-    if (name)     State.user.name     = name;
-    if (email)    State.user.email    = email;
-    if (phone)    State.user.phone    = phone;
-    if (username) State.user.username = username;
+    // Si le backend renvoie l'utilisateur mis à jour, l'utiliser directement
+    if (res.data?.user) {
+      State.user = { ...(State.user || {}), ...res.data.user };
+    } else {
+      // Fallback: mettre à jour le state local immédiatement
+      if (name)     State.user.name     = name;
+      if (email)    State.user.email    = email;
+      if (phone)    State.user.phone    = phone;
+      if (username) State.user.username = username;
+    }
     localStorage.setItem('user_data', JSON.stringify(State.user));
     renderUserInfo();
     renderSettings();
@@ -1465,7 +1518,35 @@ async function saveProfile() {
     // Rafraîchir depuis le serveur pour confirmer la persistance
     await refreshUserProfile();
   } else {
-    showToast(res.data?.error || 'Erreur lors de la sauvegarde');
+    const errCode = res.data?.code;
+    if (errCode === 'USERNAME_EXISTS') {
+      showToast(`❌ Nom d'utilisateur déjà utilisé — choisissez-en un autre`);
+    } else if (errCode === 'INVALID_USERNAME') {
+      showToast('❌ Nom d\'utilisateur invalide (lettres, chiffres, _ . - seulement)');
+    } else {
+      showToast(res.data?.error || 'Erreur lors de la sauvegarde');
+    }
+  }
+}
+
+async function deleteAccount() {
+  const confirmed = confirm(
+    '⚠️ Supprimer définitivement votre compte ?\n\n' +
+    'Cette action est irréversible. Votre compte sera désactivé et vos données anonymisées.\n\n' +
+    'Cliquez OK pour confirmer la suppression.'
+  );
+  if (!confirmed) return;
+
+  // Double confirmation
+  const confirmed2 = confirm('Êtes-vous absolument sûr(e) ? Cette action ne peut pas être annulée.');
+  if (!confirmed2) return;
+
+  const res = await API.delete('/api/me');
+  if (res.ok) {
+    showToast('Compte supprimé. Au revoir !');
+    setTimeout(() => logout(), 1500);
+  } else {
+    showToast(res.data?.error || 'Erreur lors de la suppression du compte');
   }
 }
 
