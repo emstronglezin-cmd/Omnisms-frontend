@@ -732,6 +732,25 @@ async function sendMessage() {
   }
 
   if (res && res.ok) {
+    // Remplacer le message optimiste par le vrai message retourné par le serveur
+    const realMsg = res.data?.message || res.data;
+    if (realMsg && (realMsg.id || realMsg._id)) {
+      const currentUserId = State.user?.id || State.user?._id || '';
+      const normalized = {
+        ...realMsg,
+        isMe     : (realMsg.senderId || realMsg.from) === currentUserId,
+        content  : realMsg.content || text,
+        timestamp: realMsg.timestamp || realMsg.createdAt || new Date().toISOString(),
+      };
+      // Remplacer le message optimiste
+      const optIdx = State.activeConvMsgs.findIndex(m => m._optimistic);
+      if (optIdx >= 0) State.activeConvMsgs.splice(optIdx, 1, normalized);
+      else State.activeConvMsgs.push(normalized);
+      renderMessages();
+    } else {
+      // Fallback: supprimer l'optimiste et recharger
+      State.activeConvMsgs = State.activeConvMsgs.filter(m => !m._optimistic);
+    }
     const conv = State.conversations.find(c => (c.id || c.conversationId || c._id) === conversationId);
     if (conv) {
       conv.lastMessage    = text;
@@ -1201,9 +1220,11 @@ async function saveGroupEdits() {
 
   // Si une photo a été sélectionnée, l'uploader en premier
   if (photoFile) {
-    showToast('Upload de la photo...');
+    showToast('Compression et upload de la photo...');
+    let uploadBlob;
+    try { uploadBlob = await compressImageForAvatar(photoFile); } catch (_) { uploadBlob = photoFile; }
     const formData = new FormData();
-    formData.append('image', photoFile);   // backend attend 'image' (groups.js groupImageUpload.single('image'))
+    formData.append('image', uploadBlob, 'group.jpg');   // backend attend 'image'
     const uploadRes = await API.postForm(`/groups/${gid}/avatar`, formData);
     if (!uploadRes.ok) {
       showToast(uploadRes.data?.error || "Échec de l'upload de la photo");
@@ -1550,11 +1571,48 @@ async function deleteAccount() {
   }
 }
 
+/**
+ * Compresse une image via canvas (max 400×400, JPEG 0.75).
+ * Retourne un Blob JPEG compressé.
+ */
+function compressImageForAvatar(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 400;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else       { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else      reject(new Error('Compression échouée'));
+      }, 'image/jpeg', 0.75);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Lecture image impossible')); };
+    img.src = url;
+  });
+}
+
 async function uploadAvatar(file) {
   if (!file) return;
-  showToast('Upload de la photo...');
+  showToast('Compression et upload de la photo...');
+
+  let uploadBlob;
+  try {
+    uploadBlob = await compressImageForAvatar(file);
+  } catch (_) {
+    uploadBlob = file; // Fallback: envoyer original si compression échoue
+  }
+
   const formData = new FormData();
-  formData.append('avatar', file);
+  formData.append('avatar', uploadBlob, 'avatar.jpg');
   const res = await API.postForm('/api/me/avatar', formData);
   if (res.ok && res.data.avatarUrl) {
     State.user.avatar = res.data.avatarUrl;
