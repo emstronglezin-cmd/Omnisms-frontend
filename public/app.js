@@ -239,7 +239,8 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-pane').forEach(p => {
     p.classList.toggle('active', p.id === `tab-${tab}`);
   });
-  if (tab === 'messages')   loadConversations();
+  // silent=true si on a déjà des données en cache (évite le spinner à chaque clic)
+  if (tab === 'messages')   loadConversations(State.conversations.length > 0);
   if (tab === 'contacts')   loadContacts();
   if (tab === 'groups')     loadGroups();
   if (tab === 'settings')   renderSettings();
@@ -374,14 +375,20 @@ function extractLastMessage(conv) {
 
 // ─── MESSAGES — LISTE DES CONVERSATIONS ──────────────────────────────────────
 async function loadConversations(silent = false) {
-  if (!silent) {
+  // Si des conversations sont déjà en cache et qu'on est en mode silencieux,
+  // afficher les données en cache d'abord pour une réponse instantanée
+  if (silent && State.conversations.length > 0) {
+    renderConversationList();
+  }
+
+  if (!silent && State.conversations.length === 0) {
     document.getElementById('conv-list').innerHTML =
       `<div class="loading-state"><div class="spinner"></div><p>Chargement des messages...</p></div>`;
   }
 
   const data = await API.get('/api/messages');
   if (!data) {
-    if (!silent) {
+    if (!silent && State.conversations.length === 0) {
       document.getElementById('conv-list').innerHTML =
         `<div class="empty-state">
           <div class="empty-icon">⚠️</div>
@@ -479,7 +486,10 @@ async function loadActiveConvMessages(silent = false) {
   if (!State.activeConvId) return;
   const convId = State.activeConvId;
 
-  if (!silent) {
+  // Afficher les messages déjà en cache immédiatement (0ms de délai perçu)
+  if (!silent && State.activeConvMsgs.length > 0) {
+    renderMessages();
+  } else if (!silent && State.activeConvMsgs.length === 0) {
     document.getElementById('conv-messages').innerHTML =
       `<div class="loading-state"><div class="spinner"></div></div>`;
   }
@@ -875,6 +885,28 @@ async function uploadVoiceMessage() {
 
   const { id: audioId, url: audioUrl, duration, durationFormatted } = uploadRes.data;
 
+  // Injecter immédiatement une bulle optimiste dans la conversation
+  const currentUserId = State.user?.id || State.user?._id || '';
+  const tempMsgId = `temp-audio-${Date.now()}`;
+  const optimisticAudio = {
+    id               : tempMsgId,
+    _optimistic      : true,
+    senderId         : currentUserId,
+    isMe             : true,
+    type             : 'audio',
+    audioUrl         : audioUrl,
+    url              : audioUrl,
+    duration         : duration || null,
+    durationFormatted: durationFormatted || null,
+    content          : null,
+    status           : 'sending',
+    transcriptionStatus: 'pending',
+    timestamp        : new Date().toISOString(),
+    createdAt        : new Date().toISOString(),
+  };
+  State.activeConvMsgs.push(optimisticAudio);
+  renderMessages();
+
   // Envoyer comme message in-app
   const { contactId, isGroup, conversationId } = State.activeConvInfo;
   let res;
@@ -889,9 +921,35 @@ async function uploadVoiceMessage() {
   }
 
   if (res?.ok) {
+    // Remplacer le message optimiste par le vrai message
+    const realMsg = res.data?.message || res.data;
+    const optIdx = State.activeConvMsgs.findIndex(m => m.id === tempMsgId);
+    if (optIdx >= 0 && realMsg && (realMsg.id || realMsg._id)) {
+      const normalized = {
+        ...realMsg,
+        isMe             : true,
+        audioUrl         : audioUrl,
+        url              : audioUrl,
+        type             : 'audio',
+        duration         : duration || null,
+        durationFormatted: durationFormatted || null,
+        status           : 'sent',
+        timestamp        : realMsg.createdAt || new Date().toISOString(),
+      };
+      State.activeConvMsgs.splice(optIdx, 1, normalized);
+    } else if (optIdx >= 0) {
+      // Mettre à jour le statut du message optimiste
+      State.activeConvMsgs[optIdx].status = 'sent';
+      State.activeConvMsgs[optIdx]._optimistic = false;
+    }
+    renderMessages();
     showToast('Message vocal envoyé !');
-    setTimeout(() => loadActiveConvMessages(true), 500);
+    // Rafraîchir en arrière-plan pour s'assurer de la synchronisation
+    setTimeout(() => loadActiveConvMessages(true), 1000);
   } else {
+    // Supprimer le message optimiste en cas d'erreur
+    State.activeConvMsgs = State.activeConvMsgs.filter(m => m.id !== tempMsgId);
+    renderMessages();
     showToast('Message vocal uploadé mais envoi échoué.');
   }
 }
@@ -1478,20 +1536,18 @@ function renderSettings() {
 
     <div class="settings-section">
       <h4>Compte</h4>
-      <div class="settings-row" onclick="logout()">
-        <span>🚪 Déconnexion</span>
-        <span class="settings-arrow">›</span>
-      </div>
-      <div class="settings-row" onclick="deleteAccount()" style="color:#ef4444">
-        <span>🗑️ Supprimer mon compte</span>
-        <span class="settings-arrow">›</span>
-      </div>
+      <button class="btn-primary" style="width:100%;margin-bottom:10px;background:transparent;border:1px solid var(--border);color:var(--text-primary)" onclick="logout()">
+        🚪 Se déconnecter
+      </button>
+      <button class="btn-primary" style="width:100%;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#ef4444" onclick="deleteAccount()">
+        🗑️ Supprimer mon compte
+      </button>
     </div>
     <div class="settings-section">
       <h4>Application</h4>
       <div class="settings-row">
         <span>📱 Version</span>
-        <span class="text-muted">4.1.0</span>
+        <span class="text-muted">4.2.0</span>
       </div>
     </div>`;
 
