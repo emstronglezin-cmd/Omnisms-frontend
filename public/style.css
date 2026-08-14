@@ -331,7 +331,18 @@ html, body {
 .send-btn:active { transform: scale(0.92); }
 
 /* ─── SETTINGS ───────────────────────────────────────────────────────────── */
-.settings-list { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+/* Settings tab — needs to scroll to show all buttons */
+#tab-settings {
+  overflow-y: auto !important;
+}
+
+.settings-list {
+  padding: 16px 16px 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+}
 .settings-card {
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 20px;
