@@ -1,6 +1,6 @@
-// OmniSMS PWA v3.3 — Session 8 — Version complète
+// OmniSMS PWA v4.3.0 — Stabilisation Auth + Routage OmniSMS
 // Architecture Conversations-First (WhatsApp)
-// v3.3 : username, contacts non-OmniSMS ouverts, Mettre à jour, S'abonner, Socket.IO, groupes
+// v4.3.0 : fix session expirée, routes publiques sans token, _loggedOut guard, E.164 normalisé
 
 const API_BASE = 'https://omnisms-backend.onrender.com';
 
@@ -21,56 +21,83 @@ const State = {
   recordingTimer:   null,
   recordingSeconds: 0,
   isRecording:      false,
+  // Anti-race : empêche les requêtes bg de rappeler logout après une déconnexion volontaire
+  _loggedOut:       false,
 };
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const API = {
-  headers(isFormData = false) {
+  // Routes publiques qui n'ont JAMAIS besoin d'un token d'authentification.
+  // Ces routes ne doivent PAS recevoir un ancien token invalide.
+  _publicRoutes: ['/api/auth/login', '/api/auth/register', '/api/auth/google'],
+
+  headers(isFormData = false, path = '') {
     const h = { 'Accept': 'application/json' };
     if (!isFormData) h['Content-Type'] = 'application/json';
-    if (State.token)  h['Authorization'] = `Bearer ${State.token}`;
+    // Ne jamais envoyer le token sur les routes publiques d'auth
+    const isPublic = this._publicRoutes.some(r => path.startsWith(r));
+    if (State.token && !isPublic) h['Authorization'] = `Bearer ${State.token}`;
     return h;
   },
+
+  // Gestion centralisée des 401 :
+  // - Ne jamais déclencher logout si on est déjà déconnecté (_loggedOut)
+  // - Ne jamais afficher "Session expirée" sur les écrans login/register
+  _handle401(path) {
+    if (State._loggedOut) return;   // Déjà déconnecté — ignorer les 401 résiduels
+    const isPublic = this._publicRoutes.some(r => path.startsWith(r));
+    if (isPublic) return;           // Route publique — jamais de logout automatique
+    logout();
+  },
+
   async get(path) {
     try {
-      const r = await fetch(API_BASE + path, { headers: this.headers() });
-      if (r.status === 401) { logout(); return null; }
+      const r = await fetch(API_BASE + path, { headers: this.headers(false, path) });
+      if (r.status === 401) { this._handle401(path); return null; }
       return r.ok ? r.json() : null;
     } catch { return null; }
   },
   async post(path, body) {
     try {
       const r = await fetch(API_BASE + path, {
-        method: 'POST', headers: this.headers(), body: JSON.stringify(body)
+        method: 'POST', headers: this.headers(false, path), body: JSON.stringify(body)
       });
       const data = await r.json().catch(() => ({}));
-      if (r.status === 401) { logout(); return { ok: false, status: 401, data: { message: 'Session expirée' } }; }
+      if (r.status === 401) {
+        this._handle401(path);
+        // Retourner le message RÉEL du serveur, pas un message générique "Session expirée"
+        // pour ne pas polluer les formulaires login/register
+        return { ok: false, status: 401, data };
+      }
       return { ok: r.ok, status: r.status, data };
     } catch(e) { return { ok: false, status: 0, data: { message: 'Erreur réseau — serveur en cours de démarrage...' } }; }
   },
   async postForm(path, formData) {
     try {
       const r = await fetch(API_BASE + path, {
-        method: 'POST', headers: this.headers(true), body: formData
+        method: 'POST', headers: this.headers(true, path), body: formData
       });
       const data = await r.json().catch(() => ({}));
-      if (r.status === 401) { logout(); return { ok: false, status: 401, data: {} }; }
+      if (r.status === 401) { this._handle401(path); return { ok: false, status: 401, data }; }
       return { ok: r.ok, status: r.status, data };
     } catch(e) { return { ok: false, status: 0, data: { message: 'Erreur réseau' } }; }
   },
   async put(path, body) {
     try {
       const r = await fetch(API_BASE + path, {
-        method: 'PUT', headers: this.headers(), body: JSON.stringify(body)
+        method: 'PUT', headers: this.headers(false, path), body: JSON.stringify(body)
       });
       const data = await r.json().catch(() => ({}));
+      if (r.status === 401) { this._handle401(path); return { ok: false, status: 401, data }; }
       return { ok: r.ok, status: r.status, data };
     } catch(e) { return { ok: false, status: 0, data: { message: 'Erreur réseau' } }; }
   },
   async delete(path) {
     try {
-      const r = await fetch(API_BASE + path, { method: 'DELETE', headers: this.headers() });
-      return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
+      const r = await fetch(API_BASE + path, { method: 'DELETE', headers: this.headers(false, path) });
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 401) { this._handle401(path); return { ok: false, status: 401, data }; }
+      return { ok: r.ok, status: r.status, data };
     } catch(e) { return { ok: false, data: { message: 'Erreur réseau' } }; }
   }
 };
@@ -109,7 +136,13 @@ async function login(identifier, password) {
       initDashboard();
     }
   } else {
-    showError('login-error', res.data?.error || res.data?.message || 'Identifiants incorrects');
+    // Afficher le message d'erreur réel du serveur (jamais "Session expirée" ici)
+    const errMsg = res.data?.error || res.data?.message || '';
+    // Filtrer le message "Session expirée" qui n'a aucun sens sur la page de connexion
+    const displayMsg = (errMsg && !errMsg.includes('Session expir') && !errMsg.includes('TOKEN_EXPIRED'))
+      ? errMsg
+      : 'Identifiants incorrects. Vérifiez votre téléphone/email et mot de passe.';
+    showError('login-error', displayMsg);
   }
 }
 
@@ -144,37 +177,63 @@ async function register(name, phone, email, password) {
     showToast('Compte créé ! Connectez-vous.');
     showScreen('screen-login');
   } else {
-    showError('register-error', res.data?.error || res.data?.message || 'Erreur lors de la création du compte');
+    const regErrMsg = res.data?.error || res.data?.message || '';
+    const regDisplay = (regErrMsg && !regErrMsg.includes('Session expir') && !regErrMsg.includes('TOKEN_EXPIRED'))
+      ? regErrMsg
+      : 'Erreur lors de la création du compte. Réessayez.';
+    showError('register-error', regDisplay);
   }
 }
 
 function logout() {
+  // Marquer comme déconnecté AVANT tout pour bloquer les requêtes résiduelles
+  State._loggedOut = true;
+
+  // Arrêter tous les timers et Socket.IO
   clearInterval(State.pollTimer);
+  State.pollTimer = null;
   if (_socket) { try { _socket.disconnect(); } catch (_) {} _socket = null; }
-  // Clear all state
-  State.token  = null;
-  State.user   = null;
-  State.conversations = [];
-  State.contacts = [];
-  State.groups   = [];
+
+  // Vider l'état en mémoire
+  State.token          = null;
+  State.user           = null;
+  State.conversations  = [];
+  State.contacts       = [];
+  State.groups         = [];
   State.activeConvId   = null;
   State.activeConvMsgs = [];
   State.activeConvInfo = null;
-  // Clear storage
+  State.isRecording    = false;
+
+  // Vider le stockage local
   localStorage.removeItem('auth_token');
   localStorage.removeItem('user_data');
   localStorage.removeItem('leekpay_pending');
   sessionStorage.clear();
-  // Effacer les caches Service Worker pour forcer rechargement propre
+
+  // Nettoyer les caches Service Worker pour forcer rechargement propre
   if ('caches' in window) {
     caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
   }
+
+  // Réinitialiser les formulaires pour éviter tout résidu
+  const loginErr    = document.getElementById('login-error');
+  const registerErr = document.getElementById('register-error');
+  if (loginErr)    { loginErr.textContent    = ''; loginErr.style.display    = 'none'; }
+  if (registerErr) { registerErr.textContent = ''; registerErr.style.display = 'none'; }
+
   showScreen('screen-login');
+
+  // Réarmer _loggedOut après un délai pour permettre une reconnexion immédiate
+  // (les appels résiduels en vol arrivent dans les ~5s après logout)
+  setTimeout(() => { State._loggedOut = false; }, 5000);
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function initDashboard() {
   if (!State.token) { showScreen('screen-login'); return; }
+  // S'assurer que le flag déconnexion est réinitialisé à chaque connexion
+  State._loggedOut = false;
   showScreen('screen-dashboard');
   renderUserInfo();
   switchTab('messages');
@@ -200,10 +259,12 @@ function initDashboard() {
  * Appelé au démarrage du dashboard et après chaque saveProfile().
  */
 async function refreshUserProfile() {
-  if (!State.token) return;
+  // Ne pas tenter si déconnecté ou sans token
+  if (!State.token || State._loggedOut) return;
   try {
     const data = await API.get('/api/me');
-    if (!data) return;
+    // Vérifier à nouveau après la réponse (peut avoir été déconnecté entre-temps)
+    if (!data || !State.token || State._loggedOut) return;
     // Merge: keep local data but overwrite with fresh server data
     State.user = { ...(State.user || {}), ...data };
     localStorage.setItem('user_data', JSON.stringify(State.user));
@@ -375,6 +436,9 @@ function extractLastMessage(conv) {
 
 // ─── MESSAGES — LISTE DES CONVERSATIONS ──────────────────────────────────────
 async function loadConversations(silent = false) {
+  // Ne rien faire si déconnecté ou sans token
+  if (!State.token || State._loggedOut) return;
+
   // Si des conversations sont déjà en cache et qu'on est en mode silencieux,
   // afficher les données en cache d'abord pour une réponse instantanée
   if (silent && State.conversations.length > 0) {
@@ -483,7 +547,7 @@ function openConversation(conversationId, contactId, contactName, isGroup = fals
 }
 
 async function loadActiveConvMessages(silent = false) {
-  if (!State.activeConvId) return;
+  if (!State.activeConvId || !State.token || State._loggedOut) return;
   const convId = State.activeConvId;
 
   // Afficher les messages déjà en cache immédiatement (0ms de délai perçu)
@@ -1547,7 +1611,7 @@ function renderSettings() {
       <h4>Application</h4>
       <div class="settings-row">
         <span>📱 Version</span>
-        <span class="text-muted">4.2.0</span>
+        <span class="text-muted">4.3.0</span>
       </div>
     </div>`;
 
