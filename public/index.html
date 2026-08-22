@@ -347,6 +347,23 @@
         <button type="submit" class="btn-primary" style="flex:2">✅ Mettre à jour</button>
       </div>
     </form>
+
+    <!-- P4 — Section Ajouter des membres -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08)">
+      <h5 style="margin:0 0 10px;font-size:14px;color:var(--text-primary)">👥 Ajouter un membre</h5>
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">
+        Numéro de téléphone (ex : +22670123456), @username ou UID
+      </p>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="edit-group-add-member-input" type="text" class="form-input" style="flex:1;margin:0"
+               placeholder="+22670… ou @username"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();addMemberFromEditModal();}">
+        <button id="edit-group-add-member-btn" type="button" class="btn-primary"
+                style="white-space:nowrap;padding:10px 14px;font-size:13px"
+                onclick="addMemberFromEditModal()">+ Ajouter</button>
+      </div>
+      <div id="edit-group-add-member-result" style="font-size:12px;margin-top:6px;min-height:18px"></div>
+    </div>
   </div>
 </div>
 

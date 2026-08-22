@@ -364,11 +364,30 @@ function initSocketIO() {
 
     _socket.on('message:receive', (msg) => {
       if (!msg) return;
-      // Always refresh conversation list (updates lastMessage)
+      // Always refresh conversation list (updates lastMessage, découvre de nouvelles conversations)
       loadConversations(true);
-      // If the active conversation matches, inject message directly for instant display
-      if (State.activeConvId && msg.conversationId === State.activeConvId) {
-        const currentUserId = State.user?.id || State.user?._id || '';
+      // P3 FIX: Vérifier si msg.conversationId correspond à la conversation active.
+      // Aussi vérifier si l'un des participants (senderId/receiverId) correspond à activeConvInfo.contactId
+      // pour les cas où State.activeConvId est encore provisoire (avant le premier sendMessage).
+      const activeInfo = State.activeConvInfo;
+      const myId = State.user?.id || State.user?._id || '';
+      const convMatches = State.activeConvId && (
+        msg.conversationId === State.activeConvId ||
+        // Cas: conversationId mis à jour après résolution phone→UID
+        (activeInfo?.contactId && (
+          msg.conversationId === [myId, activeInfo.contactId].sort().join('-') ||
+          msg.senderId === activeInfo.contactId ||
+          msg.receiverId === activeInfo.contactId
+        ))
+      );
+
+      if (convMatches) {
+        // P0 FIX: mettre à jour l'activeConvId si le serveur a fourni un ID canonique
+        if (msg.conversationId && msg.conversationId !== State.activeConvId) {
+          State.activeConvId = msg.conversationId;
+          if (State.activeConvInfo) State.activeConvInfo.conversationId = msg.conversationId;
+        }
+        const currentUserId = myId;
         const normalized = {
           ...msg,
           isMe     : (msg.senderId || msg.from) === currentUserId,
@@ -411,6 +430,35 @@ function initSocketIO() {
       loadConversations(true);
       if (State.activeConvId && data.conversationId === State.activeConvId) {
         loadActiveConvMessages(true);
+      }
+    });
+
+    // P4 FIX: Nouveau membre ajouté à un groupe (notifié en temps réel)
+    _socket.on('group:added', (data) => {
+      // Rafraîchir la liste des groupes pour voir le nouveau groupe
+      loadGroups();
+      if (data?.groupName) {
+        showToast(`Vous avez été ajouté au groupe "${data.groupName}" ✓`);
+      }
+    });
+
+    // Synchronisation contacts OmniSMS : un nouveau user vient de s'inscrire
+    _socket.on('contact:omnisms', (data) => {
+      // Rafraîchir les contacts pour mettre à jour le statut OmniSMS
+      if (State.currentTab === 'contacts') loadContacts();
+      // Mettre à jour le statut dans le cache local si le contact est déjà présent
+      if (data?.phone && State.contacts.length > 0) {
+        const found = State.contacts.find(c =>
+          c.phone === data.phone ||
+          c.phone?.replace(/\s/g, '') === data.phone?.replace(/\s/g, '')
+        );
+        if (found) {
+          found.isOnOmniSms      = true;
+          found.userId           = data.uid;
+          found.registeredUserId = data.uid;
+          if (!found.name && data.name) found.name = data.name;
+          renderContacts(State.contacts);
+        }
       }
     });
 
@@ -608,7 +656,14 @@ function renderMsgStatus(status) {
 }
 
 function renderAudioMessage(m) {
-  const audioUrl  = m.audioUrl || m.url || '';
+  const rawUrl    = m.audioUrl || m.url || '';
+  // P2 FIX: Si l'URL est relative (commence par '/'), la résoudre sur le backend Render.
+  // Sinon (data:, https://, etc.) l'utiliser directement.
+  // Les data URIs base64 (≤1.5MB) fonctionnent directement dans <audio src>.
+  // Les fichiers disk (/uploads/audio/…) doivent être préfixés par l'URL du backend.
+  const audioUrl  = (rawUrl && rawUrl.startsWith('/') && !rawUrl.startsWith('//'))
+    ? (API_BASE + rawUrl)
+    : rawUrl;
   const totalSecs = m.duration || 0;
   const durFmt    = m.durationFormatted || (totalSecs ? `${Math.floor(totalSecs/60)}:${String(Math.round(totalSecs%60)).padStart(2,'0')}` : '0:00');
   const msgId     = m.id || m._id || '';
@@ -806,8 +861,18 @@ async function sendMessage() {
   }
 
   if (res && res.ok) {
-    // Remplacer le message optimiste par le vrai message retourné par le serveur
+    // P0 FIX: Si le serveur a utilisé un conversationId différent (après résolution phone→UID),
+    // mettre à jour State.activeConvId ET State.activeConvInfo avec l'ID canonique.
     const realMsg = res.data?.message || res.data;
+    // Lire le conversationId canonique depuis la racine de la réponse OU depuis le message
+    const serverConvId = res.data?.conversationId || realMsg?.conversationId;
+    if (serverConvId && serverConvId !== State.activeConvId) {
+      // Le backend a calculé un conversationId canonique différent du provisoire
+      // Mettre à jour l'état pour que les futurs Socket.IO events soient correctement matchés
+      State.activeConvId = serverConvId;
+      if (State.activeConvInfo) State.activeConvInfo.conversationId = serverConvId;
+    }
+
     if (realMsg && (realMsg.id || realMsg._id)) {
       const currentUserId = State.user?.id || State.user?._id || '';
       const normalized = {
@@ -825,7 +890,8 @@ async function sendMessage() {
       // Fallback: supprimer l'optimiste et recharger
       State.activeConvMsgs = State.activeConvMsgs.filter(m => !m._optimistic);
     }
-    const conv = State.conversations.find(c => (c.id || c.conversationId || c._id) === conversationId);
+    const activeId = State.activeConvId;
+    const conv = State.conversations.find(c => (c.id || c.conversationId || c._id) === activeId);
     if (conv) {
       conv.lastMessage    = text;
       conv.lastMessageAt  = new Date().toISOString();
@@ -947,7 +1013,12 @@ async function uploadVoiceMessage() {
     return;
   }
 
-  const { id: audioId, url: audioUrl, duration, durationFormatted } = uploadRes.data;
+  const { id: audioId, url: rawAudioUrl, duration, durationFormatted } = uploadRes.data;
+  // P2 FIX: Résoudre l'URL audio immédiatement après l'upload pour la bulle optimiste
+  // Si l'URL est relative (/uploads/audio/...), préfixer avec API_BASE
+  const audioUrl = (rawAudioUrl && rawAudioUrl.startsWith('/') && !rawAudioUrl.startsWith('//'))
+    ? (API_BASE + rawAudioUrl)
+    : (rawAudioUrl || '');
 
   // Injecter immédiatement une bulle optimiste dans la conversation
   const currentUserId = State.user?.id || State.user?._id || '';
@@ -979,12 +1050,20 @@ async function uploadVoiceMessage() {
       content: '', type: 'audio', audioUrl, duration,
     });
   } else {
+    // P2 FIX: Envoyer le rawAudioUrl (URL originale depuis le serveur) au backend,
+    // pas l'URL préfixée par API_BASE (le backend stocke l'URL relative ou la data URI).
     res = await API.post('/api/messages/send', {
-      receiverId: contactId, content: '', type: 'audio', audioUrl, duration,
+      receiverId: contactId, content: '', type: 'audio', audioUrl: rawAudioUrl || audioUrl, duration,
     });
   }
 
   if (res?.ok) {
+    // P0 FIX: Mettre à jour le conversationId si le serveur en retourne un différent
+    const serverConvId = res.data?.conversationId || res.data?.message?.conversationId;
+    if (serverConvId && serverConvId !== State.activeConvId) {
+      State.activeConvId = serverConvId;
+      if (State.activeConvInfo) State.activeConvInfo.conversationId = serverConvId;
+    }
     // Remplacer le message optimiste par le vrai message
     const realMsg = res.data?.message || res.data;
     const optIdx = State.activeConvMsgs.findIndex(m => m.id === tempMsgId);
@@ -992,7 +1071,7 @@ async function uploadVoiceMessage() {
       const normalized = {
         ...realMsg,
         isMe             : true,
-        audioUrl         : audioUrl,
+        audioUrl         : audioUrl,   // Garder l'URL préfixée par API_BASE pour le player local
         url              : audioUrl,
         type             : 'audio',
         duration         : duration || null,
@@ -1098,16 +1177,35 @@ function openContactConversation(otherUserId, contactName) {
   openConversation(conversationId, otherUserId, contactName, false);
 }
 
-// v3.3 — Ouvrir une conversation avec un contact non-OmniSMS (via téléphone)
-// Le backend decide ensuite si envoyer via OmniSMS ou Infobip SMS
-function openContactByPhone(phone, contactName) {
+// v4.4 — P0 FIX: Résoudre phone→UID avant de construire le conversationId.
+// Le conversationId DOIT toujours être sort([UID_A, UID_B]).join('-').
+// Utiliser /api/contacts/check/:phone pour obtenir l'UID réel de B.
+// Si B n'est pas sur OmniSMS : utiliser Infobip SMS (contactId = phone E.164).
+async function openContactByPhone(phone, contactName) {
   if (!phone) { showToast('Numéro de téléphone manquant'); return; }
-  // Utiliser le téléphone comme identifier de conversation
-  // Format conversationId : sorted([myId, phone]).join('-')
+
   const myId = State.user?.id || State.user?._id || '';
   const normalizedPhone = phone.replace(/\s/g, '');
-  const parts = [myId, normalizedPhone].sort();
-  const conversationId = parts.join('-');
+
+  // Tenter de résoudre le numéro vers un UID OmniSMS
+  try {
+    const checkData = await API.get(`/api/contacts/check/${encodeURIComponent(normalizedPhone)}`);
+    if (checkData && checkData.isRegistered && checkData.uid) {
+      // B est sur OmniSMS → conversationId déterministe à partir des UIDs
+      const uid = checkData.uid;
+      const conversationId = [myId, uid].sort().join('-');
+      openConversation(conversationId, uid, contactName || checkData.name || phone, false);
+      return;
+    }
+  } catch (_) {
+    // Silencieux — continuer vers le fallback SMS
+  }
+
+  // B n'est pas sur OmniSMS (ou erreur réseau) → SMS Infobip
+  // Le backend décidera du canal. contactId = numéro de téléphone.
+  // conversationId sera l'ID externe (ext-{ownerUid}-{e164}) côté backend.
+  // Ici on utilise un ID provisoire ; le vrai sera mis à jour depuis la liste des conversations.
+  const conversationId = [myId, normalizedPhone].sort().join('-');
   openConversation(conversationId, normalizedPhone, contactName || phone, false);
 }
 
@@ -1315,7 +1413,50 @@ function openEditGroupModal(gid, name, description, image) {
   // Réinitialiser le fichier sélectionné
   const photoInput = document.getElementById('edit-group-photo-input');
   if (photoInput) photoInput.value = '';
+  // P4 FIX: Réinitialiser le champ d'ajout de membre
+  const addInput = document.getElementById('edit-group-add-member-input');
+  if (addInput) addInput.value = '';
+  const addResult = document.getElementById('edit-group-add-member-result');
+  if (addResult) addResult.textContent = '';
   openModal('modal-edit-group');
+}
+
+// P4 — Ajouter un membre au groupe depuis le modal d'édition
+// Accepte : numéro de téléphone, @username, ou UID direct
+async function addMemberFromEditModal() {
+  const gid      = document.getElementById('edit-group-id')?.value;
+  const input    = document.getElementById('edit-group-add-member-input');
+  const resultEl = document.getElementById('edit-group-add-member-result');
+  const btn      = document.getElementById('edit-group-add-member-btn');
+  const identifier = input?.value?.trim();
+
+  if (!gid || !identifier) {
+    if (resultEl) { resultEl.style.color = 'var(--accent)'; resultEl.textContent = 'Saisissez un numéro, @username ou UID.'; }
+    return;
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  if (resultEl) { resultEl.style.color = 'var(--text-secondary)'; resultEl.textContent = 'Recherche…'; }
+
+  try {
+    // Appel backend : POST /groups/:id/members avec identifier générique
+    // Le backend résout phone/username/UID via userResolver
+    const res = await API.post(`/groups/${gid}/members`, { identifier });
+
+    if (res.ok) {
+      if (resultEl) { resultEl.style.color = '#4caf50'; resultEl.textContent = '✓ Membre ajouté avec succès.'; }
+      if (input) input.value = '';
+      // Rafraîchir la liste des groupes en arrière-plan
+      loadGroups();
+    } else {
+      const errMsg = res.data?.error || res.data?.message || 'Erreur lors de l\'ajout.';
+      if (resultEl) { resultEl.style.color = 'var(--accent)'; resultEl.textContent = errMsg; }
+    }
+  } catch(e) {
+    if (resultEl) { resultEl.style.color = 'var(--accent)'; resultEl.textContent = 'Erreur réseau. Réessayez.'; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '+ Ajouter'; }
+  }
 }
 
 function previewGroupPhoto(input) {
