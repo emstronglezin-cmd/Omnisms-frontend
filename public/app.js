@@ -442,6 +442,32 @@ function initSocketIO() {
       }
     });
 
+    // P7 FIX — Confirmation paiement LeekPay en temps réel
+    _socket.on('payment:success', (data) => {
+      console.log('[Payment] payment:success reçu via Socket.IO', data);
+      // Mettre à jour l'état utilisateur immédiatement (source de vérité = backend)
+      if (State.user) {
+        State.user.isSubscribed = true;
+        State.user.premium      = true;
+      }
+      // Arrêter tout polling en cours
+      if (State._leekPayPollingTimer) {
+        clearTimeout(State._leekPayPollingTimer);
+        State._leekPayPollingTimer = null;
+      }
+      // Fermer la modal paiement si ouverte
+      const payModal = document.getElementById('modal-payment');
+      if (payModal) payModal.style.display = 'none';
+      // Masquer le bandeau "S'abonner"
+      const banner = document.getElementById('subscribe-banner');
+      if (banner) banner.style.display = 'none';
+      // Toast de confirmation
+      const amount = data?.amount ? ` (${data.amount} ${data.currency || 'XOF'})` : '';
+      showToast(`✅ Paiement confirmé${amount} — OmniSMS Premium activé 🎉`);
+      // Rafraîchir le profil pour synchroniser l'état premium
+      setTimeout(() => loadProfile && loadProfile(), 1500);
+    });
+
     // Synchronisation contacts OmniSMS : un nouveau user vient de s'inscrire
     _socket.on('contact:omnisms', (data) => {
       // Rafraîchir les contacts pour mettre à jour le statut OmniSMS
