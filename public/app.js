@@ -1,6 +1,6 @@
-// OmniSMS PWA v4.3.0 — Stabilisation Auth + Routage OmniSMS
+// OmniSMS PWA v5.0.0 — Interface premium V5 (design uniquement, logique v4.3.0 inchangée)
 // Architecture Conversations-First (WhatsApp)
-// v4.3.0 : fix session expirée, routes publiques sans token, _loggedOut guard, E.164 normalisé
+// v5.0.0 : refonte visuelle dark/futuriste — zéro changement logique/API/Socket.IO
 
 const API_BASE = 'https://omnisms-backend.onrender.com';
 
