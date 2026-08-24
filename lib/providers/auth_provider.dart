@@ -123,7 +123,12 @@ class AuthProvider with ChangeNotifier {
       );
 
       if (result['success']) {
-        _currentUser = result['user'];
+        // AuthService.updateProfile ne retourne pas de clé 'user' :
+        // recharger le profil depuis /api/auth/me pour éviter un _currentUser null.
+        final refreshed = await _authService.getCurrentUser();
+        if (refreshed != null) {
+          _currentUser = refreshed;
+        }
         _isLoading = false;
         notifyListeners();
         return true;

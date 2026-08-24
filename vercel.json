@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "./vercel-build.sh",
+  "buildCommand": "bash ./vercel-build.sh",
   "installCommand": "echo 'no install'",
   "outputDirectory": "build/web",
   "headers": [

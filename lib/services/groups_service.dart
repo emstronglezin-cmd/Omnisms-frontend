@@ -166,6 +166,32 @@ class GroupsService {
     }
   }
 
+  // Get group members (enriched with names/avatars from backend)
+  Future<List<Map<String, dynamic>>> getGroupMembers(String groupId) async {
+    try {
+      final token = await _authService.getToken();
+      if (token == null) return [];
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.groupsEndpoint}/$groupId/members'),
+        headers: {
+          ...ApiConfig.headers,
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(ApiConfig.requestTimeout);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List members = data['members'] ?? [];
+        return members.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error getting group members: $e');
+      return [];
+    }
+  }
+
   // Get group messages
   Future<List<MessageModel>> getGroupMessages(String groupId) async {
     try {

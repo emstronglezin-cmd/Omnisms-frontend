@@ -4,7 +4,7 @@ import '../../providers/contacts_provider_v2.dart';
 import '../../providers/groups_provider.dart';
 import '../../providers/messaging_provider.dart';
 import '../../models/models.dart';
-import '../messaging/conversation_screen.dart';
+import 'group_conversation_screen.dart';
 
 /// CreateGroupScreen — create a new group and immediately open its conversation.
 ///
@@ -80,15 +80,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         ),
       );
 
-      // Navigate: replace CreateGroupScreen with ConversationScreen
+      // Navigate: replace CreateGroupScreen with GroupConversationScreen
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => ConversationScreen(
-            conversationId: group.id,
-            contactId: group.id,
-            contactName: group.name,
-            isGroup: true,
+          builder: (_) => GroupConversationScreen(
+            groupId: group.id,
+            groupName: group.name,
           ),
         ),
       );

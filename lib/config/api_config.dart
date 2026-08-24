@@ -21,8 +21,10 @@ class ApiConfig {
 
   // Paiement LeekPay (routes correctes)
   static const String paymentLeekpayEndpoint = '/api/payment/leekpay';
+
   static const String paymentStatusEndpoint = '/api/payment/user-status';
 
+  static const String subscriptionEndpoint = '/api/user/status';
   // Auth
   static const String authRegisterEndpoint = '/api/auth/register';
   static const String authLoginEndpoint = '/api/auth/login';
