@@ -1,34 +1,19 @@
 #!/bin/bash
-# OmniSMS - Flutter Web PWA Build Script
-# Compile l'application Flutter pour le web (build/web)
+# OmniSMS - Static PWA Build Script
+# Copie public/ (PWA v5 — version fonctionnelle de référence) vers build/web/
+# Aucun Flutter requis — site HTML/CSS/JS natif
 set -e
 
-echo "🚀 OmniSMS Flutter Web Build"
-echo "============================="
+echo "🌐 OmniSMS Static PWA Build (v5)"
+echo "================================="
 
-# ── Localiser ou installer Flutter ────────────────────────────
-if command -v flutter >/dev/null 2>&1; then
-  echo "✅ Flutter déjà présent : $(flutter --version | head -1)"
-elif [ -d "$HOME/.flutter-sdk/bin" ]; then
-  export PATH="$HOME/.flutter-sdk/bin:$PATH"
-  echo "✅ Flutter SDK en cache : $(flutter --version | head -1)"
-else
-  echo "📦 Installation du Flutter SDK 3.44.9 (version du projet, shallow clone)..."
-  git clone \
-    https://github.com/flutter/flutter.git \
-    -b 3.44.9 --depth 1 \
-    "$HOME/.flutter-sdk"
-  export PATH="$HOME/.flutter-sdk/bin:$PATH"
-  echo "✅ Flutter installé : $(flutter --version | head -1)"
-fi
+# Créer le répertoire de sortie que Vercel attend
+mkdir -p build/web
 
-# ── Build ──────────────────────────────────────────────────────
-flutter config --enable-web --no-analytics >/dev/null 2>&1 || true
-echo "📥 flutter pub get..."
-flutter pub get
-echo "🔨 flutter build web --release..."
-flutter build web --release
+# Copier les fichiers statiques (PWA complète : index.html, style.css, app.js, sw.js, manifest, icônes)
+echo "📁 Copie des fichiers statiques depuis public/ vers build/web/..."
+cp -r public/. build/web/
 
 echo ""
 echo "✅ Build terminé — sortie : build/web/"
-ls -lh build/web/ | head -20
+ls -lh build/web/
