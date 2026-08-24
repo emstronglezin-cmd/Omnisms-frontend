@@ -520,14 +520,16 @@ async function loadConversations(silent = false) {
   }
 
   if (!silent && State.conversations.length === 0) {
-    document.getElementById('conv-list').innerHTML =
+    const listEl = document.getElementById('conversations-list') || document.getElementById('conv-list');
+    if (listEl) listEl.innerHTML =
       `<div class="loading-state"><div class="spinner"></div><p>Chargement des messages...</p></div>`;
   }
 
   const data = await API.get('/api/messages');
   if (!data) {
     if (!silent && State.conversations.length === 0) {
-      document.getElementById('conv-list').innerHTML =
+      const listEl = document.getElementById('conversations-list') || document.getElementById('conv-list');
+      if (listEl) listEl.innerHTML =
         `<div class="empty-state">
           <div class="empty-icon">⚠️</div>
           <p>Impossible de charger les messages</p>
@@ -549,7 +551,7 @@ async function loadConversations(silent = false) {
 }
 
 function renderConversationList() {
-  const list = document.getElementById('conv-list');
+  const list = document.getElementById('conversations-list') || document.getElementById('conv-list');
   if (!list) return;
 
   if (State.conversations.length === 0) {
@@ -575,12 +577,17 @@ function renderConversationList() {
     const timeStr   = timestamp ? formatRelativeTime(timestamp) : '';
     const otherUid  = conv.otherUserId || conv.contactId || '';
     const initials  = getInitials(name);
-    const avatarBg  = isGroup ? '#1a3a5c' : '#1a4a3a';
     const otherAvatar = conv.otherUserAvatar || conv.avatar || null;
+    // Channel pill
+    const isExternal = conv.channel === 'sms' || conv.isExternal;
+    const channelPill = isGroup ? '' :
+      (isExternal
+        ? `<span class="conv-channel-pill pill-sms">SMS</span>`
+        : `<span class="conv-channel-pill pill-omnisms">OmniSMS</span>`);
 
     const convAvatarHtml = otherAvatar && !isGroup
-      ? `<div class="conv-avatar" style="background:${avatarBg};padding:0;overflow:hidden"><img src="${escHtml(otherAvatar)}" alt="${escHtml(name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>`
-      : `<div class="conv-avatar" style="background:${avatarBg}"><span>${isGroup ? '👥' : initials}</span></div>`;
+      ? `<div class="conv-avatar"><img src="${escHtml(otherAvatar)}" alt="${escHtml(name)}"></div>`
+      : `<div class="conv-avatar" style="background:${isGroup ? 'linear-gradient(135deg,#1a3a6c,#0d2040)' : 'linear-gradient(135deg,#0a3d28,#1a6040)'}">${isGroup ? '👥' : escHtml(initials)}</div>`;
 
     return `
       <div class="conv-item ${unread > 0 ? 'conv-unread' : ''}"
@@ -589,10 +596,10 @@ function renderConversationList() {
         <div class="conv-content">
           <div class="conv-header">
             <span class="conv-name">${escHtml(name)}</span>
-            ${timeStr ? `<span class="conv-time ${unread > 0 ? 'conv-time-unread' : ''}">${timeStr}</span>` : ''}
+            ${timeStr ? `<span class="conv-time ${unread > 0 ? 'unread-time' : ''}">${timeStr}</span>` : ''}
           </div>
           <div class="conv-footer">
-            <span class="conv-last-msg">${escHtml(lastMsg || 'Démarrer une conversation')}</span>
+            <span class="conv-last-msg ${unread > 0 ? 'unread' : ''}">${channelPill}${escHtml(lastMsg || 'Démarrer une conversation')}</span>
             ${unread > 0 ? `<span class="conv-badge">${unread > 99 ? '99+' : unread}</span>` : ''}
           </div>
         </div>
@@ -613,8 +620,41 @@ function openConversation(conversationId, contactId, contactName, isGroup = fals
   if (!screen) return;
 
   document.getElementById('conv-screen-name').textContent  = contactName;
-  document.getElementById('conv-screen-back').onclick = closeConversation;
+  // Back button id changed in new UI — support both
+  const backBtn = document.getElementById('conv-back-btn') || document.getElementById('conv-screen-back');
+  if (backBtn) backBtn.onclick = closeConversation;
   document.getElementById('conv-msg-input').value = '';
+
+  // Update appbar avatar with initials
+  const appbarAvatar = document.getElementById('conv-appbar-avatar');
+  if (appbarAvatar) {
+    const conv = State.conversations.find(c => (c.id || c.conversationId || c._id) === conversationId);
+    const avatar = conv?.otherUserAvatar || conv?.avatar || null;
+    if (avatar && !isGroup) {
+      appbarAvatar.innerHTML = `<img src="${escHtml(avatar)}" alt="${escHtml(contactName)}">`;
+    } else {
+      appbarAvatar.textContent = isGroup ? '\uD83D\uDC65' : getInitials(contactName);
+      appbarAvatar.style.background = isGroup
+        ? 'linear-gradient(135deg,#1a3a6c,#0d2040)'
+        : 'linear-gradient(135deg,#0a3d28,#1a6040)';
+    }
+  }
+
+  // Sub-title: show channel type
+  const subEl = document.getElementById('conv-screen-sub');
+  if (subEl) {
+    const conv2 = State.conversations.find(c => (c.id || c.conversationId || c._id) === conversationId);
+    if (isGroup) { subEl.textContent = 'Groupe'; }
+    else if (conv2?.channel === 'sms' || conv2?.isExternal) { subEl.textContent = 'SMS'; }
+    else { subEl.textContent = 'OmniSMS'; }
+  }
+
+  // Show members button for groups
+  const membersBtn = document.getElementById('conv-members-btn');
+  if (membersBtn) {
+    membersBtn.style.display = isGroup ? 'flex' : 'none';
+    if (isGroup) membersBtn.onclick = () => openGroupMembersModal(contactId, contactName);
+  }
 
   showScreen('screen-conversation');
   loadActiveConvMessages();
@@ -654,19 +694,33 @@ function renderMessages() {
 
   if (State.activeConvMsgs.length === 0) {
     container.innerHTML = `
-      <div class="empty-state" style="height:100%">
-        <div class="empty-icon">💬</div>
+      <div class="empty-state" style="height:100%;justify-content:center">
+        <div class="empty-icon">\ud83d\udcac</div>
         <p>Aucun message. Envoyez le premier !</p>
       </div>`;
   } else {
+    const isGroup = State.activeConvInfo?.isGroup || false;
+    const myId = State.user?.id || State.user?._id || '';
     container.innerHTML = State.activeConvMsgs.map(m => {
       if (m.type === 'audio' && (m.audioUrl || m.url)) {
         return renderAudioMessage(m);
       }
+      const side = m.isMe ? 'msg-me' : 'msg-them';
+      const optimisticClass = m._optimistic ? ' msg-optimistic' : '';
+      // Group: show sender name for messages not from me
+      const senderName = (isGroup && !m.isMe && (m.senderName || m.senderId))
+        ? `<span class="msg-sender-name">${escHtml(m.senderName || m.senderId?.slice(-6) || '')}</span>`
+        : '';
       return `
-        <div class="msg-bubble ${m.isMe ? 'msg-me' : 'msg-them'}">
-          <div class="msg-content">${escHtml(m.content)}</div>
-          <div class="msg-time">${formatTime(m.timestamp)}${m.isMe ? renderMsgStatus(m.status) : ''}</div>
+        <div class="${side}${optimisticClass}">
+          <div class="msg-bubble">
+            ${senderName}
+            <div class="msg-content">${escHtml(m.content)}</div>
+            <div class="msg-meta">
+              <span class="msg-time">${formatTime(m.timestamp)}</span>
+              ${m.isMe ? `<span class="msg-status">${renderMsgStatus(m.status)}</span>` : ''}
+            </div>
+          </div>
         </div>`;
     }).join('');
   }
@@ -675,9 +729,10 @@ function renderMessages() {
 }
 
 function renderMsgStatus(status) {
-  if (status === 'seen')      return ' <span style="color:#4fc3f7">✓✓</span>';
-  if (status === 'delivered') return ' <span style="color:#aaa">✓✓</span>';
-  if (status === 'sent')      return ' <span style="color:#aaa">✓</span>';
+  if (status === 'seen')      return '<span style="color:#4fc3f7">\u2713\u2713</span>';
+  if (status === 'delivered') return '<span style="color:rgba(255,255,255,0.5)">\u2713\u2713</span>';
+  if (status === 'sent')      return '<span style="color:rgba(255,255,255,0.5)">\u2713</span>';
+  if (status === 'sending')   return '<span style="opacity:0.4">\u2022</span>';
   return '';
 }
 
@@ -697,36 +752,51 @@ function renderAudioMessage(m) {
   const tStatus   = m.transcriptionStatus || 'pending';
   const safeId    = escHtml(msgId);
   const safeUrl   = escHtml(audioUrl);
+  const side      = m.isMe ? 'msg-me' : 'msg-them';
+  const optimistic= m._optimistic ? ' msg-optimistic' : '';
+
+  // Generate fake waveform bars (visual only)
+  const barHeights = [30,50,70,45,80,60,35,65,90,55,40,75,50,30,60,45,70,55,40,65];
+  const barsHtml = barHeights.map(h =>
+    `<div class="audio-bar" style="height:${h}%"></div>`
+  ).join('');
+
   return `
-    <div class="msg-bubble ${m.isMe ? 'msg-me' : 'msg-them'}" id="msg-${safeId}">
-      <div class="msg-audio-player">
-        <button class="audio-play-btn" id="playbtn-${safeId}" onclick="toggleAudioWA('${safeId}')" title="Lecture/Pause">&#9654;</button>
-        <audio id="audio-${safeId}" src="${safeUrl}" preload="metadata"
-               onended="onAudioEnded('${safeId}')"
-               ontimeupdate="onAudioTimeUpdate('${safeId}')"
-               onloadedmetadata="onAudioMeta('${safeId}')"></audio>
-        <div class="audio-progress-wrap">
-          <input type="range" class="audio-progress" id="prog-${safeId}" value="0" min="0" max="100" step="0.1"
-                 oninput="seekAudio('${safeId}', this.value)">
-          <div class="audio-times">
-            <span id="cur-${safeId}">0:00</span>
-            <span id="dur-${safeId}">${escHtml(durFmt)}</span>
+    <div class="${side}${optimistic}" id="msg-${safeId}">
+      <div class="msg-bubble audio-bubble">
+        <div class="audio-player-row">
+          <button class="audio-play-btn" id="playbtn-${safeId}" onclick="toggleAudioWA('${safeId}')" title="Lecture/Pause">\u25b6</button>
+          <audio id="audio-${safeId}" src="${safeUrl}" preload="metadata"
+                 onended="onAudioEnded('${safeId}')"
+                 ontimeupdate="onAudioTimeUpdate('${safeId}')"
+                 onloadedmetadata="onAudioMeta('${safeId}')"></audio>
+          <div class="audio-waveform">
+            <div class="audio-bars">${barsHtml}</div>
+            <input type="range" class="audio-seek" id="prog-${safeId}" value="0" min="0" max="100" step="0.1"
+                   oninput="seekAudio('${safeId}', this.value)">
           </div>
         </div>
-        <div class="audio-actions">
-          ${msgId && tStatus !== 'done' ? `<button class="btn-transcribe" id="transcbtn-${safeId}" onclick="requestTranscription('${safeId}')">&#128221;</button>` : ''}
-          ${audioUrl ? `<a class="audio-download-btn" href="${safeUrl}" download title="Telecharger">&#8681;</a>` : ''}
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <span class="audio-duration" id="cur-${safeId}">0:00</span>
+          <span class="audio-duration" id="dur-${safeId}">${escHtml(durFmt)}</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            ${msgId && tStatus !== 'done' ? `<button class="transcription-btn" id="transcbtn-${safeId}" onclick="requestTranscription('${safeId}')">&#128221; Transcrire</button>` : ''}
+            ${audioUrl ? `<a class="transcription-btn" href="${safeUrl}" download title="T\u00e9l\u00e9charger">\u2913</a>` : ''}
+          </div>
+        </div>
+        ${transcript
+          ? `<div class="transcription-block"><p class="transcription-text">\u201c${escHtml(transcript)}\u201d</p></div>`
+          : tStatus === 'processing'
+            ? `<div class="transcription-block"><p class="transcription-text" style="opacity:.6">\u23f3 Transcription en cours\u2026</p></div>`
+            : tStatus === 'error'
+              ? `<div class="transcription-block"><p class="transcription-text" style="opacity:.5;color:var(--error)">\u26a0 Transcription indisponible</p></div>`
+              : ''
+        }
+        <div class="msg-meta" style="margin-top:6px">
+          <span class="msg-time">${formatTime(m.timestamp)}</span>
+          ${m.isMe ? `<span class="msg-status">${renderMsgStatus(m.status)}</span>` : ''}
         </div>
       </div>
-      ${transcript
-        ? `<div class="msg-transcript">&#128172; ${escHtml(transcript)}</div>`
-        : tStatus === 'processing'
-          ? `<div class="msg-transcript" style="opacity:.6">&#9203; Transcription en cours…</div>`
-          : tStatus === 'error'
-            ? `<div class="msg-transcript" style="opacity:.5;color:#e57373">&#9888; Transcription indisponible</div>`
-            : ''
-      }
-      <div class="msg-time">${formatTime(m.timestamp)}${m.isMe ? renderMsgStatus(m.status) : ''}</div>
     </div>`;
 }
 
@@ -1161,9 +1231,10 @@ function renderContacts(contacts) {
     const onclick = isOmni
       ? `openContactConversation('${escHtml(uid)}', '${escHtml(name)}')`
       : `openContactByPhone('${escHtml(phone)}', '${escHtml(name)}')`;
+    const initials = getInitials(name);
     const avatarHtml = avatar
       ? `<div class="contact-avatar contact-avatar-img"><img src="${escHtml(avatar)}" alt="${escHtml(name)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>`
-      : `<div class="contact-avatar">${getInitials(name)}</div>`;
+      : `<div class="contact-avatar" style="background:${isOmni ? 'linear-gradient(135deg,#0a3d28,#1a6040)' : 'linear-gradient(135deg,#2a2a1a,#4a3a0a)'}">${escHtml(initials)}</div>`;
     return `
       <div class="contact-item ${isOmni ? '' : 'contact-sms-only'}" onclick="${onclick}">
         ${avatarHtml}
@@ -1173,7 +1244,7 @@ function renderContacts(contacts) {
         </div>
         <div class="contact-actions">
           ${isOmni ? '<span class="badge-registered">OmniSMS</span>' : '<span class="badge-sms">SMS</span>'}
-          <button class="btn-icon" onclick="event.stopPropagation();confirmDeleteContact('${escHtml(phone)}','${escHtml(name)}')" title="Supprimer">🗑️</button>
+          <button class="btn-icon" onclick="event.stopPropagation();confirmDeleteContact('${escHtml(phone)}','${escHtml(name)}')" title="Supprimer" style="font-size:0.9rem;opacity:0.6">\uD83D\uDDD1\uFE0F</button>
         </div>
       </div>`;
   }
@@ -1401,16 +1472,17 @@ function renderGroups() {
     const img     = g.image || g.icon || null;
     return `
       <div class="conv-item" onclick="openGroupConversation('${escHtml(gid)}', '${escHtml(name)}')">
-        <div class="conv-avatar" style="background:#1a3a5c">
-          ${img ? `<img src="${escHtml(img)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : '<span>👥</span>'}
+        <div class="conv-avatar" style="background:linear-gradient(135deg,#1a3a6c,#0d2040)">
+          ${img ? `<img src="${escHtml(img)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : '<span>\uD83D\uDC65</span>'}
         </div>
         <div class="conv-content">
           <div class="conv-header">
             <span class="conv-name">${escHtml(name)}</span>
-            ${isOwner ? `<button class="btn-icon" style="font-size:14px" onclick="event.stopPropagation();openEditGroupModal('${escHtml(gid)}','${escHtml(name)}','${escHtml(g.description||'')}','${escHtml(img||'')}')">✏️</button>` : ''}
+            ${isOwner ? `<button class="btn-icon" style="font-size:0.85rem;opacity:0.7" onclick="event.stopPropagation();openEditGroupModal('${escHtml(gid)}','${escHtml(name)}','${escHtml(g.description||'')}','${escHtml(img||'')}')">&#9998;</button>` : ''}
           </div>
           <div class="conv-footer">
-            <span class="conv-last-msg">${members} membre(s)${g.description ? ' · ' + escHtml(g.description) : ''}</span>
+            <span class="conv-last-msg">${members} membre(s)${g.description ? ' \u00b7 ' + escHtml(g.description) : ''}</span>
+            <span class="conv-channel-pill pill-omnisms" style="font-size:0.6rem">GROUPE</span>
           </div>
         </div>
       </div>`;
@@ -1706,24 +1778,26 @@ function renderSettings() {
   const phone    = State.user?.phone    || '';
   const username = State.user?.username || '';
   const avatar   = State.user?.avatar   || null;
+  const isPremium= State.user?.isSubscribed || State.user?.premium || false;
 
   const el = document.getElementById('settings-content');
   if (!el) return;
 
   el.innerHTML = `
     <div class="settings-card">
-      <div class="settings-avatar-wrapper" onclick="document.getElementById('avatar-upload-input').click()">
+      <div class="settings-avatar-wrapper" onclick="document.getElementById('avatar-upload-input').click()" title="Changer la photo">
         ${avatar
           ? `<img src="${escHtml(avatar)}" class="settings-avatar-img" alt="Photo de profil">`
           : `<div class="settings-avatar">${getInitials(name || email)}</div>`
         }
-        <div class="settings-avatar-overlay">📷</div>
+        <div class="settings-avatar-overlay">\uD83D\uDCF7</div>
       </div>
       <input id="avatar-upload-input" type="file" accept="image/*" style="display:none"
              onchange="uploadAvatar(this.files[0])">
       <h3>${escHtml(name || email)}</h3>
       ${username ? `<p class="text-muted">@${escHtml(username)}</p>` : ''}
-      ${phone ? `<p class="text-muted">${escHtml(phone)}</p>` : '<p class="text-muted" style="color:var(--accent)">⚠️ Téléphone non renseigné</p>'}
+      ${phone ? `<p class="text-muted">${escHtml(phone)}</p>` : '<p style="color:var(--warning);font-size:0.8rem">\u26a0\ufe0f T\u00e9l\u00e9phone non renseign\u00e9</p>'}
+      ${isPremium ? `<span style="display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,rgba(0,200,255,0.15),rgba(0,87,255,0.2));border:1px solid var(--accent-soft);border-radius:var(--radius-full);padding:4px 14px;font-size:0.78rem;font-weight:700;color:var(--accent);margin-top:4px">\uD83D\uDC8E Premium actif</span>` : ''}
     </div>
 
     <div class="settings-section">
@@ -1737,7 +1811,7 @@ function renderSettings() {
         <input id="settings-username" type="text" class="form-input" value="${escHtml(username)}" placeholder="@monpseudo">
       </div>
       <div class="form-group">
-        <label class="form-label">Téléphone <span style="color:var(--accent)">*</span></label>
+        <label class="form-label">T\u00e9l\u00e9phone <span style="color:var(--accent)">*</span></label>
         <input id="settings-phone" type="tel" class="form-input" value="${escHtml(phone)}" placeholder="+22670123456">
       </div>
       <div class="form-group">
@@ -1745,21 +1819,21 @@ function renderSettings() {
         <input id="settings-email" type="email" class="form-input" value="${escHtml(email)}" placeholder="votre@email.com">
       </div>
       <div class="form-group">
-        <label class="form-label">Nouveau mot de passe (laisser vide pour ne pas changer)</label>
-        <input id="settings-password" type="password" class="form-input" placeholder="••••••••" minlength="8">
+        <label class="form-label">Nouveau mot de passe</label>
+        <input id="settings-password" type="password" class="form-input" placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022 (laisser vide pour ne pas changer)" minlength="8">
       </div>
       <button class="btn-primary" style="width:100%;margin-top:12px" onclick="saveProfile()">
-        ✅ Mettre à jour
+        \u2705 Mettre \u00e0 jour
       </button>
     </div>
 
     <div class="settings-section">
       <h4>Abonnement</h4>
       <div class="subscribe-banner" onclick="handleSubscription()" id="subscribe-banner">
-        <div class="subscribe-banner-icon">💎</div>
+        <div class="subscribe-banner-icon">\uD83D\uDC8E</div>
         <div class="subscribe-banner-text">
-          <div class="subscribe-banner-title">Passer à Premium</div>
-          <div class="subscribe-banner-sub">SMS illimités, vocaux, transcriptions</div>
+          <div class="subscribe-banner-title">Passer \u00e0 Premium</div>
+          <div class="subscribe-banner-sub">SMS illimit\u00e9s, vocaux, transcriptions</div>
         </div>
         <button class="btn-subscribe" onclick="event.stopPropagation();handleSubscription()">S'abonner</button>
       </div>
@@ -1767,18 +1841,18 @@ function renderSettings() {
 
     <div class="settings-section">
       <h4>Compte</h4>
-      <button class="btn-primary" style="width:100%;margin-bottom:10px;background:transparent;border:1px solid var(--border);color:var(--text-primary)" onclick="logout()">
-        🚪 Se déconnecter
+      <button class="btn-ghost" style="width:100%;margin-bottom:10px;justify-content:flex-start;gap:10px" onclick="logout()">
+        \uD83D\uDEAA Se d\u00e9connecter
       </button>
-      <button class="btn-primary" style="width:100%;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#ef4444" onclick="deleteAccount()">
-        🗑️ Supprimer mon compte
+      <button class="btn-ghost" style="width:100%;color:var(--error);border-color:rgba(255,69,101,0.3);justify-content:flex-start;gap:10px" onclick="deleteAccount()">
+        \uD83D\uDDD1\uFE0F Supprimer mon compte
       </button>
     </div>
     <div class="settings-section">
       <h4>Application</h4>
       <div class="settings-row">
-        <span>📱 Version</span>
-        <span class="text-muted">4.3.0</span>
+        <span>&#x1F4F1; Version</span>
+        <span class="text-muted">5.0.0</span>
       </div>
     </div>`;
 
