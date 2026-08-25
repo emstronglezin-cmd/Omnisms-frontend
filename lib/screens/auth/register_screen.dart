@@ -209,7 +209,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           validator: (v) {
                             if (v == null || v.isEmpty) return 'Email requis';
-                            if (!v.contains('@') || !v.contains('.')) return 'Email invalide';
+                            final emailRegex = RegExp(
+                                r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+                            if (!emailRegex.hasMatch(v.trim())) {
+                              return 'Email invalide';
+                            }
                             return null;
                           },
                         ),
@@ -228,6 +232,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return null;
+                            final phoneRegex = RegExp(r'^\+?[0-9\s\-().]{7,20}$');
+                            if (!phoneRegex.hasMatch(v.trim())) {
+                              return 'Numéro invalide (ex: +22670000000)';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 14),
 
@@ -252,7 +264,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           validator: (v) {
                             if (v == null || v.isEmpty) return 'Mot de passe requis';
-                            if (v.length < 6) return 'Au moins 6 caractères';
+                            if (v.length < 8) return 'Au moins 8 caractères (requis par le serveur)';
                             return null;
                           },
                         ),

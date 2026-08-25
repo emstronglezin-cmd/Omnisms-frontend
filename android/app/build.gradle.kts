@@ -37,16 +37,38 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("../../omnisms-keystore.jks")
-            storePassword = "***SUPPRIME***"
-            keyAlias = "***SUPPRIME***"
-            keyPassword = "***SUPPRIME***"
+            // SÉCURITÉ : les secrets de signature ne doivent JAMAIS être hardcodés.
+            // Ils sont lus depuis android/key.properties (hors dépôt) ou des
+            // variables d'environnement CI. Voir README sécurité.
+            val keystoreProperties = java.util.Properties()
+            val keystorePropertiesFile = rootProject.file("key.properties")
+            if (keystorePropertiesFile.exists()) {
+                keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+            }
+            val storeFilePath = keystoreProperties.getProperty("storeFile")
+                ?: System.getenv("OMNISMS_KEYSTORE_PATH")
+            val storePasswordEnv = keystoreProperties.getProperty("storePassword")
+                ?: System.getenv("OMNISMS_STORE_PASSWORD")
+            val keyAliasEnv = keystoreProperties.getProperty("keyAlias")
+                ?: System.getenv("OMNISMS_KEY_ALIAS")
+            val keyPasswordEnv = keystoreProperties.getProperty("keyPassword")
+                ?: System.getenv("OMNISMS_KEY_PASSWORD")
+
+            storeFile = storeFilePath?.let { file(it) }
+            storePassword = storePasswordEnv
+            keyAlias = keyAliasEnv
+            keyPassword = keyPasswordEnv
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            // Signer seulement si la config keystore est disponible (sinon debug)
+            signingConfig = if (signingConfigs.getByName("release").storeFile != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = false
             isShrinkResources = false
         }

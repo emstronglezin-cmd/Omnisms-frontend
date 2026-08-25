@@ -47,3 +47,7 @@ app.*.map.json
 # Vercel local
 .env.local
 .vercel/
+
+# SÉCURITÉ : keystore release jamais commité (déjà exposé dans l'historique — à régénérer)
+omnisms-keystore.jks
+*.jks

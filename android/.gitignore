@@ -13,5 +13,8 @@ key.properties
 **/*.keystore
 **/*.jks
 
-# project is private; commit our release keystore
-!omnisms-keystore.jks
+# SÉCURITÉ : le keystore release ne doit JAMAIS être commité.
+# Stocker omnisms-keystore.jks hors du dépôt (coffre-fort / secrets CI).
+# NB : le fichier déjà tracké doit aussi être retiré de l'index :
+#   git rm --cached android/omnisms-keystore.jks omnisms-keystore.jks
+omnisms-keystore.jks
