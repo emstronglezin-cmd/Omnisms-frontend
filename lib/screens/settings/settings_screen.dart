@@ -195,8 +195,7 @@ class SettingsScreen extends StatelessWidget {
                 children: [
                   const Text('Messagerie sécurisée et moderne'),
                   const SizedBox(height: 16),
-                  const Text('Backend: http://51.15.89.72:5000'),
-                  const SizedBox(height: 8),
+                  // SÉCURITÉ : ne pas afficher l'URL/IP du backend dans l'UI
                   const Text('🔥 Crashlytics: Activé'),
                 ],
               );

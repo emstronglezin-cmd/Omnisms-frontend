@@ -6,6 +6,29 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+
+  <!-- SÉCURITÉ : Content-Security-Policy — limite l'impact d'un XSS
+       (le token JWT est stocké dans localStorage côté web).
+       NB : une CSP complète doit aussi être posée en en-tête HTTP
+       (vercel.json / firebase.json). -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' blob:;
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: blob: https:;
+    media-src 'self' blob: https://omnisms-backend.onrender.com;
+    font-src 'self' data: https://fonts.gstatic.com;
+    connect-src 'self'
+      https://omnisms-backend.onrender.com
+      wss://omnisms-backend.onrender.com
+      https://*.googleapis.com
+      https://apis.google.com
+      https://firebaseinstallations.googleapis.com
+      https://firebasestorage.googleapis.com;
+    base-uri 'self';
+    form-action 'self';
+    object-src 'none';
+  ">
   <meta name="description" content="OmniSMS - Application de messagerie SMS sécurisée et moderne avec gestion de contacts et groupes">
   <meta name="keywords" content="SMS, messagerie, contacts, groupes, OmniSMS">
   <meta name="author" content="OmniSMS Team">

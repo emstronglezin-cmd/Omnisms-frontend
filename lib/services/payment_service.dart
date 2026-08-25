@@ -27,21 +27,29 @@ class PaymentService {
     try {
       final token = await _authService.getToken();
 
+      // SÉCURITÉ : le montant/currency sont désormais fixés côté serveur
+      // (2000 XOF) — on ne les envoie plus pour éviter toute manipulation.
       final body = <String, dynamic>{
         'userId': userId,
-        'amount': amount,
-        'currency': currency,
       };
       if (phone != null && phone.isNotEmpty) body['phone'] = phone;
       if (email != null && email.isNotEmpty) body['email'] = email;
       if (name != null && name.isNotEmpty) body['name'] = name;
 
+      // Le backend exige désormais le token Bearer sur /api/payment/leekpay
+      if (token == null || token.isEmpty) {
+        return {
+          'success': false,
+          'error': 'Session expirée. Reconnectez-vous.',
+        };
+      }
+
       final headers = <String, String>{
         ...ApiConfig.headers,
-        if (token != null) 'Authorization': 'Bearer $token',
+        'Authorization': 'Bearer $token',
       };
 
-      debugPrint('[Payment] POST /api/payment/leekpay userId=$userId');
+      debugPrint('[Payment] POST /api/payment/leekpay');
 
       final response = await http
           .post(
@@ -51,7 +59,8 @@ class PaymentService {
           )
           .timeout(ApiConfig.wakeupTimeout);
 
-      debugPrint('[Payment] Response ${response.statusCode}: ${response.body}');
+      // SÉCURITÉ : ne plus logger le corps complet de la réponse
+      debugPrint('[Payment] Response status: ${response.statusCode}');
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
 
