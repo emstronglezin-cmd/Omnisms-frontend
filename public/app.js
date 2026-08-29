@@ -2189,6 +2189,72 @@ function showToast(msg, duration = 3000) {
   t._timer = setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.style.display = 'none', 300); }, duration);
 }
 
+// ─── INSTALL / DISTRIBUTION ───────────────────────────────────────────────────
+// URL de l'APK Android — laisser vide jusqu'à ce que l'APK soit disponible
+const ANDROID_APK_URL = '';
+
+function openInstallModal() {
+  showInstallView('main');
+  openModal('modal-install');
+}
+
+function showInstallView(view) {
+  const views = ['main', 'ios', 'android'];
+  views.forEach(v => {
+    const el = document.getElementById('install-view-' + v);
+    if (el) el.style.display = v === view ? 'block' : 'none';
+  });
+
+  if (view === 'android') {
+    _renderAndroidInstallContent();
+  }
+}
+
+function _renderAndroidInstallContent() {
+  const el = document.getElementById('android-install-content');
+  if (!el) return;
+
+  if (ANDROID_APK_URL && ANDROID_APK_URL.trim() !== '') {
+    // APK disponible → bouton de téléchargement
+    el.innerHTML = `
+      <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:16px">
+        L'application Android OmniSMS est prête au téléchargement.
+      </p>
+      <div style="background:rgba(255,176,32,0.08);border:1px solid rgba(255,176,32,0.2);border-radius:var(--radius-sm);padding:12px 14px;font-size:0.78rem;color:var(--warning);margin-bottom:16px">
+        ⚠️ Vous devrez peut-être <strong>autoriser l'installation depuis des sources inconnues</strong>
+        dans les paramètres Android (Paramètres → Sécurité → Sources inconnues).
+      </div>
+      <a href="${escHtml(ANDROID_APK_URL)}" download
+         class="btn-primary"
+         style="display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none"
+         onclick="closeModal('modal-install')">
+        🤖 Télécharger l'APK Android
+      </a>
+    `;
+  } else {
+    // APK pas encore disponible
+    el.innerHTML = `
+      <div style="text-align:center;padding:24px 8px">
+        <div style="font-size:3rem;margin-bottom:16px">🚧</div>
+        <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:8px">
+          Application Android bientôt disponible
+        </h3>
+        <p style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;margin-bottom:16px">
+          L'application Android OmniSMS est en cours de préparation.<br>
+          En attendant, vous pouvez utiliser OmniSMS via votre navigateur.
+        </p>
+        <div class="coming-soon-badge">
+          ⏳ Disponible prochainement
+        </div>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:20px">
+          Sur Android Chrome, vous pouvez aussi ajouter OmniSMS à l'écran d'accueil :<br>
+          Menu ⋮ → <strong>Ajouter à l'écran d'accueil</strong>
+        </p>
+      </div>
+    `;
+  }
+}
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {

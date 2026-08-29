@@ -123,6 +123,9 @@
   <header class="topbar">
     <span class="topbar-brand">OmniSMS</span>
     <div class="topbar-actions">
+      <button class="install-btn" id="topbar-install-btn" onclick="openInstallModal()" title="Installer l'application" aria-label="Installer OmniSMS">
+        ⬇️ Installer
+      </button>
       <button class="icon-btn" id="topbar-search-btn" title="Rechercher" style="display:none">🔍</button>
       <button id="user-avatar" class="avatar-btn" onclick="switchTab('settings')" title="Profil">?</button>
     </div>
@@ -379,6 +382,104 @@
     </div>
     <div class="modal-body" id="modal-payment-body">
       <!-- Populated by JS when payment initiated -->
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     INSTALL MODAL
+     ═══════════════════════════════════════════════════════════ -->
+<div id="modal-install" class="modal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span class="modal-title">📲 Installer OmniSMS</span>
+      <button class="modal-close-btn" onclick="closeModal('modal-install')">✕</button>
+    </div>
+    <div id="install-modal-body" class="install-modal-content">
+      <!-- Vue principale : choix de plateforme -->
+      <div id="install-view-main">
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:4px">
+          Installez OmniSMS sur votre appareil pour une expérience native.
+        </p>
+        <button class="install-choice-btn" onclick="showInstallView('ios')">
+          <div class="install-choice-icon"></div>
+          <div class="install-choice-info">
+            <span class="install-choice-title">iPhone / iPad</span>
+            <span class="install-choice-sub">Ajouter à l'écran d'accueil via Safari</span>
+          </div>
+          <span style="color:var(--text-muted);font-size:1.2rem">›</span>
+        </button>
+        <button class="install-choice-btn" onclick="showInstallView('android')">
+          <div class="install-choice-icon">🤖</div>
+          <div class="install-choice-info">
+            <span class="install-choice-title">Android</span>
+            <span class="install-choice-sub">Télécharger l'application Android (APK)</span>
+          </div>
+          <span style="color:var(--text-muted);font-size:1.2rem">›</span>
+        </button>
+      </div>
+
+      <!-- Vue iOS : instructions étape par étape -->
+      <div id="install-view-ios" style="display:none">
+        <button class="btn-ghost" onclick="showInstallView('main')" style="margin-bottom:16px;padding:8px 14px;font-size:0.8rem">
+          ← Retour
+        </button>
+        <div class="safari-tip">
+          ⚠️ Ces instructions nécessitent le navigateur <strong>Safari</strong> sur iPhone/iPad.
+        </div>
+        <div class="install-guide" style="margin-top:16px">
+          <div class="install-guide-step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <span class="step-title">Ouvrir dans Safari</span>
+              <span class="step-desc">Ouvre OmniSMS dans Safari (pas Chrome ni Firefox).<br>URL : <strong style="color:var(--accent)">omnisms.vercel.app</strong></span>
+            </div>
+            <span class="step-icon">🌐</span>
+          </div>
+          <div class="install-guide-step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <span class="step-title">Appuyer sur Partager</span>
+              <span class="step-desc">Appuie sur l'icône <strong>Partager</strong> en bas de Safari (carré avec flèche vers le haut).</span>
+            </div>
+            <span class="step-icon">⬆️</span>
+          </div>
+          <div class="install-guide-step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <span class="step-title">Faire défiler les options</span>
+              <span class="step-desc">Fais défiler la liste d'options vers le bas jusqu'à voir <strong>« Sur l'écran d'accueil »</strong>.</span>
+            </div>
+            <span class="step-icon">📋</span>
+          </div>
+          <div class="install-guide-step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <span class="step-title">Appuyer sur « Sur l'écran d'accueil »</span>
+              <span class="step-desc">Appuie sur cette option, puis confirme le nom <strong>OmniSMS</strong>.</span>
+            </div>
+            <span class="step-icon">📱</span>
+          </div>
+          <div class="install-guide-step">
+            <div class="step-number">5</div>
+            <div class="step-content">
+              <span class="step-title">Appuyer sur « Ajouter »</span>
+              <span class="step-desc">Confirme en appuyant sur <strong>Ajouter</strong> en haut à droite. OmniSMS apparaît sur ton écran d'accueil ! 🎉</span>
+            </div>
+            <span class="step-icon">✅</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vue Android : APK ou "coming soon" -->
+      <div id="install-view-android" style="display:none">
+        <button class="btn-ghost" onclick="showInstallView('main')" style="margin-bottom:16px;padding:8px 14px;font-size:0.8rem">
+          ← Retour
+        </button>
+        <div id="android-install-content">
+          <!-- Contenu injecté par JS selon ANDROID_APK_URL -->
+        </div>
+      </div>
     </div>
   </div>
 </div>
