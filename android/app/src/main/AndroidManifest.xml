@@ -43,6 +43,14 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- ─── Start.io SDK Configuration ────────────────────────────────
+             Remplacer YOUR_START_IO_APP_ID par l'App ID de votre dashboard Start.io
+             https://portal.start.io/
+             ─────────────────────────────────────────────────────────────── -->
+        <meta-data
+            android:name="com.startapp.sdk.APPLICATION_ID"
+            android:value="YOUR_START_IO_APP_ID" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

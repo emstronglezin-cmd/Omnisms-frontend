@@ -1,6 +1,8 @@
 /* ============================================================
-   OMNISMS — PREMIUM UI v5.0
-   Mobile-first · Dark · Futuristic · WhatsApp/X-inspired
+   OMNISMS — PREMIUM UI v5.1  (Liquid Glass Edition)
+   Mobile-first · Dark · Futuristic · iOS 26-inspired
+   backdrop-filter blur layers, translucent surfaces, subtle
+   reflets — preserving all brand colors & readability
    ============================================================ */
 
 /* ── RESET & BASE ─────────────────────────────────────────── */
@@ -81,6 +83,35 @@ body {
   /* Safe area */
   --safe-top:    env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left, 0px);
+  --safe-right:  env(safe-area-inset-right, 0px);
+
+  /* ── LIQUID GLASS tokens ───────────────────────────────── */
+  /* Glass surfaces */
+  --glass-bg:          rgba(14, 17, 24, 0.72);
+  --glass-bg-light:    rgba(20, 23, 32, 0.60);
+  --glass-bg-strong:   rgba(8,  9,  15, 0.85);
+  --glass-blur:        blur(20px);
+  --glass-blur-sm:     blur(12px);
+  --glass-blur-lg:     blur(32px);
+
+  /* Glass borders (reflet top) */
+  --glass-border:      rgba(255, 255, 255, 0.09);
+  --glass-border-accent: rgba(0, 200, 255, 0.18);
+
+  /* Reflet highlight */
+  --glass-reflet:      linear-gradient(
+    160deg,
+    rgba(255,255,255,0.055) 0%,
+    rgba(255,255,255,0.01)  50%,
+    transparent 100%
+  );
+  --glass-reflet-accent: linear-gradient(
+    160deg,
+    rgba(0,200,255,0.12)  0%,
+    rgba(0,87,255,0.05)   50%,
+    transparent 100%
+  );
 }
 
 /* ── SCROLLBAR ───────────────────────────────────────────── */
@@ -211,14 +242,30 @@ a:hover { text-decoration: underline; }
 .auth-card {
   width: 100%;
   max-width: 400px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  /* Liquid Glass auth card */
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
   padding: 36px 28px;
   position: relative;
   z-index: 1;
-  box-shadow: var(--shadow-lg);
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 1px 0 rgba(255,255,255,0.07),
+    0 0 60px rgba(0,200,255,0.05);
   animation: cardIn 0.4s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* Auth card inner reflet */
+.auth-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-xl);
+  background: var(--glass-reflet-accent);
+  pointer-events: none;
 }
 
 @keyframes cardIn {
@@ -422,18 +469,36 @@ a:hover { text-decoration: underline; }
 }
 #screen-dashboard.active { display: flex; }
 
-/* ── TOP BAR ─────────────────────────────────────────────── */
+/* ── TOP BAR — Liquid Glass ──────────────────────────────── */
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
   padding-top: calc(12px + var(--safe-top));
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
+  /* Liquid Glass */
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  /* Subtle top-reflet */
+  box-shadow:
+    inset 0 1px 0 var(--glass-border),
+    0 2px 20px rgba(0,0,0,0.3);
   min-height: 60px;
   flex-shrink: 0;
   z-index: 10;
+  position: relative;
+}
+
+/* Topbar inner reflet highlight */
+.topbar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--glass-reflet);
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 .topbar-brand {
@@ -521,16 +586,32 @@ a:hover { text-decoration: underline; }
 
 .tab-pane.active { display: flex; }
 
-/* ── BOTTOM NAV ──────────────────────────────────────────── */
+/* ── BOTTOM NAV — Liquid Glass ───────────────────────────── */
 .bottom-nav {
   display: flex;
   align-items: stretch;
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border);
+  /* Liquid Glass */
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-top: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 var(--glass-border),
+    0 -2px 20px rgba(0,0,0,0.25);
   padding-bottom: var(--safe-bottom);
   flex-shrink: 0;
   position: relative;
   z-index: 10;
+}
+
+/* Bottom nav top-reflet */
+.bottom-nav::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%);
+  pointer-events: none;
 }
 
 .nav-btn {
@@ -1140,18 +1221,33 @@ a:hover { text-decoration: underline; }
 }
 #screen-conversation.active { display: flex; }
 
-/* ── CONV APP BAR ────────────────────────────────────────── */
+/* ── CONV APP BAR — Liquid Glass ─────────────────────────── */
 .conv-appbar {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
   padding-top: calc(10px + var(--safe-top));
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
+  /* Liquid Glass */
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 var(--glass-border),
+    0 2px 16px rgba(0,0,0,0.28);
   flex-shrink: 0;
   min-height: 60px;
   z-index: 10;
+  position: relative;
+}
+
+.conv-appbar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--glass-reflet);
+  pointer-events: none;
 }
 
 .conv-back-btn {
@@ -1306,12 +1402,15 @@ a:hover { text-decoration: underline; }
   to   { opacity: 1; transform: scale(1)    translateY(0); }
 }
 
-/* Received */
+/* Received — subtle Liquid Glass */
 .msg-them .msg-bubble {
-  background: var(--bg-card2);
+  background: rgba(26, 30, 46, 0.82);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
   color: var(--text-primary);
   border-bottom-left-radius: 4px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.045);
 }
 
 /* Sent */
@@ -1489,14 +1588,19 @@ a:hover { text-decoration: underline; }
 
 .transcription-btn:hover { opacity: 1; }
 
-/* ── INPUT BAR ───────────────────────────────────────────── */
+/* ── INPUT BAR — Liquid Glass ────────────────────────────── */
 .conv-input-bar {
   display: flex;
   align-items: flex-end;
   gap: 8px;
   padding: 10px 12px;
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border);
+  padding-bottom: calc(10px + var(--safe-bottom));
+  /* Liquid Glass */
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border-top: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-border);
   flex-shrink: 0;
 }
 
@@ -1595,19 +1699,23 @@ a:hover { text-decoration: underline; }
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.62);
   z-index: 1000;
   align-items: flex-end;
   justify-content: center;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  /* Enhanced backdrop blur for modal overlay */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .modal.active { display: flex; }
 
-/* Bottom sheet */
+/* Bottom sheet — Liquid Glass */
 .modal-sheet {
-  background: var(--bg-card);
+  /* Glass surface */
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   width: 100%;
   max-width: 520px;
@@ -1617,8 +1725,23 @@ a:hover { text-decoration: underline; }
   -webkit-overflow-scrolling: touch;
   padding: 0 0 calc(24px + var(--safe-bottom));
   animation: sheetUp var(--t-normal) cubic-bezier(.32,1,.68,1);
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-bottom: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.07),
+    0 -8px 48px rgba(0,0,0,0.55);
+  position: relative;
+}
+
+/* Modal sheet top reflet */
+.modal-sheet::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 60%;
+  background: var(--glass-reflet);
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 @keyframes sheetUp {
@@ -1677,17 +1800,17 @@ a:hover { text-decoration: underline; }
   color: var(--text-primary);
 }
 
-/* Payment modal */
+/* Payment modal — enhanced blur */
 #modal-payment {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.75);
+  background: rgba(0,0,0,0.78);
   z-index: 1001;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: var(--glass-blur-lg);
+  -webkit-backdrop-filter: var(--glass-blur-lg);
   padding: 20px;
 }
 
@@ -1863,7 +1986,10 @@ a:hover { text-decoration: underline; }
   bottom: calc(80px + var(--safe-bottom));
   left: 50%;
   transform: translateX(-50%);
-  background: var(--bg-card);
+  /* Liquid Glass toast */
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   color: var(--text-primary);
   padding: 10px 18px;
   border-radius: var(--radius-full);
@@ -1874,8 +2000,10 @@ a:hover { text-decoration: underline; }
   overflow: hidden;
   text-overflow: ellipsis;
   z-index: 9999;
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--border);
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 1px 0 rgba(255,255,255,0.07);
+  border: 1px solid var(--glass-border);
   opacity: 0;
   transition: opacity 0.25s ease;
   pointer-events: none;
@@ -1977,4 +2105,321 @@ input:-webkit-autofill:focus {
 }
 
 .anim-fade-in { animation: fadeIn var(--t-normal) ease both; }
+
+/* ═══════════════════════════════════════════════════════════
+   LIQUID GLASS — FALLBACK (no backdrop-filter support)
+   Appareils anciens ou navigateurs non-compatibles
+   ═══════════════════════════════════════════════════════════ */
+@supports not (backdrop-filter: blur(1px)) {
+  .topbar,
+  .bottom-nav,
+  .conv-appbar,
+  .conv-input-bar {
+    background: var(--bg-secondary);
+  }
+
+  .modal-sheet {
+    background: #12151f;
+  }
+
+  .auth-card {
+    background: var(--bg-card);
+  }
+
+  #toast {
+    background: var(--bg-card);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DISTRIBUTE / INSTALL BUTTON
+   Bouton d'installation dans la topbar
+   ═══════════════════════════════════════════════════════════ */
+.install-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  /* Liquid Glass pill */
+  background: rgba(0, 200, 255, 0.10);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid rgba(0, 200, 255, 0.25);
+  border-radius: var(--radius-full);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+.install-btn:hover {
+  background: rgba(0, 200, 255, 0.18);
+  box-shadow: 0 0 14px rgba(0,200,255,0.2);
+  transform: scale(1.03);
+}
+
+.install-btn:active {
+  transform: scale(0.97);
+}
+
+/* ── INSTALL MODAL (extends .modal-sheet) ─────────────────── */
+.install-modal-content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.install-choice-btn {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  /* Liquid Glass card */
+  background: rgba(20, 23, 32, 0.70);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast);
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.045);
+}
+
+.install-choice-btn:hover {
+  background: rgba(0,200,255,0.07);
+  border-color: rgba(0,200,255,0.2);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.07),
+    0 4px 20px rgba(0,0,0,0.25);
+}
+
+.install-choice-btn:active {
+  transform: translateY(0);
+}
+
+.install-choice-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+
+.install-choice-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.install-choice-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: block;
+}
+
+.install-choice-sub {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 3px;
+  display: block;
+}
+
+/* ── iOS INSTALL GUIDE ───────────────────────────────────── */
+.install-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.install-guide-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.install-guide-step:last-child {
+  border-bottom: none;
+}
+
+.step-number {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-gradient);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0,200,255,0.25);
+}
+
+.step-content {
+  flex: 1;
+}
+
+.step-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: block;
+}
+
+.step-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  display: block;
+  line-height: 1.5;
+}
+
+.step-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+/* Safari tip badge */
+.safari-tip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(255,176,32,0.08);
+  border: 1px solid rgba(255,176,32,0.2);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  color: var(--warning);
+}
+
+/* Android coming soon */
+.coming-soon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(0,200,255,0.07);
+  border: 1px dashed rgba(0,200,255,0.25);
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 12px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE KEYBOARD FIX — Phase 2
+   Empêche le clavier de cacher l'input bar
+   ═══════════════════════════════════════════════════════════ */
+
+/* dvh = Dynamic Viewport Height — se met à jour quand le clavier apparaît */
+.screen {
+  height: 100dvh;
+  height: 100vh; /* fallback */
+}
+
+#screen-conversation {
+  /* Conversation utilise dvh pour s'adapter au clavier */
+  height: 100dvh;
+  height: 100vh;
+}
+
+/* Input bar reste visible quand le clavier est ouvert */
+@supports (height: 100dvh) {
+  #screen-conversation {
+    height: 100dvh;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SAFE AREA VERIFICATION — Phase 2
+   Tous les éléments importants respectent les safe areas
+   ═══════════════════════════════════════════════════════════ */
+
+/* Screen padding left/right pour Dynamic Island horizontal */
+#screen-dashboard,
+#screen-conversation {
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* Splash screen */
+#screen-splash {
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+}
+
+/* Auth screens */
+#screen-login, #screen-register {
+  padding-top: calc(20px + var(--safe-top));
+  padding-bottom: calc(20px + var(--safe-bottom));
+}
+
+/* Minimum touch targets — 44×44px pour iOS HIG */
+.nav-btn {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.conv-back-btn,
+.icon-btn,
+.avatar-btn,
+.tab-action-btn,
+.modal-close-btn,
+.send-btn,
+.install-btn {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ─── micro interactions : active state tap feel ─── */
+.conv-item:active,
+.contact-item:active,
+.group-item:active,
+.install-choice-btn:active {
+  background: var(--bg-active) !important;
+  transform: scale(0.99);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LIQUID GLASS — REDUCED MOTION SUPPORT
+   Respect de prefers-reduced-motion
+   ═══════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .msg-bubble {
+    animation: none;
+  }
+
+  .topbar::after,
+  .bottom-nav::before,
+  .conv-appbar::after,
+  .modal-sheet::after,
+  .auth-card::before {
+    display: none;
+  }
+}
 .anim-slide-up { animation: slideUp var(--t-normal) ease both; }
