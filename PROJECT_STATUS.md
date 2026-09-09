@@ -73,10 +73,20 @@
 - [x] **Phase 6** — Bouton Installation/Distribution
   - `topbar-install-btn` dans la topbar (pill Liquid Glass)
   - Modal `modal-install` avec 3 vues
-  - Vue principale : choix iPhone / Android
+  - Vue principale : choix iPhone (🍎) / Android (🤖)
   - Vue iOS : 5 étapes illustrées + warning Safari obligatoire
   - Vue Android : APK download si `ANDROID_APK_URL` défini, sinon "coming soon"
   - Fonctions JS : `openInstallModal()`, `showInstallView()`, `_renderAndroidInstallContent()`
+
+- [x] **Phase 6b** — Améliorations bouton install (2026-09-09)
+  - Détection plateforme : `_detectPlatform()` → iPhone ouvre vue iOS directement
+  - `beforeinstallprompt` capturé → install PWA native Chrome/Android sans APK
+  - `appinstalled` écouté → toast de confirmation + nettoyage prompt
+  - `install-btn--ready` : animation glow pulse quand install native disponible
+  - `_renderAndroidInstallContent()` : 3 cas — PWA prompt / APK URL / "coming soon"
+  - iOS icon 🍎 ajouté dans la vue de choix principale
+  - `@media (prefers-reduced-motion)` : animation désactivée
+  - Tests : 11/11 PASS (A1-A4 Desktop, B1-B2 iOS, C1-C2 Android, D1 PWA prompt, E1 fermeture, F1 APK URL)
 
 - [x] **Phase 7** — Fichiers de contexte
   - `CONTEXT.md` créé (architecture, règles, config)
@@ -168,6 +178,14 @@
 | applicationId dev = com.example.omni_smsnew | 🟢 Low | Store listing | À renommer pour production |
 
 ---
+
+## 📁 Fichiers modifiés (session 2026-09-09)
+
+| Fichier | Changement |
+|---------|-----------|
+| `public/app.js` | Phase 6b : `_detectPlatform()`, `_pwaInstallPrompt` capture `beforeinstallprompt`, `openInstallModal()` plateforme-aware, `_renderAndroidInstallContent()` 3 cas |
+| `public/index.html` | Phase 6b : iOS icon 🍎 ajouté dans `install-choice-icon` |
+| `public/style.css` | Phase 6b : `.install-btn--ready` + `@keyframes installPulse` + `prefers-reduced-motion` |
 
 ## 📁 Fichiers modifiés (session 2026-08-29)
 

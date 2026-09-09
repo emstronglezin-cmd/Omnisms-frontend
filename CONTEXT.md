@@ -79,11 +79,18 @@ Les deux partagent le même backend et les mêmes données.
 `modal-add-contact`, `modal-create-group`, `modal-group-members`, `modal-edit-group`, `modal-payment`,
 `modal-install`, `topbar-install-btn`, `toast`
 
-### Bouton d'installation (Phase 6)
-- ID : `topbar-install-btn` dans la topbar
-- Handler : `openInstallModal()` → `showInstallView(view)`
+### Bouton d'installation (Phase 6 + Phase 6b)
+- ID : `topbar-install-btn` dans la topbar (classe `install-btn`, pill Liquid Glass)
+- Handler : `openInstallModal()` → détection plateforme → `showInstallView(view)`
 - Vues : `install-view-main`, `install-view-ios`, `install-view-android`
 - Config APK : constante `ANDROID_APK_URL` dans app.js (vide = "coming soon")
+- Détection plateforme : `_detectPlatform()` → `{ isIOS, isAndroid, isStandalone }`
+  - iPhone/iPad → vue iOS directement
+  - Android Chrome + prompt natif → `beforeinstallprompt` déclenché
+  - Autres → vue principale (choix)
+- `_pwaInstallPrompt` : capture `beforeinstallprompt`, déclenche l'install native Chrome
+- `install-btn--ready` : classe CSS ajoutée quand le prompt natif est disponible (glow pulse)
+- iOS icône : 🍎 dans la vue de choix principale
 
 ---
 

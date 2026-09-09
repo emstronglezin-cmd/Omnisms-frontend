@@ -2191,10 +2191,59 @@ function showToast(msg, duration = 3000) {
 
 // ─── INSTALL / DISTRIBUTION ───────────────────────────────────────────────────
 // URL de l'APK Android — laisser vide jusqu'à ce que l'APK soit disponible
+// Pour activer le téléchargement : renseigner l'URL publique du fichier .apk
+// Exemple : const ANDROID_APK_URL = 'https://example.com/omnisms.apk';
 const ANDROID_APK_URL = '';
 
+// Capture de l'événement Chrome/Android "beforeinstallprompt" (PWA native install)
+// Permet de déclencher la bannière native d'installation depuis le bouton OmniSMS
+let _pwaInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Empêche Chrome d'afficher la bannière automatiquement
+  e.preventDefault();
+  _pwaInstallPrompt = e;
+  // Rendre le bouton install encore plus visible quand l'install native est disponible
+  const btn = document.getElementById('topbar-install-btn');
+  if (btn) btn.classList.add('install-btn--ready');
+});
+
+// Écoute la confirmation d'installation (app installée avec succès)
+window.addEventListener('appinstalled', () => {
+  _pwaInstallPrompt = null;
+  const btn = document.getElementById('topbar-install-btn');
+  if (btn) btn.classList.remove('install-btn--ready');
+  showToast('OmniSMS installé avec succès ! 🎉');
+});
+
+// ─── Détection de la plateforme (lecture seule, ne bloque jamais l'utilisateur)
+function _detectPlatform() {
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  const isAndroid = /Android/.test(ua);
+  const isStandalone =
+    window.navigator.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches;
+  return { isIOS, isAndroid, isStandalone };
+}
+
 function openInstallModal() {
-  showInstallView('main');
+  const { isIOS, isAndroid } = _detectPlatform();
+
+  // Mettre en avant l'option pertinente selon la plateforme détectée
+  // Les deux options restent toujours accessibles
+  if (isIOS) {
+    // Sur iPhone/iPad → ouvrir directement les instructions iOS
+    showInstallView('ios');
+  } else if (isAndroid && _pwaInstallPrompt) {
+    // Sur Android Chrome avec prompt natif disponible → déclencher l'install native
+    _pwaInstallPrompt.prompt();
+    _pwaInstallPrompt.userChoice.then(() => { _pwaInstallPrompt = null; });
+    return;
+  } else {
+    // Sinon (desktop, Android sans prompt, etc.) → vue de choix principale
+    showInstallView('main');
+  }
+
   openModal('modal-install');
 }
 
@@ -2214,8 +2263,37 @@ function _renderAndroidInstallContent() {
   const el = document.getElementById('android-install-content');
   if (!el) return;
 
+  // Cas 1 : prompt natif PWA Chrome/Android disponible
+  if (_pwaInstallPrompt) {
+    el.innerHTML = `
+      <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:16px">
+        Installez OmniSMS directement sur votre appareil Android.
+      </p>
+      <button class="btn-primary"
+              style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%"
+              onclick="
+                _pwaInstallPrompt && _pwaInstallPrompt.prompt();
+                if(_pwaInstallPrompt) _pwaInstallPrompt.userChoice.then(()=>{_pwaInstallPrompt=null;});
+                closeModal('modal-install');
+              ">
+        🤖 Installer OmniSMS (PWA)
+      </button>
+      <p style="font-size:0.75rem;color:var(--text-muted);margin-top:16px;text-align:center">
+        Ou téléchargez l'APK si vous préférez une application native.
+      </p>
+      ${ANDROID_APK_URL ? `
+      <a href="${escHtml(ANDROID_APK_URL)}" download
+         class="btn-ghost"
+         style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;margin-top:8px"
+         onclick="closeModal('modal-install')">
+        📥 Télécharger l'APK
+      </a>` : ''}
+    `;
+    return;
+  }
+
   if (ANDROID_APK_URL && ANDROID_APK_URL.trim() !== '') {
-    // APK disponible → bouton de téléchargement
+    // Cas 2 : APK disponible → bouton de téléchargement direct
     el.innerHTML = `
       <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:16px">
         L'application Android OmniSMS est prête au téléchargement.
@@ -2232,7 +2310,7 @@ function _renderAndroidInstallContent() {
       </a>
     `;
   } else {
-    // APK pas encore disponible
+    // Cas 3 : APK pas encore disponible — "coming soon"
     el.innerHTML = `
       <div style="text-align:center;padding:24px 8px">
         <div style="font-size:3rem;margin-bottom:16px">🚧</div>
@@ -2247,7 +2325,7 @@ function _renderAndroidInstallContent() {
           ⏳ Disponible prochainement
         </div>
         <p style="font-size:0.75rem;color:var(--text-muted);margin-top:20px">
-          Sur Android Chrome, vous pouvez aussi ajouter OmniSMS à l'écran d'accueil :<br>
+          Sur Android Chrome, ajoutez OmniSMS à l'écran d'accueil :<br>
           Menu ⋮ → <strong>Ajouter à l'écran d'accueil</strong>
         </p>
       </div>
