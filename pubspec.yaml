@@ -26,6 +26,12 @@ dependencies:
   # Audio (web-compatible)
   just_audio: ^0.9.36
 
+  # Audio recording (mobile)
+  record: ^5.1.2
+
+  # Permission handling (Android runtime + iOS)
+  permission_handler: ^11.3.1
+
   # Performance & Cache
   cached_network_image: ^3.3.1
   flutter_cache_manager: ^3.3.1

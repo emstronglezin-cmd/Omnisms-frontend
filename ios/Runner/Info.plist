@@ -47,5 +47,7 @@
 	<true/>
 	<key>NSContactsUsageDescription</key>
 	<string>OmniSMS a besoin d'accéder à vos contacts pour vous permettre d'envoyer des messages à vos amis et trouver qui utilise OmniSMS.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>OmniSMS a besoin d'accéder à votre microphone pour enregistrer des messages vocaux.</string>
 </dict>
 </plist>

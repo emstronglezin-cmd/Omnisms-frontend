@@ -96,8 +96,24 @@ class MessagingProvider with ChangeNotifier {
         currentUserId: _currentUserId,
       );
       if (messages.isNotEmpty) {
-        _messagesMap[conversationId] = messages;
-        notifyListeners();
+        // Fusionner les messages plutôt que remplacer pour éviter les
+        // sauts de scroll : on ne remplace que si la liste est vide
+        // ou si on a de nouveaux messages (plus récents que le dernier connu).
+        final existing = _messagesMap[conversationId];
+        if (existing == null || existing.isEmpty) {
+          _messagesMap[conversationId] = messages;
+          notifyListeners();
+        } else {
+          // Fusionner : ajouter uniquement les messages absents de la liste locale
+          final existingIds = {for (final m in existing) m.id};
+          final newMessages = messages.where((m) => !existingIds.contains(m.id)).toList();
+          if (newMessages.isNotEmpty) {
+            // Ajouter les nouveaux messages et retrier
+            existing.addAll(newMessages);
+            existing.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+            notifyListeners();
+          }
+        }
       }
     } catch (_) {}
   }

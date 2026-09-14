@@ -58,6 +58,11 @@ class _ConversationScreenState extends State<ConversationScreen>
   bool _isContactOnline = true;
   DateTime? _lastSeen;
 
+  // Suivi pour le scroll automatique
+  // Ne scroll vers le bas qu'après le chargement initial et l'envoi de messages
+  bool _hasScrolledToBottom = false;
+  int _lastMessageCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -111,6 +116,7 @@ class _ConversationScreenState extends State<ConversationScreen>
       );
     }
 
+    // Forcer le scroll vers le bas après envoi
     _scrollToBottom();
   }
 
@@ -167,18 +173,24 @@ class _ConversationScreenState extends State<ConversationScreen>
   void _onRecordingCancel() => setState(() => _isRecording = false);
   void _startRecording() => setState(() => _isRecording = true);
 
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      });
-    }
+  /// Scroll vers le bas de la conversation.
+  /// N'est appelé que lors du chargement initial et de l'envoi/réception de messages.
+  void _scrollToBottom({bool animate = true}) {
+    if (!_scrollController.hasClients) return;
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted || !_scrollController.hasClients) return;
+      if (animate) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      } else {
+        _scrollController.jumpTo(
+          _scrollController.position.maxScrollExtent,
+        );
+      }
+    });
   }
 
   // ── Message options sheet ──────────────────────────────────
@@ -482,10 +494,30 @@ class _ConversationScreenState extends State<ConversationScreen>
                   );
                 }
 
-                // Auto-scroll when new messages arrive
-                WidgetsBinding.instance.addPostFrameCallback(
-                  (_) => _scrollToBottom(),
-                );
+                // Scroll automatique UNIQUEMENT :
+                // 1. Premier chargement de l'historique
+                // 2. Nouveau message reçu/envoyé (count augmenté)
+                // NE PAS scroller à chaque rebuild (évite de bloquer
+                // l'utilisateur qui remonte dans l'historique)
+                if (!_hasScrolledToBottom) {
+                  _hasScrolledToBottom = true;
+                  _lastMessageCount = messages.length;
+                  WidgetsBinding.instance.addPostFrameCallback(
+                    (_) => _scrollToBottom(animate: false),
+                  );
+                } else if (messages.length > _lastMessageCount) {
+                  // Nouveau(x) message(s) → scroller seulement si
+                  // l'utilisateur est déjà en bas (ou proche du bas)
+                  _lastMessageCount = messages.length;
+                  final atBottom = !_scrollController.hasClients ||
+                      _scrollController.position.pixels >=
+                          _scrollController.position.maxScrollExtent - 150;
+                  if (atBottom) {
+                    WidgetsBinding.instance.addPostFrameCallback(
+                      (_) => _scrollToBottom(),
+                    );
+                  }
+                }
 
                 return ListView.builder(
                   controller: _scrollController,
