@@ -3,11 +3,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- SÉCURITÉ : permissions retirées car les fonctionnalités sont des stubs.
-         Ré-ajouter au moment d'implémenter réellement la fonctionnalité :
-           android.permission.READ_CONTACTS / WRITE_CONTACTS  (sync carnet)
-           android.permission.RECORD_AUDIO                    (messages vocaux)
-    -->
+    <!-- Permission microphone pour les messages vocaux -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
         android:label="omni_smsnew"
