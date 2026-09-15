@@ -11,7 +11,7 @@ import '../services/auth_service.dart';
 ///   _conversations     → List<ConversationModel>  (sorted newest-first)
 ///   _messagesMap       → Map<conversationId, List<MessageModel>>
 ///
-/// Real-time: periodic polling every 15 seconds (Socket.IO pkg not installed).
+/// Real-time: periodic polling every 5 seconds (Socket.IO pkg not installed).
 /// On new message receipt: conversation bubbles to top, unread counter updated.
 class MessagingProvider with ChangeNotifier {
   final MessagingService _messagingService = MessagingService();
@@ -32,7 +32,7 @@ class MessagingProvider with ChangeNotifier {
 
   // ── Polling timer ───────────────────────────────────────────
   Timer? _pollingTimer;
-  static const Duration _pollingInterval = Duration(seconds: 15);
+  static const Duration _pollingInterval = Duration(seconds: 5);
 
   // ── Active conversation (for per-conv polling) ──────────────
   String? _activeConversationId;
@@ -340,6 +340,23 @@ class MessagingProvider with ChangeNotifier {
             messages[index].copyWith(transcription: transcription);
         notifyListeners();
       }
+    }
+  }
+
+  // ── Inject an inbound message directly (e.g. from push notification / Socket.IO) ─
+  /// Ajoute immédiatement un message entrant dans l'état local.
+  /// Utilisé pour afficher un message reçu sans attendre le prochain cycle de polling.
+  void injectInboundMessage(String conversationId, MessageModel message) {
+    if (!_messagesMap.containsKey(conversationId)) {
+      _messagesMap[conversationId] = [];
+    }
+    final existing = _messagesMap[conversationId]!;
+    final alreadyPresent = existing.any((m) => m.id == message.id);
+    if (!alreadyPresent) {
+      existing.add(message);
+      existing.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      _updateConversationLastMessage(conversationId, message);
+      notifyListeners();
     }
   }
 

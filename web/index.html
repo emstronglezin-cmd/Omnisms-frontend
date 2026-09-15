@@ -184,6 +184,102 @@
       background: #f0f0f0;
     }
 
+    /* ── Mobile browser interaction fixes ─────────────────────
+       Fixes: Safari zoom on tap, pointer-events blocking, touch-action issues
+       These only affect the pre-Flutter splash / install prompt layer.
+       The installed PWA is unaffected (Flutter handles its own rendering).
+    ─────────────────────────────────────────────────────────── */
+
+    /* Prevent Safari iOS double-tap zoom on buttons */
+    button, [role="button"] {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      cursor: pointer;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* Ensure install-prompt buttons are always tappable */
+    #install-prompt button {
+      -webkit-appearance: none;
+      appearance: none;
+      touch-action: manipulation;
+      pointer-events: auto;
+      min-height: 44px;   /* iOS HIG minimum tap target */
+      min-width: 44px;
+    }
+
+    /* Safari iOS: prevent overflow that can block touch events */
+    #install-prompt {
+      -webkit-overflow-scrolling: touch;
+      pointer-events: auto;
+    }
+
+    /* iOS instruction modal */
+    #ios-install-modal {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #1a2235;
+      color: #e8edf5;
+      padding: 24px 20px 40px;
+      border-radius: 20px 20px 0 0;
+      box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+      z-index: 10000;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      animation: slideUpModal 0.3s ease-out;
+    }
+
+    @keyframes slideUpModal {
+      from { transform: translateY(100%); }
+      to   { transform: translateY(0); }
+    }
+
+    #ios-install-modal h3 {
+      margin: 0 0 16px;
+      font-size: 18px;
+      font-weight: 700;
+      color: #00d4ff;
+    }
+
+    #ios-install-modal p {
+      margin: 8px 0;
+      font-size: 15px;
+      line-height: 1.5;
+      color: #c8d8e8;
+    }
+
+    #ios-install-modal .step {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 12px 0;
+      padding: 12px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 10px;
+    }
+
+    #ios-install-modal .step-icon {
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    #ios-close-btn {
+      margin-top: 20px;
+      width: 100%;
+      padding: 14px;
+      background: #00d4ff;
+      color: #080c14;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
     .offline-indicator {
       display: none;
       position: fixed;
@@ -253,46 +349,169 @@
       if (loading) loading.style.display = 'none';
     }, 8000);
 
-    // PWA install prompt
-    let deferredPrompt;
+    // ── PWA Install Logic ──────────────────────────────────────────
+    // Détecte la plateforme et adapte le comportement :
+    //   Chrome Android      → beforeinstallprompt → prompt natif
+    //   Android (autre)     → APK download (bouton "Installer" → télécharger APK)
+    //   Safari iOS          → instructions "Ajouter à l'écran d'accueil"
+    //   PWA déjà installée  → ne pas afficher le prompt
+    // ──────────────────────────────────────────────────────────────
+
+    // Détecter si déjà lancé en standalone (PWA installée)
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+
+    // Détecter iOS/Safari
+    const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent);
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    const isIOSSafari = isIOS;
+
+    // Détecter Android
+    const isAndroid = /android/i.test(navigator.userAgent);
+    const isChrome = /chrome/i.test(navigator.userAgent) && !/edge/i.test(navigator.userAgent);
+
+    // URL de l'APK Android (à remplacer par l'URL réelle après build)
+    const APK_DOWNLOAD_URL = 'https://omnisms-backend.onrender.com/api/download/app-release.apk';
+
+    let deferredPrompt = null;
     const installPrompt = document.getElementById('install-prompt');
     const installButton = document.getElementById('install-button');
     const dismissButton = document.getElementById('dismiss-button');
 
+    // Afficher le prompt (sauf si déjà installé en standalone)
+    function showInstallPrompt() {
+      if (!isStandalone) {
+        setTimeout(() => {
+          if (installPrompt) installPrompt.style.display = 'block';
+        }, 2500);
+      }
+    }
+
+    // ── Chrome Android : beforeinstallprompt (installation native)
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       deferredPrompt = e;
-      setTimeout(() => {
-        installPrompt.style.display = 'block';
-      }, 3000);
+      showInstallPrompt();
     });
 
-    installButton.addEventListener('click', async () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        console.log(`User response to the install prompt: ${outcome}`);
-        deferredPrompt = null;
-        installPrompt.style.display = 'none';
+    // ── Action du bouton "Installer"
+    if (installButton) {
+      installButton.addEventListener('click', async (ev) => {
+        // Empêcher zoom Safari sur double-tap
+        ev.preventDefault();
+        ev.stopPropagation();
+
+        if (isStandalone) {
+          // Déjà installé — ne rien faire
+          if (installPrompt) installPrompt.style.display = 'none';
+          return;
+        }
+
+        if (deferredPrompt) {
+          // Chrome Android : utiliser le prompt natif
+          deferredPrompt.prompt();
+          const { outcome } = await deferredPrompt.userChoice;
+          console.log('[OmniSMS] Install outcome:', outcome);
+          deferredPrompt = null;
+          if (installPrompt) installPrompt.style.display = 'none';
+
+        } else if (isIOSSafari) {
+          // Safari iOS : afficher les instructions add-to-homescreen
+          if (installPrompt) installPrompt.style.display = 'none';
+          showIOSInstructions();
+
+        } else if (isAndroid) {
+          // Android sans beforeinstallprompt (navigateur autre que Chrome)
+          // → Proposer le téléchargement de l'APK
+          if (installPrompt) installPrompt.style.display = 'none';
+          downloadAPK();
+
+        } else {
+          // Autre navigateur : tenter d'ouvrir le guide
+          if (installPrompt) installPrompt.style.display = 'none';
+          showGenericInstallGuide();
+        }
+      }, { passive: false });
+    }
+
+    // ── Bouton "Pas maintenant"
+    if (dismissButton) {
+      dismissButton.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        if (installPrompt) installPrompt.style.display = 'none';
+      }, { passive: false });
+    }
+
+    // ── Afficher les instructions iOS Safari ───────────────────
+    function showIOSInstructions() {
+      // Créer la modal si elle n'existe pas
+      if (!document.getElementById('ios-install-modal')) {
+        const modal = document.createElement('div');
+        modal.id = 'ios-install-modal';
+        modal.innerHTML = `
+          <h3>📱 Installer OmniSMS</h3>
+          <p>Pour ajouter OmniSMS sur votre écran d'accueil :</p>
+          <div class="step">
+            <span class="step-icon">1️⃣</span>
+            <span>Appuyez sur le bouton <strong>Partager</strong> <span style="font-size:18px">⬆️</span> en bas de Safari</span>
+          </div>
+          <div class="step">
+            <span class="step-icon">2️⃣</span>
+            <span>Faites défiler et appuyez sur <strong>"Sur l'écran d'accueil"</strong></span>
+          </div>
+          <div class="step">
+            <span class="step-icon">3️⃣</span>
+            <span>Appuyez sur <strong>"Ajouter"</strong> en haut à droite</span>
+          </div>
+          <button id="ios-close-btn" onclick="document.getElementById('ios-install-modal').style.display='none'">
+            Compris !
+          </button>
+        `;
+        document.body.appendChild(modal);
       }
-    });
+      document.getElementById('ios-install-modal').style.display = 'block';
+    }
 
-    dismissButton.addEventListener('click', () => {
-      installPrompt.style.display = 'none';
-    });
+    // ── Télécharger l'APK Android ──────────────────────────────
+    function downloadAPK() {
+      const a = document.createElement('a');
+      a.href = APK_DOWNLOAD_URL;
+      a.download = 'OmniSMS.apk';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      console.log('[OmniSMS] APK download triggered');
+    }
 
-    // Offline/online detection
+    // ── Guide générique (autres navigateurs) ──────────────────
+    function showGenericInstallGuide() {
+      alert('Pour installer OmniSMS :\n\nChrome Android : Menu (⋮) → "Ajouter à l\'écran d\'accueil"\niPhone Safari : Bouton Partager → "Sur l\'écran d\'accueil"');
+    }
+
+    // ── Déclencher l'affichage selon la plateforme ─────────────
+    if (!isStandalone) {
+      if (isIOSSafari) {
+        // iOS Safari : pas de beforeinstallprompt → montrer le bouton Installer
+        showInstallPrompt();
+      }
+      // Android Chrome : showInstallPrompt() est appelé dans beforeinstallprompt
+      // Android autre  : pas de prompt automatique, bouton visible à la demande
+    }
+
+    // ── Détection offline/online ───────────────────────────────
     const offlineIndicator = document.getElementById('offline-indicator');
 
     window.addEventListener('online', () => {
-      offlineIndicator.style.display = 'none';
+      if (offlineIndicator) offlineIndicator.style.display = 'none';
     });
 
     window.addEventListener('offline', () => {
-      offlineIndicator.style.display = 'block';
+      if (offlineIndicator) offlineIndicator.style.display = 'block';
     });
 
-    if (!navigator.onLine) {
+    if (!navigator.onLine && offlineIndicator) {
       offlineIndicator.style.display = 'block';
     }
   </script>
