@@ -5,16 +5,16 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import 'auth_service.dart';
 
-/// PaymentService — Connexion réelle au backend OmniSMS / LeekPay
+/// PaymentService — Connexion réelle au backend OmniSMS / SaaSPay
 ///
 /// Routes utilisées :
-///   POST /api/payment/leekpay            → crée un checkout, retourne checkout_url
+///   POST /api/payment/leekpay            → crée un checkout SaaSPay, retourne checkout_url
 ///   GET  /api/payment/user-status        → vérifie si l'user est Premium
 ///   GET  /api/payment/status/:id         → statut d'un paiement
 class PaymentService {
   final AuthService _authService = AuthService();
 
-  // ── Initier un paiement LeekPay ──────────────────────────────
+  // ── Initier un paiement SaaSPay ──────────────────────────────
   /// Retourne { success, checkoutUrl, checkoutId, orderId, error }
   Future<Map<String, dynamic>> initiateLeekPayPayment({
     required String userId,
@@ -49,7 +49,7 @@ class PaymentService {
         'Authorization': 'Bearer $token',
       };
 
-      debugPrint('[Payment] POST /api/payment/leekpay');
+      debugPrint('[Payment] POST /api/payment/leekpay (SaaSPay)');
 
       final response = await http
           .post(
@@ -88,12 +88,12 @@ class PaymentService {
           'error': data['error'] ?? 'Vous êtes déjà abonné Premium.',
         };
       } else if (response.statusCode == 503 &&
-          data['code'] == 'LEEKPAY_NOT_CONFIGURED') {
+          data['code'] == 'LEEKPAY_NOT_CONFIGURED' || data['code'] == 'SAASPAY_NOT_CONFIGURED') {
         return {
           'success': false,
           'error':
               'Le service de paiement n\'est pas encore configuré. Contactez l\'administrateur.',
-          'code': 'LEEKPAY_NOT_CONFIGURED',
+          'code': 'PAYMENT_NOT_CONFIGURED',
         };
       } else {
         return {
