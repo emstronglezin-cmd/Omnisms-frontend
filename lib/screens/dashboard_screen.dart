@@ -59,20 +59,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildMobileLayout() {
+    // CORRECTION safe-area (Session 9) :
+    // Sur Safari iPhone, la barre de navigation du navigateur peut chevaucher
+    // le bas de l'interface. Flutter web ne gère pas automatiquement
+    // env(safe-area-inset-bottom). On utilise MediaQuery.viewPadding.bottom
+    // pour ajouter le padding nécessaire uniquement quand c'est non-nul.
+    // Sur PWA installée, viewPadding.bottom = 0 → aucun changement.
+    final bottomPadding = kIsWeb
+        ? MediaQuery.of(context).viewPadding.bottom
+        : 0.0;
+
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
         children: List.generate(4, _buildPage),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-        elevation: 8,
-        destinations: _navItems.map((item) => NavigationDestination(
-          icon: Icon(item.icon),
-          selectedIcon: Icon(item.activeIcon),
-          label: item.label,
-        )).toList(),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          NavigationBar(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: (i) => setState(() => _selectedIndex = i),
+            elevation: 8,
+            destinations: _navItems.map((item) => NavigationDestination(
+              icon: Icon(item.icon),
+              selectedIcon: Icon(item.activeIcon),
+              label: item.label,
+            )).toList(),
+          ),
+          // Padding safe-area pour Safari iPhone (browser chrome en bas)
+          if (bottomPadding > 0)
+            SizedBox(height: bottomPadding),
+        ],
       ),
     );
   }

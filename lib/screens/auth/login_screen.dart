@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/messaging_provider.dart';
 import 'register_screen.dart';
 import '../dashboard_screen.dart';
 
@@ -21,11 +22,40 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    // CORRECTION race condition (Session 9) :
+    // addPostFrameCallback s'exécute après le premier frame, mais
+    // AuthProvider._checkLoginStatus() est async. Sur Safari iOS, le
+    // SharedPreferences.getInstance() peut ne pas avoir fini au premier frame.
+    //
+    // Stratégie : vérifier auth.isLoading avant de naviguer.
+    // Si isLoading est true → attendre la fin via addListener.
+    // Si isLoading est false → décider immédiatement.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       try {
         final auth = context.read<AuthProvider>();
-        if (auth.isLoggedIn) {
+        if (auth.isLoading) {
+          // Auth pas encore prête → attendre la fin du chargement
+          void onAuthChanged() {
+            if (!mounted) return;
+            if (!auth.isLoading) {
+              auth.removeListener(onAuthChanged);
+              if (!mounted) return;
+              if (auth.isLoggedIn) {
+                try {
+                  context.read<MessagingProvider>().reinitialize();
+                } catch (_) {}
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const DashboardScreen()),
+                );
+              }
+            }
+          }
+          auth.addListener(onAuthChanged);
+        } else if (auth.isLoggedIn) {
+          try {
+            context.read<MessagingProvider>().reinitialize();
+          } catch (_) {}
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const DashboardScreen()),
           );
@@ -62,6 +92,12 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (success) {
+      // CORRECTION race condition (Session 9) :
+      // Déclencher reinitialize() sur MessagingProvider maintenant que le token
+      // est confirmé dans SharedPreferences. Évite le 401 sur /conversations.
+      try {
+        context.read<MessagingProvider>().reinitialize();
+      } catch (_) {}
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const DashboardScreen()),
       );

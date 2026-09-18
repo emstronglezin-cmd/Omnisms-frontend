@@ -71,7 +71,11 @@
 
   <!-- Viewport -->
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- CORRECTION safe-area (Session 9) : viewport-fit=cover permet l'accès aux
+       variables env(safe-area-inset-*) sur Safari iPhone / Android.
+       Sans viewport-fit=cover, Safari ignore ces valeurs CSS.
+       Le Flutter app lui-même gère ensuite la safe-area via MediaQuery.viewPadding. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
   <title>OmniSMS</title>
 
@@ -213,6 +217,28 @@
     #install-prompt {
       -webkit-overflow-scrolling: touch;
       pointer-events: auto;
+    }
+
+    /* CORRECTION safe-area (Session 9) :
+       Sur Safari iPhone en mode navigateur (non-PWA), la barre de navigation
+       du navigateur chevauche le bas de la page.
+       viewport-fit=cover est nécessaire pour que ces variables soient non-nulles.
+       Flutter reçoit la valeur via MediaQuery.viewPadding.bottom.
+       Ce CSS protège le body HTML (non-Flutter) et le prompt d'installation.
+    */
+    body {
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* L'install-prompt doit aussi tenir compte de la safe-area */
+    #install-prompt {
+      bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* Empêcher le pointer-events de bloquer les clics sur Flutter
+       Le canvas Flutter doit toujours être interactif */
+    flt-glass-pane, flt-scene-host, flutter-view {
+      pointer-events: auto !important;
     }
 
     /* iOS instruction modal */

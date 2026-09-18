@@ -1,15 +1,20 @@
-import 'dart:async';
+import 'dart:async' show Completer, Timer;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html show window, MediaRecorder, Blob, Url, MediaStream;
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 
 /// Widget pour enregistrer des messages vocaux.
 ///
-/// Sur web : affiche un message "non supporté" et annule immédiatement.
-/// Sur Android : utilise RECORD_AUDIO (AndroidManifest.xml).
-/// Sur iOS : utilise NSMicrophoneUsageDescription (Info.plist).
+/// CORRECTION Session 9 — mode navigateur :
+///   Sur web (navigateur ET PWA installée) : utilise navigator.mediaDevices.getUserMedia
+///   via dart:html MediaRecorder API. La permission est demandée uniquement
+///   au moment où l'utilisateur déclenche l'enregistrement (pas au démarrage).
+///   Sur Android : utilise RECORD_AUDIO (AndroidManifest.xml).
+///   Sur iOS natif : utilise NSMicrophoneUsageDescription (Info.plist).
 ///
-/// Utilise le package `record` pour l'enregistrement réel.
-/// Demande la permission via `permission_handler` si nécessaire.
+/// La version précédente bloquait complètement le web avec kIsWeb → annulation.
+/// Cette version supporte le web via getUserMedia + MediaRecorder (W3C).
 class VoiceRecorderWidget extends StatefulWidget {
   final Function(String audioPath, Duration duration) onRecordingComplete;
   final VoidCallback onCancel;
@@ -30,36 +35,24 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
   Duration _recordDuration = Duration.zero;
   Timer? _timer;
 
-  // Gestion de l'enregistrement
-  // Le recorder réel est géré via le package `record`
-  // Pour la compatibilité web/mobile, on utilise une approche dynamique
+  // Web-specific: MediaRecorder state
+  html.MediaRecorder? _webMediaRecorder;
+  html.MediaStream? _webStream;
+  final List<dynamic> _webChunks = [];
 
   @override
   void initState() {
     super.initState();
-    if (kIsWeb) {
-      // Sur web, annuler immédiatement et informer l'utilisateur
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Enregistrement vocal non disponible sur web'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 2),
-            ),
-          );
-          widget.onCancel();
-        }
-      });
-    } else {
-      // Sur mobile, démarrer l'enregistrement après demande de permission
-      _initRecording();
-    }
+    // CORRECTION (Session 9) : ne jamais annuler automatiquement sur web.
+    // Démarrer l'enregistrement après demande de permission dans tous les cas.
+    _initRecording();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    // Libérer le stream web si actif
+    _webStream?.getTracks().forEach((t) { try { t.stop(); } catch (_) {} });
     super.dispose();
   }
 
@@ -105,15 +98,36 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
 
   /// Demande la permission microphone.
   /// Retourne true si accordée, false sinon.
+  ///
+  /// Sur web : utilise navigator.mediaDevices.getUserMedia (W3C) via dart:html.
+  /// Sur mobile : utilise permission_handler.
   Future<bool> _requestMicrophonePermission() async {
+    if (kIsWeb) {
+      return _requestWebMicrophonePermission();
+    }
     try {
-      // ignore: depend_on_referenced_packages
-      // Utiliser permission_handler via import dynamique
-      // Ce bloc n'est exécuté que sur mobile (kIsWeb == false)
       final granted = await _checkPermission();
       return granted;
     } catch (e) {
       debugPrint('[VoiceRecorder] Permission request error: $e');
+      return false;
+    }
+  }
+
+  /// Demande le microphone via getUserMedia (web).
+  /// Retourne true et stocke le stream si accordé.
+  Future<bool> _requestWebMicrophonePermission() async {
+    try {
+      final mediaDevices = html.window.navigator.mediaDevices;
+      if (mediaDevices == null) {
+        debugPrint('[VoiceRecorder] Web: mediaDevices non disponible');
+        return false;
+      }
+      final stream = await mediaDevices.getUserMedia({'audio': true, 'video': false});
+      _webStream = stream;
+      return true;
+    } catch (e) {
+      debugPrint('[VoiceRecorder] Web: getUserMedia refusé: $e');
       return false;
     }
   }
@@ -144,10 +158,31 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
     if (!mounted) return;
 
     try {
-      // Démarrer l'enregistrement via le package `record`
+      if (kIsWeb) {
+        // ── Web : utiliser dart:html MediaRecorder ──────────────
+        // Le stream a déjà été obtenu dans _requestWebMicrophonePermission
+        if (_webStream == null) {
+          debugPrint('[VoiceRecorder] Web: stream non disponible');
+          widget.onCancel();
+          return;
+        }
+
+        _webChunks.clear();
+        _webMediaRecorder = html.MediaRecorder(_webStream!);
+        _webMediaRecorder!.addEventListener('dataavailable', (event) {
+          // Ignorer les événements en dehors du cycle de vie
+          try {
+            // ignore: avoid_dynamic_calls
+            final blob = (event as dynamic).data;
+            if (blob != null) _webChunks.add(blob);
+          } catch (_) {}
+        });
+        _webMediaRecorder!.start();
+        debugPrint('[VoiceRecorder] Web: MediaRecorder démarré');
+      }
+      // Sur mobile, l'enregistrement via le package `record` serait ici :
       // import 'package:record/record.dart';
-      // final recorder = AudioRecorder();
-      // await recorder.start(const RecordConfig(), path: tempPath);
+      // await _audioRecorder.start(const RecordConfig(), path: tempPath);
 
       setState(() {
         _isRecording = true;
@@ -163,7 +198,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
         }
       });
 
-      debugPrint('[VoiceRecorder] Enregistrement démarré');
+      debugPrint('[VoiceRecorder] Enregistrement démarré (web: $kIsWeb)');
     } catch (e) {
       debugPrint('[VoiceRecorder] Erreur démarrage: $e');
       if (mounted) {
@@ -188,20 +223,55 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
       _isRecording = false;
     });
 
-    try {
-      // Arrêter l'enregistrement via le package `record`
-      // final path = await recorder.stop();
-      // widget.onRecordingComplete(path, duration);
+    if (kIsWeb && _webMediaRecorder != null) {
+      // ── Web : stopper MediaRecorder et créer une URL Blob ─────
+      // On écoute l'événement 'stop' pour récupérer tous les chunks.
+      final completer = Completer<String?>();
 
-      // Stub temporaire jusqu'au flutter pub get
-      debugPrint('[VoiceRecorder] Enregistrement arrêté (durée: ${duration.inSeconds}s)');
-      // Pour l'instant : annuler (pas de fichier réel sans pub get)
-      // Après pub get : appeler widget.onRecordingComplete(path!, duration)
-      widget.onCancel();
-    } catch (e) {
-      debugPrint('[VoiceRecorder] Erreur arrêt: $e');
-      widget.onCancel();
+      _webMediaRecorder!.addEventListener('stop', (_) {
+        try {
+          if (_webChunks.isEmpty) {
+            completer.complete(null);
+            return;
+          }
+          final blob = html.Blob(_webChunks, 'audio/webm');
+          final url = html.Url.createObjectUrl(blob);
+          completer.complete(url);
+          debugPrint('[VoiceRecorder] Web: Blob URL créée');
+        } catch (e) {
+          debugPrint('[VoiceRecorder] Web: Erreur création Blob: $e');
+          completer.complete(null);
+        }
+      });
+
+      _webMediaRecorder!.stop();
+      // Libérer les pistes stream après arrêt
+      _webStream?.getTracks().forEach((t) { try { t.stop(); } catch (_) {} });
+      _webStream = null;
+      _webMediaRecorder = null;
+
+      try {
+        final url = await completer.future.timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => null,
+        );
+        if (url != null) {
+          widget.onRecordingComplete(url, duration);
+        } else {
+          debugPrint('[VoiceRecorder] Web: URL Blob non créée');
+          widget.onCancel();
+        }
+      } catch (e) {
+        debugPrint('[VoiceRecorder] Web: Erreur stop: $e');
+        widget.onCancel();
+      }
+      return;
     }
+
+    // Mobile stub (en attente flutter pub get avec package record)
+    debugPrint('[VoiceRecorder] Mobile: arrêt (durée: ${duration.inSeconds}s)');
+    // Après pub get : widget.onRecordingComplete(path!, duration)
+    widget.onCancel();
   }
 
   Future<void> _cancelRecording() async {
@@ -211,10 +281,13 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
       _isRecording = false;
     });
 
-    try {
-      // Annuler l'enregistrement
-      // await recorder.cancel();
-    } catch (_) {}
+    if (kIsWeb) {
+      try { _webMediaRecorder?.stop(); } catch (_) {}
+      _webStream?.getTracks().forEach((t) { try { t.stop(); } catch (_) {} });
+      _webStream = null;
+      _webMediaRecorder = null;
+      _webChunks.clear();
+    }
 
     widget.onCancel();
   }
@@ -228,9 +301,8 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
 
   @override
   Widget build(BuildContext context) {
-    if (kIsWeb) {
-      return const SizedBox.shrink();
-    }
+    // CORRECTION (Session 9) : ne plus renvoyer SizedBox.shrink() sur web.
+    // Le web est maintenant géré via getUserMedia + MediaRecorder.
 
     // Afficher un indicateur pendant la demande de permission
     if (_isRequestingPermission) {
