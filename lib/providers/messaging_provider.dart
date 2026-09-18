@@ -60,13 +60,42 @@ class MessagingProvider with ChangeNotifier {
     _init();
   }
 
+  /// Initialisation interne.
+  ///
+  /// CORRECTION RACE CONDITION (Session 9) :
+  /// On vérifie que le token d'authentification existe AVANT d'appeler
+  /// loadConversations(). Si le token est absent au démarrage (auth pas encore
+  /// prête — SharedPreferences async, Safari iOS plus lent), on ne charge pas.
+  /// L'appel à reinitialize() depuis LoginScreen (après login) déclenchera
+  /// l'initialisation complète.
   Future<void> _init() async {
     _currentUserId = await _authService.getUserId();
-    _isConnected = true;
-    // Load conversations on startup
-    await loadConversations();
-    // Start polling for real-time updates
+
+    // Vérifier que le token est disponible avant de charger les données
+    final token = await _authService.getToken();
+    if (token != null && token.isNotEmpty) {
+      _isConnected = true;
+      await loadConversations();
+    }
+    // Sinon : loadConversations() sera appelé via reinitialize() après login
+
+    // Démarrer le polling dans tous les cas (il catch silencieusement les 401)
     _startPolling();
+  }
+
+  /// Réinitialise l'état après une connexion réussie.
+  ///
+  /// À appeler depuis LoginScreen/AuthProvider après la confirmation du login :
+  ///   context.read<MessagingProvider>().reinitialize();
+  ///
+  /// Recharge l'userId, marque la connexion active, et charge les conversations.
+  Future<void> reinitialize() async {
+    _currentUserId = await _authService.getUserId();
+    final token = await _authService.getToken();
+    if (token != null && token.isNotEmpty) {
+      _isConnected = true;
+      await loadConversations();
+    }
   }
 
   // ── Polling ──────────────────────────────────────────────────
@@ -267,9 +296,9 @@ class MessagingProvider with ChangeNotifier {
     int? duration,
     String? conversationId,
   }) async {
-    if (kIsWeb) {
-      return false;
-    }
+    // CORRECTION (Session 9) : ne pas bloquer le web en mode navigateur.
+    // Le web peut envoyer des messages vocaux via getUserMedia.
+    // La restriction kIsWeb était trop agressive — on laisse passer.
     try {
       _currentUserId ??= await _authService.getUserId();
       final message = await _messagingService.sendVoiceMessage(
