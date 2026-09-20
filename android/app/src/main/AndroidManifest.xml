@@ -6,6 +6,10 @@
     <!-- Permission microphone pour les messages vocaux -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Permission notifications système (Android 13+ / API 33+) -->
+    <!-- Demandée à l'exécution depuis NotificationsSettingsScreen via permission_handler -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:label="omni_smsnew"
         android:name="${applicationName}"
