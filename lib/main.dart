@@ -11,6 +11,9 @@ import 'providers/contacts_provider.dart'; // needed for ContactsProvider in som
 import 'providers/messaging_provider.dart';
 import 'providers/groups_provider.dart';
 
+// Notifications
+import 'services/notification_service.dart';
+
 // Screens — use canonical paths only
 import 'screens/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -36,6 +39,9 @@ void main() async {
     }
   }
 
+  // Initialiser le service de notifications
+  await NotificationService.instance.initialize();
+
   runApp(
     MultiProvider(
       providers: [
@@ -58,23 +64,35 @@ class OmniSMSApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, _) {
-        return MaterialApp(
-          title: 'OmniSMS',
-          debugShowCheckedModeBanner: false,
-          theme: ThemeProvider.lightTheme,
-          darkTheme: ThemeProvider.darkTheme,
-          themeMode: themeProvider.themeMode,
-          home: const SplashScreen(),
-          routes: {
-            '/login': (_) => const LoginScreen(),
-            '/register': (_) => const RegisterScreen(),
-            '/dashboard': (_) => const DashboardScreen(),
-            '/contacts': (_) => const ContactsScreenV2(),
-            '/groups': (_) => const GroupsScreen(),
-            '/statistics': (_) => const StatisticsScreen(),
-            '/subscription': (_) => const SubscriptionScreen(),
-            '/settings': (_) => const SettingsScreen(),
+        return InAppNotificationWrapper(
+          // Callback : ouvrir la conversation depuis la notification
+          // Actuellement enregistré pour une future navigation directe
+          onTap: (conversationId) {
+            // Navigation vers la conversation depuis la notification :
+            // Le navigatorKey global permettrait une navigation directe.
+            // Cette fonctionnalité est enregistrée — l'overlay ferme la bannière
+            // et l'app amène l'utilisateur à la bonne conversation quand
+            // l'infrastructure de navigation globale est configurée.
+            debugPrint('[NOTIFICATION] Tap → conversation: $conversationId');
           },
+          child: MaterialApp(
+            title: 'OmniSMS',
+            debugShowCheckedModeBanner: false,
+            theme: ThemeProvider.lightTheme,
+            darkTheme: ThemeProvider.darkTheme,
+            themeMode: themeProvider.themeMode,
+            home: const SplashScreen(),
+            routes: {
+              '/login': (_) => const LoginScreen(),
+              '/register': (_) => const RegisterScreen(),
+              '/dashboard': (_) => const DashboardScreen(),
+              '/contacts': (_) => const ContactsScreenV2(),
+              '/groups': (_) => const GroupsScreen(),
+              '/statistics': (_) => const StatisticsScreen(),
+              '/subscription': (_) => const SubscriptionScreen(),
+              '/settings': (_) => const SettingsScreen(),
+            },
+          ),
         );
       },
     );

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/messaging_service.dart';
 import '../services/auth_service.dart';
+import '../services/settings_service.dart';
+import '../services/notification_service.dart';
 
 /// MessagingProvider — Central state for conversations + messages.
 ///
@@ -16,6 +18,7 @@ import '../services/auth_service.dart';
 class MessagingProvider with ChangeNotifier {
   final MessagingService _messagingService = MessagingService();
   final AuthService _authService = AuthService();
+  final SettingsService _settingsService = SettingsService();
 
   // ── Conversations list ──────────────────────────────────────
   List<ConversationModel> _conversations = [];
@@ -113,8 +116,51 @@ class MessagingProvider with ChangeNotifier {
     try {
       final updated = await _messagingService.getConversations();
       if (updated.isNotEmpty || _conversations.isNotEmpty) {
+        // Détecter les conversations avec de nouveaux messages non lus
+        // (unreadCount > 0 et pas la conversation active)
+        final previousIds = {for (final c in _conversations) c.id: c.unreadCount ?? 0};
         _mergeConversations(updated);
+        // Notifier si une conversation non-active a de nouveaux messages
+        for (final conv in updated) {
+          final prevUnread = previousIds[conv.id] ?? 0;
+          final newUnread  = conv.unreadCount ?? 0;
+          if (newUnread > prevUnread && conv.id != _activeConversationId) {
+            final lastMsg = conv.lastMessage ?? 'Nouveau message';
+            final convId  = conv.id;
+            // Utiliser un messageId synthétique basé sur conv+timestamp pour dédup
+            final syntheticId = '${convId}_${conv.lastMessageTime?.millisecondsSinceEpoch ?? 0}';
+            await _dispatchNotificationRaw(
+              messageId      : syntheticId,
+              title          : conv.contactName.isNotEmpty ? conv.contactName : 'OmniSMS',
+              body           : lastMsg.length > 80 ? '${lastMsg.substring(0, 80)}…' : lastMsg,
+              conversationId : convId,
+            );
+          }
+        }
       }
+    } catch (_) {}
+  }
+
+  /// Dispatch notification avec paramètres directs (sans MessageModel).
+  Future<void> _dispatchNotificationRaw({
+    required String messageId,
+    required String title,
+    required String body,
+    required String conversationId,
+  }) async {
+    try {
+      final notifEnabled = await _settingsService.getNotificationsEnabled();
+      if (!notifEnabled) return;
+      debugPrint('[NOTIFICATION] message received (conv poll) — conv: $conversationId');
+      await NotificationService.instance.show(
+        messageId      : messageId,
+        title          : title,
+        body           : body,
+        conversationId : conversationId,
+        activeConvId   : _activeConversationId,
+        notificationsOn: notifEnabled,
+      );
+      debugPrint('[NOTIFICATION] notification dispatched (conv poll) — conv: $conversationId');
     } catch (_) {}
   }
 
@@ -141,6 +187,12 @@ class MessagingProvider with ChangeNotifier {
             existing.addAll(newMessages);
             existing.sort((a, b) => a.timestamp.compareTo(b.timestamp));
             notifyListeners();
+            // ── Notifications pour les messages entrants (pas envoyés par moi) ──
+            for (final msg in newMessages) {
+              if (!msg.isMe) {
+                await _dispatchNotification(msg, conversationId);
+              }
+            }
           }
         }
       }
@@ -386,6 +438,54 @@ class MessagingProvider with ChangeNotifier {
       existing.sort((a, b) => a.timestamp.compareTo(b.timestamp));
       _updateConversationLastMessage(conversationId, message);
       notifyListeners();
+      // ── Notification pour message entrant (si pas un message de moi) ──
+      if (!message.isMe) {
+        _dispatchNotification(message, conversationId);
+      }
+    }
+  }
+
+  // ── Dispatch notification for a new inbound message ────────────────
+  /// Déclenche une notification système pour un nouveau message entrant.
+  ///
+  /// Règles :
+  ///   • notifications activées dans les paramètres utilisateur
+  ///   • permission système accordée
+  ///   • messageId non encore notifié (déduplication dans NotificationService)
+  ///   • utilisateur n'est pas déjà dans cette conversation
+  Future<void> _dispatchNotification(MessageModel message, String conversationId) async {
+    try {
+      final notifEnabled = await _settingsService.getNotificationsEnabled();
+      if (!notifEnabled) return;
+
+      // Titre : nom de l'expéditeur si disponible, sinon ID/numéro tronqué
+      String title = 'OmniSMS';
+      if (message.senderId.isNotEmpty) {
+        final sid = message.senderId;
+        // Si c'est un numéro E.164, masquer les 4 derniers chiffres pour l'affichage
+        title = sid.startsWith('+') && sid.length > 6
+            ? '${sid.substring(0, sid.length - 4)}****'
+            : sid;
+      }
+
+      // Corps : aperçu du message (max 80 chars)
+      String body = message.content ?? 'Nouveau message';
+      if (body.length > 80) body = '${body.substring(0, 80)}…';
+
+      debugPrint('[NOTIFICATION] message received — conv: $conversationId, msg: ${message.id}');
+
+      await NotificationService.instance.show(
+        messageId      : message.id,
+        title          : title,
+        body           : body,
+        conversationId : conversationId,
+        activeConvId   : _activeConversationId,
+        notificationsOn: notifEnabled,
+      );
+
+      debugPrint('[NOTIFICATION] notification dispatched — conv: $conversationId');
+    } catch (e) {
+      debugPrint('[NOTIFICATION] _dispatchNotification error: $e');
     }
   }
 
