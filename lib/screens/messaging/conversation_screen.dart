@@ -80,6 +80,16 @@ class _ConversationScreenState extends State<ConversationScreen>
 
   @override
   void dispose() {
+    // Effacer la conversation active pour que les notifications reprennent
+    // après avoir quitté cet écran.
+    // Bug Session 11 : sans ce clearance, _activeConversationId reste défini
+    // et TOUTES les notifications suivantes pour cette conversation sont
+    // silencieusement ignorées même lorsque l'utilisateur n'est plus dans la conv.
+    try {
+      final provider = context.read<MessagingProvider>();
+      provider.setActiveConversation(null);
+      debugPrint('[NOTIFICATION] ConversationScreen dispose — activeConv cleared');
+    } catch (_) {}
     _textController.removeListener(_onTextChanged);
     _textController.dispose();
     _scrollController.dispose();

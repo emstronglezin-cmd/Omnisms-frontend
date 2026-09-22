@@ -39,8 +39,31 @@ class NotificationService {
   void Function(String conversationId)? onNotificationTap;
 
   // ── Initialisation ───────────────────────────────────────────
+  /// Initialise le service de notifications.
+  ///
+  /// Sur Android 13+, demande silencieusement la permission si pas encore accordée.
+  /// Aucune UI bloquante — l'utilisateur peut activer manuellement depuis les Paramètres.
   Future<void> initialize() async {
     debugPrint('[NOTIFICATION] NotificationService initialisé (${kIsWeb ? "Web/PWA" : "Android"})');
+
+    if (!kIsWeb) {
+      // Vérifier la permission actuelle sans interrompre le démarrage de l'app.
+      // Sur Android 13+ (API 33+), POST_NOTIFICATIONS nécessite une demande explicite.
+      try {
+        final status = await Permission.notification.status;
+        debugPrint('[NOTIFICATION] Permission initiale: $status');
+
+        if (status.isDenied) {
+          // Première demande — Android affiche le dialogue système.
+          final result = await Permission.notification.request();
+          debugPrint('[NOTIFICATION] Permission demandée au démarrage: $result');
+        } else if (status.isPermanentlyDenied) {
+          debugPrint('[NOTIFICATION] Permission permanentement refusée — l\'utilisateur doit activer manuellement.');
+        }
+      } catch (e) {
+        debugPrint('[NOTIFICATION] Erreur vérification permission: $e');
+      }
+    }
   }
 
   // ── Permission ───────────────────────────────────────────────
@@ -101,8 +124,11 @@ class NotificationService {
 
     // 4. Permission
     final permitted = await hasPermission();
+    debugPrint('[NOTIFICATION] Permission check: $permitted (web=$kIsWeb)');
     if (!permitted) {
-      debugPrint('[NOTIFICATION] Skipped — permission not granted');
+      debugPrint('[NOTIFICATION] Skipped — permission not granted. '
+          'Sur Android: aller dans Paramètres → Notifications → Autoriser. '
+          'Sur Web: overlay in-app ne nécessite pas de permission.');
       return;
     }
 
@@ -115,7 +141,8 @@ class NotificationService {
       }
     }
 
-    debugPrint('[NOTIFICATION] Dispatching — title: $title, conv: $conversationId');
+    debugPrint('[NOTIFICATION] Dispatching — title: $title, conv: $conversationId, '
+        'overlayActive: ${_overlayController != null && !(_overlayController!.isClosed)}');
 
     if (kIsWeb) {
       _showWebNotification(title: title, body: body, conversationId: conversationId);
