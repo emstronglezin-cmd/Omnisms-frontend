@@ -341,3 +341,83 @@ omnisms://auth/google/contacts/callback?error=…             → refus contacts
 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`,
 `GOOGLE_FLUTTER_REDIRECT_URI`, `GOOGLE_CONTACTS_FLUTTER_REDIRECT_URI`,
 `GOOGLE_TOKEN_ENCRYPTION_KEY` — rien de tout cela ne vit dans le frontend.
+
+---
+
+## 14. Google Auth + Google Contacts (intégration PWA)
+
+> Même contrat backend que la §13. La PWA (`public/`, HTML/CSS/JS vanilla)
+> utilise **les mêmes endpoints** et **le même système de session** que
+> l'app Flutter. Aucune route inventée.
+
+### Flux de connexion (PWA)
+
+```
+1. Clic « Continuer avec Google » → sessionStorage.omnisms_google_flow = 'login'
+2. window.location.href = {API_BASE}/api/auth/google        (même onglet)
+3. Google → backend → 302 vers {GOOGLE_FLUTTER_REDIRECT_URI}?code=…
+4. La PWA se recharge, handleGoogleCallback() lit ?code=
+5. POST /api/auth/google/exchange { code } → { token, user }
+6. localStorage.auth_token + user_data → initDashboard()
+7. history.replaceState() : le code (usage unique) est retiré de l'URL
+```
+
+- Échec (`?error=…`) → retour sur l'écran de connexion + message utilisateur
+  (`googleAuthMessage()`), aucune donnée technique affichée.
+- **Aucun Bearer** sur `/api/auth/google` ni `/api/auth/google/exchange`
+  (`API._publicRoutes`). Un 401 sur `…/exchange` **ne déclenche pas** de logout
+  global (`API._noLogoutOn401`) : seul l'échec de connexion est affiché.
+- **Attention (bug corrigé)** : `_isPublicRoute()` compare désormais le chemin
+  exact, sinon `/api/auth/google/contacts/authorize` était traité comme public
+  et partait sans `Authorization`.
+
+### Flux contacts (PWA)
+
+```
+1. Clic « Importer depuis Google » → POST /api/auth/google/contacts/authorize (Bearer)
+2. window.open(authorizationUrl)  (pop-up bloquée → même onglet)
+3. Onglet de consentement → callback ?authorized=1
+   · dans la pop-up : postMessage vers l'opener + localStorage, puis window.close()
+   · dans le même onglet : handleGoogleCallback() reprend l'app
+4. Retour détecté (postMessage / storage / polling 700 ms / timeout 5 min)
+5. POST /api/contacts/google/import (Bearer)
+6. loadContacts() → la liste vient du backend, jamais fusionnée localement
+```
+
+### Fichiers PWA concernés
+
+| Fichier | Rôle |
+|---------|------|
+| `public/index.html` | `#google-login-btn` (écran connexion) + `#google-import-btn` (onglet Contacts) |
+| `public/app.js` | Section `GOOGLE AUTH & GOOGLE CONTACTS` : `startGoogleLogin()`, `handleGoogleCallback()`, `_finishGoogleLogin()`, `importFromGoogle()`, `_runGoogleContactsImport()`, `_renderGoogleCallbackTab()` |
+| `public/style.css` | `.auth-divider`, `.btn-google`, `.g-badge`, `.g-spinner`, `.contacts-actions-google` |
+| `public/sw.js` | `CACHE_VERSION` incrémentée (`v5.2.0-google`) pour forcer la mise à jour du cache |
+
+### Règles PWA (rappel)
+
+1. **Aucun id HTML existant renommé, aucun handler existant supprimé** —
+   l'intégration est purement additive (3 lignes modifiées dans `app.js` :
+   `_isPublicRoute()`, `DOMContentLoaded` devenu `async`, `logout()` qui arrête
+   le watcher Google).
+2. Un seul système de session : mêmes clés `auth_token` / `user_data`, même
+   `initDashboard()` → `refreshUserProfile()` → `GET /api/auth/me`.
+3. Un seul bouton par écran, jamais de double flux.
+4. `logout()` coupe le watcher contacts (aucun import après déconnexion).
+5. Les schémas `omnisms://` **ne fonctionnent pas dans un navigateur** :
+   `GOOGLE_FLUTTER_REDIRECT_URI` et `GOOGLE_CONTACTS_FLUTTER_REDIRECT_URI`
+   doivent être des **URL HTTPS du domaine PWA** (ex.
+   `https://<pwa>/auth/google/callback`). Vercel (`rewrites: /(.*) →
+   /index.html`) et Firebase (`** → /index.html`) renvoient déjà ces chemins
+   vers la PWA, donc aucune config d'hébergement à ajouter.
+
+### Tests PWA
+
+Harnais jsdom hors dépôt (`~/pwatest/test.mjs`) qui charge le **vrai**
+`public/index.html` + `public/app.js`, stub `fetch`/`window.open`/navigation et
+exécute les fonctions réelles (`startGoogleLogin`, `handleGoogleCallback`,
+`_finishGoogleLogin`, `importFromGoogle`, `_runGoogleContactsImport`,
+`API.headers`, `login`, `handleVCFFile`, `addContact`, `logout`) :
+18 scénarios / 62 assertions (connexion Google, code échangé, refus, code
+expiré, flux contacts complet, refus contacts, 409, pop-up bloquée, sans
+session, retour même onglet, régressions login/VCF/ajout manuel/session/401/
+logout, doublons, non-fuite de détails techniques).
