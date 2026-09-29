@@ -359,6 +359,88 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
     }
   }
 
+  // ── Importer depuis Google ───────────────────────────────────
+  /// Déclenche le flux backend : autorisation Google → consentement →
+  /// import → rechargement de la liste.
+  Future<void> _importFromGoogle() async {
+    final provider = context.read<ContactsProviderV2>();
+    if (provider.isImportingFromGoogle) return;
+
+    // Capturé avant les await (le contexte peut être démonté entre-temps).
+    final messenger = ScaffoldMessenger.of(context);
+
+    // Bandeau de progression : « Connexion à Google… » puis
+    // « Importation des contacts… » (suit l'état du provider).
+    messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(minutes: 6),
+        behavior: SnackBarBehavior.floating,
+        content: Consumer<ContactsProviderV2>(
+          builder: (_, p, __) => Row(
+            children: [
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  p.googleImportLabel.isEmpty
+                      ? 'Connexion à Google…'
+                      : p.googleImportLabel,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final result = await provider.importFromGoogle();
+
+    messenger.hideCurrentSnackBar();
+    if (!mounted) return;
+
+    final success = result['success'] == true;
+    final baseMessage = success
+        ? (provider.googleImportMessage ?? 'Contacts importés')
+        : (provider.googleImportMessage ??
+            'Impossible d\'importer les contacts Google.');
+    final detail = success ? provider.googleImportDetail : '';
+    final message = detail.isEmpty ? baseMessage : '$baseMessage — $detail';
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              success ? Icons.check_circle : Icons.error_outline,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: success ? Colors.green : Colors.red,
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: success ? 4 : 6),
+        action: success
+            ? null
+            : SnackBarAction(
+                label: 'Réessayer',
+                textColor: Colors.white,
+                onPressed: _importFromGoogle,
+              ),
+      ),
+    );
+
+    provider.resetGoogleImport();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -389,6 +471,37 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
                 tooltip: 'Actualiser',
               );
             },
+          ),
+          const SizedBox(width: 4),
+          // Menu d'actions (import Google)
+          Consumer<ContactsProviderV2>(
+            builder: (ctx, provider, _) => PopupMenuButton<String>(
+              tooltip: 'Plus d\'options',
+              enabled: !provider.isImportingFromGoogle,
+              icon: provider.isImportingFromGoogle
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.more_vert_rounded),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              onSelected: (value) {
+                if (value == 'google') _importFromGoogle();
+              },
+              itemBuilder: (ctx) => const [
+                PopupMenuItem<String>(
+                  value: 'google',
+                  child: ListTile(
+                    leading: Icon(Icons.cloud_download_rounded),
+                    title: Text('Importer depuis Google'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(width: 4),
         ],
@@ -587,6 +700,28 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
                     borderRadius: BorderRadius.circular(12)),
               ),
             ),
+            const SizedBox(height: 12),
+            // Import Google (même action que le menu de l'AppBar)
+            Consumer<ContactsProviderV2>(
+              builder: (ctx, provider, _) => OutlinedButton.icon(
+                onPressed:
+                    provider.isImportingFromGoogle ? null : _importFromGoogle,
+                icon: provider.isImportingFromGoogle
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cloud_download_rounded),
+                label: const Text('Importer depuis Google'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 32, vertical: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -715,6 +850,8 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Statut OmniSMS : fourni par le backend (contacts manuels, VCF
+          // et Google sont dans la même liste).
           if (contact.isRegistered)
             Container(
               padding: const EdgeInsets.symmetric(
@@ -727,6 +864,23 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
                 'OmniSMS',
                 style: TextStyle(
                   color: Colors.green,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'Externe',
+                style: TextStyle(
+                  color: Colors.grey,
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                 ),

@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 import '../models/models.dart';
+import '../services/auth_service.dart';
 import '../services/contacts_service_v2.dart';
+import '../services/google_oauth_flow.dart';
 
 /// Permission status — stub pour compatibilité web
 /// Sur mobile, flutter_contacts gère les permissions réelles.
@@ -22,6 +26,26 @@ enum ContactsLoadingState {
   permissionPermanentlyDenied,
 }
 
+/// États du flux « Importer depuis Google ».
+enum GoogleImportState {
+  idle,
+
+  /// « Connexion à Google… » (autorisation en cours)
+  connecting,
+
+  /// « Importation des contacts… » (appel backend)
+  importing,
+
+  /// « Contacts importés »
+  success,
+
+  /// « Autorisation Google refusée. »
+  denied,
+
+  /// « Impossible d'importer les contacts Google. »
+  error,
+}
+
 /// ContactsProviderV2 — Gestion des contacts avec support web/mobile
 ///
 /// Fonctionnalités :
@@ -36,6 +60,7 @@ enum ContactsLoadingState {
 /// Registered contacts are flagged with isRegistered = true.
 class ContactsProviderV2 with ChangeNotifier {
   final ContactsServiceV2 _contactsService = ContactsServiceV2();
+  final AuthService _authService = AuthService();
 
   List<ContactModel> _allContacts = [];
   List<ContactModel> _filteredContacts = [];
@@ -44,6 +69,11 @@ class ContactsProviderV2 with ChangeNotifier {
   String? _errorMessage;
   String _searchQuery = '';
   bool _isAddingContact = false;
+
+  // ── Import Google ────────────────────────────────────────────
+  GoogleImportState _googleImportState = GoogleImportState.idle;
+  String? _googleImportMessage;
+  Map<String, dynamic> _googleImportSummary = const {};
 
   // Callback to create conversations for registered contacts
   // Set externally by the app (e.g., from MessagingProvider)
@@ -70,6 +100,51 @@ class ContactsProviderV2 with ChangeNotifier {
       _permissionStatus == PermissionStatusExtended.limited;
   bool get isPermissionPermanentlyDenied =>
       _permissionStatus == PermissionStatusExtended.permanentlyDenied;
+
+  // ── Getters import Google ────────────────────────────────────
+  GoogleImportState get googleImportState => _googleImportState;
+  String? get googleImportMessage => _googleImportMessage;
+  Map<String, dynamic> get googleImportSummary => _googleImportSummary;
+
+  bool get isImportingFromGoogle =>
+      _googleImportState == GoogleImportState.connecting ||
+      _googleImportState == GoogleImportState.importing;
+
+  bool get isGoogleImportDenied =>
+      _googleImportState == GoogleImportState.denied;
+
+  bool get hasGoogleImportError =>
+      _googleImportState == GoogleImportState.error;
+
+  /// Libellé affiché pendant/après le flux (« Connexion à Google… », etc.).
+  String get googleImportLabel {
+    if (_googleImportState == GoogleImportState.connecting) {
+      return 'Connexion à Google…';
+    }
+    if (_googleImportState == GoogleImportState.importing) {
+      return 'Importation des contacts…';
+    }
+    if (_googleImportState == GoogleImportState.idle) {
+      return '';
+    }
+    if (_googleImportMessage != null && _googleImportMessage!.isNotEmpty) {
+      return _googleImportMessage!;
+    }
+    if (_googleImportState == GoogleImportState.success) {
+      return GoogleContactsMessages.success;
+    }
+    if (_googleImportState == GoogleImportState.denied) {
+      return GoogleContactsMessages.denied;
+    }
+    return GoogleContactsMessages.importFailed;
+  }
+
+  /// Détail des compteurs renvoyés par le backend après un import réussi
+  /// (ex : « 25 importés, 4 mis à jour, 12 sur OmniSMS »).
+  String get googleImportDetail {
+    if (_googleImportSummary.isEmpty) return '';
+    return GoogleContactsMessages.summary(_googleImportSummary);
+  }
 
   // ── Vérifier la permission ───────────────────────────────────
   Future<void> checkPermissionStatus() async {
@@ -250,6 +325,133 @@ class ContactsProviderV2 with ChangeNotifier {
     final parsed = _contactsService.parseVCF(vcfContent);
     debugPrint('📋 VCF: ${parsed.length} contacts parsed');
     await syncContacts(parsed);
+  }
+
+  // ── Importer depuis Google ────────────────────────────────────
+  /// Flux complet, tel que défini par le backend :
+  ///   1. vérification de la session OmniSMS ;
+  ///   2. POST /api/auth/google/contacts/authorize → URL de consentement ;
+  ///   3. consentement Google dans le navigateur système ;
+  ///   4. retour via le deep link omnisms://auth/google/contacts/callback ;
+  ///   5. POST /api/contacts/google/import ;
+  ///   6. rechargement de la liste depuis le backend.
+  ///
+  /// Le backend gère People API, la normalisation, la déduplication et
+  /// l'association numéro → utilisateur OmniSMS : rien n'est refait ici.
+  Future<Map<String, dynamic>> importFromGoogle() async {
+    if (isImportingFromGoogle) {
+      return {'success': false, 'error': 'Importation déjà en cours.'};
+    }
+
+    final flow = GoogleOAuthFlow.instance;
+
+    try {
+      // 1. Session OmniSMS
+      final loggedIn = await _authService.isLoggedIn();
+      if (!loggedIn) {
+        return _failGoogleImport(
+          GoogleContactsMessages.notConnected,
+          'NO_TOKEN',
+        );
+      }
+
+      // 2. Démarrer l'autorisation Google
+      _setGoogleImportState(GoogleImportState.connecting);
+
+      final authorization =
+          await _contactsService.requestGoogleContactsAuthorization();
+      if (authorization['success'] != true) {
+        return _failGoogleImport(
+          (authorization['error'] ?? GoogleContactsMessages.importFailed)
+              .toString(),
+          (authorization['code'] ?? '').toString(),
+        );
+      }
+
+      // 3. Consentement dans le navigateur système
+      flow.clearPending();
+      await flow.start();
+
+      final opened =
+          await flow.openExternal(authorization['authorizationUrl'].toString());
+      if (!opened) {
+        return _failGoogleImport(
+          GoogleContactsMessages.browserUnavailable,
+          'BROWSER_UNAVAILABLE',
+        );
+      }
+
+      // 4. Retour depuis Google
+      final GoogleCallback callback;
+      try {
+        callback = await flow.waitFor(GoogleCallbackKind.contacts);
+      } on TimeoutException {
+        return _failGoogleImport(GoogleContactsMessages.timeout, 'TIMEOUT');
+      } on GoogleFlowCancelledException {
+        return _failGoogleImport(GoogleContactsMessages.denied, 'CANCELLED');
+      }
+
+      if (!callback.isSuccess) {
+        return _failGoogleImport(
+          GoogleContactsMessages.forCode(callback.error,
+              fallback: GoogleContactsMessages.denied),
+          callback.error ?? 'GOOGLE_OAUTH_DENIED',
+        );
+      }
+
+      // 5. Import côté backend
+      _setGoogleImportState(GoogleImportState.importing);
+
+      final result = await _contactsService.importGoogleContacts();
+      if (result['success'] != true) {
+        return _failGoogleImport(
+          (result['error'] ?? GoogleContactsMessages.importFailed).toString(),
+          (result['code'] ?? '').toString(),
+        );
+      }
+
+      // 6. Recharger la liste depuis le backend (aucune fusion locale :
+      //    la déduplication est déjà faite côté serveur).
+      await loadContacts();
+
+      _googleImportState = GoogleImportState.success;
+      _googleImportSummary = Map<String, dynamic>.from(result);
+      _googleImportMessage = GoogleContactsMessages.success;
+      notifyListeners();
+
+      debugPrint(
+          '✅ Google Contacts import terminé: ${GoogleContactsMessages.summary(result)}');
+      return result;
+    } catch (e) {
+      debugPrint('❌ importFromGoogle: $e');
+      return _failGoogleImport(GoogleContactsMessages.importFailed, 'ERROR');
+    }
+  }
+
+  void _setGoogleImportState(GoogleImportState state) {
+    _googleImportState = state;
+    _googleImportMessage = null;
+    notifyListeners();
+  }
+
+  Map<String, dynamic> _failGoogleImport(String message, String code) {
+    _googleImportState = message == GoogleContactsMessages.denied
+        ? GoogleImportState.denied
+        : GoogleImportState.error;
+    _googleImportMessage = message;
+    _googleImportSummary = const {};
+    notifyListeners();
+    debugPrint('⚠️ Google Contacts import: $code → $message');
+    return {'success': false, 'code': code, 'error': message};
+  }
+
+  /// Remet l'état Google à zéro (après affichage du message à l'utilisateur).
+  void resetGoogleImport() {
+    if (_googleImportState == GoogleImportState.idle) return;
+    _googleImportState = GoogleImportState.idle;
+    _googleImportMessage = null;
+    _googleImportSummary = const {};
+    notifyListeners();
   }
 
   // ── Supprimer un contact ──────────────────────────────────────

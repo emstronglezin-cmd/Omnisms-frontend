@@ -57,6 +57,13 @@
       </button>
     </form>
 
+    <!-- ── Connexion Google (backend : GET /api/auth/google) ── -->
+    <div class="auth-divider"><span>ou</span></div>
+    <button id="google-login-btn" type="button" class="btn-google" onclick="startGoogleLogin()">
+      <span class="g-badge" aria-hidden="true">G</span>
+      <span id="google-login-label">Continuer avec Google</span>
+    </button>
+
     <div class="auth-switch">
       Pas encore de compte ?
       <button class="btn-text" onclick="showScreen('screen-register')">Créer un compte</button>
@@ -163,6 +170,14 @@
         </button>
         <button class="btn-ghost" onclick="openVcfGuideModal()" style="font-size:0.82rem;opacity:0.85">
           ❓ Comment obtenir un VCF ?
+        </button>
+      </div>
+      <!-- Import Google Contacts (backend : /api/auth/google/contacts/authorize
+           puis /api/contacts/google/import) -->
+      <div class="contacts-actions contacts-actions-google">
+        <button id="google-import-btn" class="btn-ghost" onclick="importFromGoogle()">
+          <span class="g-badge" aria-hidden="true">G</span>
+          <span id="google-import-label">Importer depuis Google</span>
         </button>
       </div>
       <!-- VCF Guide small card (discrete but visible) -->

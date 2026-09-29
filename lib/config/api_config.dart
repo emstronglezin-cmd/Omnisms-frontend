@@ -30,6 +30,27 @@ class ApiConfig {
   static const String authLoginEndpoint = '/api/auth/login';
   static const String authMeEndpoint = '/api/auth/me';
 
+  // ── Google Auth (contrat backend : docs/GOOGLE_AUTH_FLUTTER.md) ──
+  // 1. GET  /api/auth/google                  → ouverture dans le navigateur système
+  //    (redirige vers Google, puis vers le deep link Flutter avec un code à usage unique)
+  static const String authGoogleStartEndpoint = '/api/auth/google';
+  // 2. POST /api/auth/google/exchange         → { code } → { token, user }
+  static const String authGoogleExchangeEndpoint = '/api/auth/google/exchange';
+  // 3. POST /api/auth/google/contacts/authorize (Bearer requis)
+  //    → { authorizationUrl, redirectUri, scope }
+  static const String googleContactsAuthorizeEndpoint =
+      '/api/auth/google/contacts/authorize';
+  // 4. POST /api/contacts/google/import (Bearer requis) → compteurs d'import
+  static const String googleContactsImportEndpoint =
+      '/api/contacts/google/import';
+
+  // ── Deep links Flutter (définis par le backend) ───────────────
+  // Schéma enregistré dans AndroidManifest.xml / Info.plist.
+  static const String googleDeepLinkScheme = 'omnisms';
+  static const String googleLoginCallbackPath = '/auth/google/callback';
+  static const String googleContactsCallbackPath =
+      '/auth/google/contacts/callback';
+
   // ── Headers par défaut ────────────────────────────────────────
   static Map<String, String> get headers => {
         'Content-Type': 'application/json',

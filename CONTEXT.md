@@ -270,3 +270,154 @@ background: linear-gradient(160deg, rgba(255,255,255,0.055) 0%, transparent 100%
 Appliqués sur : `.topbar`, `.bottom-nav`, `.conv-appbar`, `.conv-input-bar`, `.modal-sheet`, `.auth-card`, `#toast`, `.msg-them .msg-bubble`
 
 Fallback `@supports not (backdrop-filter: blur(1px))` inclus pour anciens navigateurs.
+
+---
+
+## 13. Google Auth + Google Contacts (intégration Flutter)
+
+> Contrat backend : `docs/GOOGLE_AUTH_FLUTTER.md` du repo **Omnisms-backend**.
+> Le backend reste responsable de Google People API, de la normalisation, de la
+> déduplication et de l'association numéro → utilisateur OmniSMS.
+
+### Endpoints backend utilisés (aucun autre)
+
+| Étape | Méthode & route | Auth |
+|-------|-----------------|------|
+| Démarrer la connexion Google | `GET  /api/auth/google` (ouvert dans le navigateur système) | — |
+| Échanger le code contre la session | `POST /api/auth/google/exchange` `{ "code": "…" }` | — |
+| Profil / session courante | `GET  /api/auth/me` | Bearer |
+| Autoriser Google Contacts | `POST /api/auth/google/contacts/authorize` | Bearer |
+| Importer les contacts Google | `POST /api/contacts/google/import` | Bearer |
+
+Toutes les routes sont construites depuis `ApiConfig.baseUrl`
+(`https://omnisms-backend.onrender.com`) — aucune URL en dur ailleurs.
+
+### Deep links (mécanisme de retour imposé par le backend)
+
+```
+omnisms://auth/google/callback?code=<code à usage unique>   → connexion
+omnisms://auth/google/callback?error=GOOGLE_OAUTH_DENIED    → refus
+omnisms://auth/google/contacts/callback?authorized=1        → contacts autorisés
+omnisms://auth/google/contacts/callback?error=…             → refus contacts
+```
+
+- Aucun JWT OmniSMS ni token Google ne circule dans l'URL : le backend ne
+  renvoie qu'un code d'échange (valable 2 min, usage unique).
+- Configuration native : `android/app/src/main/AndroidManifest.xml`
+  (intent-filter `omnisms://auth` + `flutter_deeplinking_enabled=false`) et
+  `ios/Runner/Info.plist` (`CFBundleURLTypes` + `FlutterDeepLinkingEnabled=false`).
+- Plugin : `app_links` (Android/iOS/desktop/web).
+- **Web/PWA** : les schémas personnalisés ne fonctionnent pas dans un
+  navigateur. Pour le web, `GOOGLE_FLUTTER_REDIRECT_URI` et
+  `GOOGLE_CONTACTS_FLUTTER_REDIRECT_URI` doivent pointer vers l'URL HTTPS
+  déployée côté backend (Render). Le code relit alors `Uri.base`.
+
+### Fichiers concernés
+
+| Fichier | Rôle |
+|---------|------|
+| `lib/services/google_oauth_flow.dart` | Écoute des deep links, ouverture navigateur, parsing des callbacks, messages utilisateur |
+| `lib/services/auth_service.dart` | `loginWithGoogle()` + échange du code (même stockage que `login()`) |
+| `lib/providers/auth_provider.dart` | `loginWithGoogle()`, session persistante, session expirée (401) |
+| `lib/screens/auth/login_screen.dart` | Bouton « Continuer avec Google » |
+| `lib/services/contacts_service_v2.dart` | `requestGoogleContactsAuthorization()`, `importGoogleContacts()` |
+| `lib/providers/contacts_provider_v2.dart` | `importFromGoogle()` + états `GoogleImportState` |
+| `lib/screens/contacts/contacts_screen_v2.dart` | Action « Importer depuis Google » |
+
+### Règles
+
+1. **Un seul système de session** : le JWT OmniSMS (clé `auth_token`) est le
+   même pour login email/mot de passe et Google. Jamais de second token.
+2. **Aucun token Google côté Flutter** — ni stocké, ni transmis.
+3. **Après import Google → `loadContacts()`** : la liste est rechargée depuis
+   le backend, jamais fusionnée localement (déduplication côté serveur).
+4. Les contacts Google arrivent dans la même liste que les contacts manuels et
+   VCF (`source: "google"`, statut OmniSMS via `isOnOmniSms`).
+5. Les erreurs affichées sont des messages utilisateur : jamais de stack
+   trace, de token ou de détail OAuth.
+
+### Variables backend requises (Render)
+
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`,
+`GOOGLE_FLUTTER_REDIRECT_URI`, `GOOGLE_CONTACTS_FLUTTER_REDIRECT_URI`,
+`GOOGLE_TOKEN_ENCRYPTION_KEY` — rien de tout cela ne vit dans le frontend.
+
+---
+
+## 14. Google Auth + Google Contacts (intégration PWA)
+
+> Même contrat backend que la §13. La PWA (`public/`, HTML/CSS/JS vanilla)
+> utilise **les mêmes endpoints** et **le même système de session** que
+> l'app Flutter. Aucune route inventée.
+
+### Flux de connexion (PWA)
+
+```
+1. Clic « Continuer avec Google » → sessionStorage.omnisms_google_flow = 'login'
+2. window.location.href = {API_BASE}/api/auth/google        (même onglet)
+3. Google → backend → 302 vers {GOOGLE_FLUTTER_REDIRECT_URI}?code=…
+4. La PWA se recharge, handleGoogleCallback() lit ?code=
+5. POST /api/auth/google/exchange { code } → { token, user }
+6. localStorage.auth_token + user_data → initDashboard()
+7. history.replaceState() : le code (usage unique) est retiré de l'URL
+```
+
+- Échec (`?error=…`) → retour sur l'écran de connexion + message utilisateur
+  (`googleAuthMessage()`), aucune donnée technique affichée.
+- **Aucun Bearer** sur `/api/auth/google` ni `/api/auth/google/exchange`
+  (`API._publicRoutes`). Un 401 sur `…/exchange` **ne déclenche pas** de logout
+  global (`API._noLogoutOn401`) : seul l'échec de connexion est affiché.
+- **Attention (bug corrigé)** : `_isPublicRoute()` compare désormais le chemin
+  exact, sinon `/api/auth/google/contacts/authorize` était traité comme public
+  et partait sans `Authorization`.
+
+### Flux contacts (PWA)
+
+```
+1. Clic « Importer depuis Google » → POST /api/auth/google/contacts/authorize (Bearer)
+2. window.open(authorizationUrl)  (pop-up bloquée → même onglet)
+3. Onglet de consentement → callback ?authorized=1
+   · dans la pop-up : postMessage vers l'opener + localStorage, puis window.close()
+   · dans le même onglet : handleGoogleCallback() reprend l'app
+4. Retour détecté (postMessage / storage / polling 700 ms / timeout 5 min)
+5. POST /api/contacts/google/import (Bearer)
+6. loadContacts() → la liste vient du backend, jamais fusionnée localement
+```
+
+### Fichiers PWA concernés
+
+| Fichier | Rôle |
+|---------|------|
+| `public/index.html` | `#google-login-btn` (écran connexion) + `#google-import-btn` (onglet Contacts) |
+| `public/app.js` | Section `GOOGLE AUTH & GOOGLE CONTACTS` : `startGoogleLogin()`, `handleGoogleCallback()`, `_finishGoogleLogin()`, `importFromGoogle()`, `_runGoogleContactsImport()`, `_renderGoogleCallbackTab()` |
+| `public/style.css` | `.auth-divider`, `.btn-google`, `.g-badge`, `.g-spinner`, `.contacts-actions-google` |
+| `public/sw.js` | `CACHE_VERSION` incrémentée (`v5.2.0-google`) pour forcer la mise à jour du cache |
+
+### Règles PWA (rappel)
+
+1. **Aucun id HTML existant renommé, aucun handler existant supprimé** —
+   l'intégration est purement additive (3 lignes modifiées dans `app.js` :
+   `_isPublicRoute()`, `DOMContentLoaded` devenu `async`, `logout()` qui arrête
+   le watcher Google).
+2. Un seul système de session : mêmes clés `auth_token` / `user_data`, même
+   `initDashboard()` → `refreshUserProfile()` → `GET /api/auth/me`.
+3. Un seul bouton par écran, jamais de double flux.
+4. `logout()` coupe le watcher contacts (aucun import après déconnexion).
+5. Les schémas `omnisms://` **ne fonctionnent pas dans un navigateur** :
+   `GOOGLE_FLUTTER_REDIRECT_URI` et `GOOGLE_CONTACTS_FLUTTER_REDIRECT_URI`
+   doivent être des **URL HTTPS du domaine PWA** (ex.
+   `https://<pwa>/auth/google/callback`). Vercel (`rewrites: /(.*) →
+   /index.html`) et Firebase (`** → /index.html`) renvoient déjà ces chemins
+   vers la PWA, donc aucune config d'hébergement à ajouter.
+
+### Tests PWA
+
+Harnais jsdom hors dépôt (`~/pwatest/test.mjs`) qui charge le **vrai**
+`public/index.html` + `public/app.js`, stub `fetch`/`window.open`/navigation et
+exécute les fonctions réelles (`startGoogleLogin`, `handleGoogleCallback`,
+`_finishGoogleLogin`, `importFromGoogle`, `_runGoogleContactsImport`,
+`API.headers`, `login`, `handleVCFFile`, `addContact`, `logout`) :
+18 scénarios / 62 assertions (connexion Google, code échangé, refus, code
+expiré, flux contacts complet, refus contacts, 409, pop-up bloquée, sans
+session, retour même onglet, régressions login/VCF/ajout manuel/session/401/
+logout, doublons, non-fuite de détails techniques).
