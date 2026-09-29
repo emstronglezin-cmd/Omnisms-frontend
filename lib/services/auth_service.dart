@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:url_launcher/url_launcher.dart';
+import 'google_deep_link_service.dart';
 import '../config/api_config.dart';
 import '../models/models.dart';
 
@@ -114,6 +117,91 @@ class AuthService {
       };
     } catch (e) {
       return {'success': false, 'message': _friendlyError(e)};
+    }
+  }
+
+  /// Starts the backend-owned OAuth flow, exchanges its one-use callback code
+  /// for the ordinary OmniSMS JWT, and stores it using the existing session keys.
+  Future<Map<String, dynamic>> signInWithGoogle() async {
+    if (kIsWeb) {
+      return {
+        'success': false,
+        'message': 'La connexion Google nécessite l’application OmniSMS installée.',
+      };
+    }
+
+    try {
+      final callback = await GoogleDeepLinkService.instance.runAndWait(
+        callbackPath: '/google/callback',
+        startFlow: () async {
+          final launched = await launchUrl(
+            Uri.parse('${ApiConfig.baseUrl}${ApiConfig.authGoogleEndpoint}'),
+            mode: LaunchMode.externalApplication,
+          );
+          if (!launched) throw StateError('Impossible d’ouvrir Google.');
+        },
+      );
+
+      final oauthError = callback.queryParameters['error'];
+      if (oauthError != null) {
+        return {
+          'success': false,
+          'message': _googleErrorMessage(oauthError),
+        };
+      }
+      final code = callback.queryParameters['code'];
+      if (code == null || code.isEmpty) {
+        return {'success': false, 'message': 'La réponse Google est incomplète.'};
+      }
+
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}${ApiConfig.authGoogleExchangeEndpoint}'),
+            headers: ApiConfig.headers,
+            body: jsonEncode({'code': code}),
+          )
+          .timeout(ApiConfig.requestTimeout);
+      final data = jsonDecode(response.body);
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          data is Map && data['success'] == true && data['token'] is String) {
+        final token = data['token'] as String;
+        final rawUser = data['user'];
+        if (rawUser is! Map<String, dynamic>) {
+          return {'success': false, 'message': 'Impossible de récupérer votre profil.'};
+        }
+        final user = UserModel.fromJson(rawUser);
+        await _saveToken(token);
+        if (user.id.isNotEmpty) await _saveUserId(user.id);
+        return {'success': true, 'user': user, 'token': token};
+      }
+
+      final codeError = data is Map ? (data['code'] ?? data['error'])?.toString() : null;
+      return {
+        'success': false,
+        'message': _googleErrorMessage(codeError ?? 'GOOGLE_EXCHANGE_FAILED'),
+      };
+    } catch (_) {
+      return {
+        'success': false,
+        'message': 'Connexion Google impossible. Vérifiez votre connexion puis réessayez.',
+      };
+    }
+  }
+
+  String _googleErrorMessage(String code) {
+    switch (code) {
+      case 'GOOGLE_NOT_CONFIGURED':
+        return 'La connexion Google est momentanément indisponible.';
+      case 'GOOGLE_OAUTH_DENIED':
+        return 'La connexion Google a été annulée.';
+      case 'GOOGLE_STATE_INVALID':
+      case 'GOOGLE_IDENTITY_INVALID':
+      case 'GOOGLE_IDENTITY_CONFLICT':
+      case 'GOOGLE_EXCHANGE_CODE_INVALID':
+      case 'GOOGLE_EXCHANGE_FAILED':
+        return 'La connexion Google n’a pas abouti. Réessayez.';
+      default:
+        return 'Connexion Google impossible. Réessayez.';
     }
   }
 

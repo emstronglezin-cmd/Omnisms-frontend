@@ -8,11 +8,13 @@ class AuthProvider with ChangeNotifier {
   UserModel? _currentUser;
   bool _isLoggedIn = false;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   String? _error;
 
   UserModel? get currentUser => _currentUser;
   bool get isLoggedIn => _isLoggedIn;
   bool get isLoading => _isLoading;
+  bool get isGoogleLoading => _isGoogleLoading;
   String? get error => _error;
 
   AuthProvider() {
@@ -102,6 +104,34 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  Future<bool> signInWithGoogle() async {
+    if (_isLoading) return false;
+    _isLoading = true;
+    _isGoogleLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final result = await _authService.signInWithGoogle();
+      if (result['success'] == true && result['user'] is UserModel) {
+        _currentUser = result['user'] as UserModel;
+        _isLoggedIn = true;
+        _isGoogleLoading = false;
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+      _error = result['message']?.toString() ?? 'Connexion Google impossible.';
+    } catch (_) {
+      _error = 'Connexion Google impossible. Réessayez.';
+    }
+
+    _isGoogleLoading = false;
+    _isLoading = false;
+    notifyListeners();
+    return false;
   }
 
   Future<bool> updateProfile({

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
+import 'google_deep_link_service.dart';
 import '../config/api_config.dart';
 import '../models/models.dart';
 import 'auth_service.dart';
@@ -440,6 +442,115 @@ class ContactsServiceV2 {
     } catch (e) {
       return {'registered': false};
     }
+  }
+
+  /// Requests Google Contacts consent through the backend, waits for the
+  /// registered deep-link callback, then imports using the OmniSMS JWT.
+  Future<Map<String, dynamic>> importGoogleContacts({
+    void Function(String status)? onProgress,
+  }) async {
+    if (kIsWeb) {
+      return {
+        'success': false,
+        'message': 'L’import Google nécessite l’application OmniSMS installée.',
+      };
+    }
+
+    try {
+      final token = await _authService.getToken();
+      if (token == null || token.isEmpty) {
+        return {'success': false, 'message': 'Connectez-vous pour importer vos contacts.'};
+      }
+      final headers = {
+        ...ApiConfig.headers,
+        'Authorization': 'Bearer $token',
+      };
+
+      final authorizeResponse = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}${ApiConfig.authGoogleContactsAuthorizeEndpoint}'),
+            headers: headers,
+            body: jsonEncode({}),
+          )
+          .timeout(ApiConfig.requestTimeout);
+      final authorizeData = _decodeResponse(authorizeResponse.body);
+      if (authorizeResponse.statusCode < 200 || authorizeResponse.statusCode >= 300) {
+        return _googleContactsFailure(authorizeData);
+      }
+
+      if (authorizeData['authorizationRequired'] == true) {
+        final rawUrl = authorizeData['authorizationUrl']?.toString();
+        final authorizationUrl = rawUrl == null ? null : Uri.tryParse(rawUrl);
+        if (authorizationUrl == null ||
+            authorizationUrl.scheme != 'https' ||
+            authorizationUrl.host != 'accounts.google.com') {
+          return {'success': false, 'message': 'Impossible de démarrer l’autorisation Google.'};
+        }
+
+        final callback = await GoogleDeepLinkService.instance.runAndWait(
+          callbackPath: '/google/contacts/callback',
+          startFlow: () async {
+            final launched = await launchUrl(
+              authorizationUrl,
+              mode: LaunchMode.externalApplication,
+            );
+            if (!launched) throw StateError('Impossible d’ouvrir Google.');
+          },
+        );
+        final callbackError = callback.queryParameters['error'];
+        if (callbackError != null) {
+          return {
+            'success': false,
+            'denied': callbackError == 'GOOGLE_OAUTH_DENIED',
+            'code': callbackError,
+          };
+        }
+        if (callback.queryParameters['authorized'] != '1') {
+          return {'success': false, 'message': 'Autorisation Google incomplète.'};
+        }
+      }
+
+      onProgress?.call('Importation des contacts...');
+      final importResponse = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}${ApiConfig.googleContactsImportEndpoint}'),
+            headers: headers,
+            body: jsonEncode({}),
+          )
+          .timeout(ApiConfig.requestTimeout);
+      final importData = _decodeResponse(importResponse.body);
+      if (importResponse.statusCode >= 200 &&
+          importResponse.statusCode < 300 &&
+          importData['success'] == true) {
+        return importData;
+      }
+      return _googleContactsFailure(importData);
+    } on TimeoutException {
+      return {'success': false, 'message': 'La demande a expiré. Réessayez.'};
+    } catch (_) {
+      return {'success': false, 'message': 'Impossible d’importer les contacts Google.'};
+    }
+  }
+
+  Map<String, dynamic> _decodeResponse(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      return decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  Map<String, dynamic> _googleContactsFailure(Map<String, dynamic> data) {
+    final code = (data['code'] ?? data['error'])?.toString();
+    return {
+      'success': false,
+      'code': code,
+      'denied': code == 'GOOGLE_OAUTH_DENIED',
+      'message': code == 'GOOGLE_CONTACTS_PERMISSION_REQUIRED'
+          ? 'Autorisation Google refusée.'
+          : 'Impossible d’importer les contacts Google.',
+    };
   }
 
   // ── Recherche locale ──────────────────────────────────────────

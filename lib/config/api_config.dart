@@ -29,6 +29,12 @@ class ApiConfig {
   static const String authRegisterEndpoint = '/api/auth/register';
   static const String authLoginEndpoint = '/api/auth/login';
   static const String authMeEndpoint = '/api/auth/me';
+  static const String authGoogleEndpoint = '/api/auth/google';
+  static const String authGoogleExchangeEndpoint = '/api/auth/google/exchange';
+  static const String authGoogleContactsAuthorizeEndpoint =
+      '/api/auth/google/contacts/authorize';
+  static const String googleContactsImportEndpoint =
+      '/api/contacts/google/import';
 
   // ── Headers par défaut ────────────────────────────────────────
   static Map<String, String> get headers => {

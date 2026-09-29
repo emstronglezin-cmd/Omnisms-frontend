@@ -44,6 +44,8 @@ class ContactsProviderV2 with ChangeNotifier {
   String? _errorMessage;
   String _searchQuery = '';
   bool _isAddingContact = false;
+  bool _isImportingGoogleContacts = false;
+  String? _googleContactsStatus;
 
   // Callback to create conversations for registered contacts
   // Set externally by the app (e.g., from MessagingProvider)
@@ -62,6 +64,8 @@ class ContactsProviderV2 with ChangeNotifier {
   String get searchQuery => _searchQuery;
   PermissionStatusExtended get permissionStatus => _permissionStatus;
   bool get isAddingContact => _isAddingContact;
+  bool get isImportingGoogleContacts => _isImportingGoogleContacts;
+  String? get googleContactsStatus => _googleContactsStatus;
 
   bool get isLoading => _loadingState == ContactsLoadingState.loading;
   bool get hasError => _loadingState == ContactsLoadingState.error;
@@ -162,6 +166,40 @@ class ContactsProviderV2 with ChangeNotifier {
       _isAddingContact = false;
       notifyListeners();
       return {'success': false, 'error': 'Erreur : $e'};
+    }
+  }
+
+  /// Runs the backend Google-consent/import flow, then reloads the canonical
+  /// contacts list from the backend (no client-side deduplication/merging).
+  Future<Map<String, dynamic>> importGoogleContacts() async {
+    if (_isImportingGoogleContacts) {
+      return {'success': false, 'message': 'Import déjà en cours.'};
+    }
+    _isImportingGoogleContacts = true;
+    _googleContactsStatus = 'Connexion à Google...';
+    notifyListeners();
+
+    try {
+      final result = await _contactsService.importGoogleContacts(
+        onProgress: (status) {
+          _googleContactsStatus = status;
+          notifyListeners();
+        },
+      );
+      if (result['success'] == true) {
+        _googleContactsStatus = 'Actualisation des contacts...';
+        notifyListeners();
+        await loadContacts();
+        _googleContactsStatus = 'Contacts importés';
+      } else if (result['denied'] == true) {
+        _googleContactsStatus = 'Autorisation Google refusée.';
+      } else {
+        _googleContactsStatus = 'Impossible d’importer les contacts Google.';
+      }
+      return result;
+    } finally {
+      _isImportingGoogleContacts = false;
+      notifyListeners();
     }
   }
 

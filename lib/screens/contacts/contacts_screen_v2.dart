@@ -423,12 +423,16 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
 
           // Liste vide
           if (provider.contacts.isEmpty && !provider.isLoading) {
-            return _buildEmptyView();
+            return Column(children: [
+              _buildGoogleImportAction(provider),
+              Expanded(child: _buildEmptyView()),
+            ]);
           }
 
           // Liste de contacts
           return Column(
             children: [
+              _buildGoogleImportAction(provider),
               _buildSearchBar(provider),
               if (provider.isLoading)
                 const LinearProgressIndicator(minHeight: 2),
@@ -436,6 +440,62 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildGoogleImportAction(ContactsProviderV2 provider) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: SizedBox(
+        width: double.infinity,
+        height: 48,
+        child: OutlinedButton.icon(
+          onPressed: provider.isImportingGoogleContacts
+              ? null
+              : () => _startGoogleContactsImport(provider),
+          icon: provider.isImportingGoogleContacts
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.cloud_download_outlined),
+          label: Text(provider.isImportingGoogleContacts
+              ? (provider.googleContactsStatus ?? 'Connexion à Google...')
+              : 'Importer depuis Google'),
+          style: OutlinedButton.styleFrom(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startGoogleContactsImport(ContactsProviderV2 provider) async {
+    final result = await provider.importGoogleContacts();
+    if (!mounted) return;
+    final success = result['success'] == true;
+    final denied = result['denied'] == true;
+    final imported = result['imported'] ?? 0;
+    final updated = result['updated'] ?? 0;
+    final skipped = result['skippedExisting'] ?? 0;
+    final message = success
+        ? 'Contacts importés : $imported nouveaux, $updated mis à jour, $skipped déjà présents.'
+        : denied
+            ? 'Autorisation Google refusée.'
+            : 'Impossible d’importer les contacts Google.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 5),
+        action: success || denied
+            ? null
+            : SnackBarAction(
+                label: 'Réessayer',
+                onPressed: () => _startGoogleContactsImport(provider),
+              ),
       ),
     );
   }
