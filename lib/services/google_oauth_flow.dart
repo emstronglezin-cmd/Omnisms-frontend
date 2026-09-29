@@ -275,6 +275,9 @@ class GoogleOAuthFlow {
   GoogleCallbackKind? _pendingKind;
   GoogleCallback? _buffered;
 
+  /// `true` quand l'écoute des deep links est active.
+  bool get isListening => _subscription != null;
+
   /// Démarre l'écoute des deep links (idempotent).
   Future<void> start() async {
     if (_started) return;
