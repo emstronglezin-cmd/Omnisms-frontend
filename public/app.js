@@ -936,11 +936,19 @@ async function requestTranscription(msgId) {
 }
 
 async function sendMessage() {
+  console.log('[DEBUG_SEND] PWA button pressed');
   const input = document.getElementById('conv-msg-input');
   const text  = input.value.trim();
-  if (!text || !State.activeConvInfo) return;
+  console.log('[DEBUG_SEND] content=', text, ' activeInfo=', State.activeConvInfo);
+  if (!text || !State.activeConvInfo) {
+    console.log('[DEBUG_SEND] abort - empty text or no activeConvInfo');
+    return;
+  }
 
   const { conversationId, contactId, isGroup } = State.activeConvInfo;
+  console.log('[DEBUG_SEND] receiverId(contactId)=', contactId, ' conversationId=', conversationId, ' isGroup=', isGroup);
+  console.log('[DEBUG_SEND] API URL=', API_BASE + '/api/messages/send');
+  console.log('[DEBUG_SEND] calling API POST /api/messages/send');
   input.value = '';
 
   const optimisticMsg = {
@@ -950,10 +958,18 @@ async function sendMessage() {
   renderMessages();
 
   let res;
-  if (isGroup) {
-    res = await API.post(`/groups/${contactId}/messages`, { content: text });
-  } else {
-    res = await API.post('/api/messages/send', { receiverId: contactId, content: text });
+  try {
+    if (isGroup) {
+      console.log('[DEBUG_SEND] isGroup true, POST /groups/'+contactId+'/messages');
+      res = await API.post(`/groups/${contactId}/messages`, { content: text });
+    } else {
+      console.log('[DEBUG_SEND] HTTP request started POST', API_BASE + '/api/messages/send', 'payload', { receiverId: contactId, content: text });
+      res = await API.post('/api/messages/send', { receiverId: contactId, content: text });
+    }
+    console.log('[DEBUG_SEND] HTTP response', res);
+  } catch(e) {
+    console.log('[DEBUG_SEND] exception', e);
+    res = null;
   }
 
   if (res && res.ok) {
@@ -2331,6 +2347,28 @@ function _renderAndroidInstallContent() {
       </div>
     `;
   }
+}
+
+// ─── VCF GUIDE MODAL ─────────────────────────────────────────────────────────
+function openVcfGuideModal() {
+  // Détection plateforme pour pré-sélectionner la bonne vue (comme install modal)
+  const { isIOS, isAndroid } = _detectPlatform();
+  if (isIOS) {
+    showVcfView('ios');
+  } else if (isAndroid) {
+    showVcfView('android');
+  } else {
+    showVcfView('main');
+  }
+  openModal('modal-vcf-guide');
+}
+
+function showVcfView(view) {
+  const views = ['main', 'ios', 'android'];
+  views.forEach(v => {
+    const el = document.getElementById('vcf-view-' + v);
+    if (el) el.style.display = v === view ? 'block' : 'none';
+  });
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────

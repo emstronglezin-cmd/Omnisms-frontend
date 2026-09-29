@@ -2438,4 +2438,63 @@ input:-webkit-autofill:focus {
     display: none;
   }
 }
+/* ── VCF GUIDE CARD (Contacts tab) ─────────────────────── */
+.vcf-guide-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 16px 14px;
+  padding: 12px 14px;
+  background: rgba(20, 23, 32, 0.60);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--t-fast), transform var(--t-fast), border-color var(--t-fast);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.vcf-guide-card:hover {
+  background: rgba(0,200,255,0.06);
+  border-color: rgba(0,200,255,0.18);
+  transform: translateY(-1px);
+}
+.vcf-guide-card:active {
+  transform: scale(0.99);
+}
+.vcf-guide-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,193,7,0.12);
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+.vcf-guide-card-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vcf-guide-card-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+.vcf-guide-card-sub {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.2;
+}
+.vcf-guide-card-arrow {
+  font-size: 1.2rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
 .anim-slide-up { animation: slideUp var(--t-normal) ease both; }
