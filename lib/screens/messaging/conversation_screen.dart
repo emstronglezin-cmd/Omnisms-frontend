@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/messaging_provider.dart';
@@ -105,25 +105,45 @@ class _ConversationScreenState extends State<ConversationScreen>
 
   // ── Send text message ──────────────────────────────────────
   Future<void> _sendTextMessage(String text) async {
-    if (text.trim().isEmpty) return;
+    debugPrint('[DEBUG_SEND] ConversationScreen _sendTextMessage called, textLen=${text.length}, content=$text');
+    debugPrint('[DEBUG_SEND] receiverId(contactId)=${widget.contactId}, conversationId=${widget.conversationId}, isGroup=${widget.isGroup}');
+    if (text.trim().isEmpty) {
+      debugPrint('[DEBUG_SEND] ConversationScreen empty text, abort');
+      return;
+    }
 
     setState(() => _isSending = true);
 
-    final success = await context.read<MessagingProvider>().sendTextMessage(
-          receiverId: widget.contactId,
-          content: text.trim(),
-          conversationId: widget.conversationId,
+    try {
+      debugPrint('[DEBUG_SEND] ConversationScreen calling MessagingProvider.sendTextMessage');
+      final success = await context.read<MessagingProvider>().sendTextMessage(
+            receiverId: widget.contactId,
+            content: text.trim(),
+            conversationId: widget.conversationId,
+          );
+      debugPrint('[DEBUG_SEND] ConversationScreen provider returned success=$success');
+      setState(() => _isSending = false);
+
+      if (!success && mounted) {
+        debugPrint('[DEBUG_SEND] ConversationScreen send failed → snackbar');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Échec de l\'envoi du message'),
+            backgroundColor: Colors.red,
+          ),
         );
-
-    setState(() => _isSending = false);
-
-    if (!success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Échec de l\'envoi du message'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      }
+    } catch (e, st) {
+      debugPrint('[DEBUG_SEND] ConversationScreen exception: $e\n$st');
+      setState(() => _isSending = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur envoi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
 
     // Forcer le scroll vers le bas après envoi
