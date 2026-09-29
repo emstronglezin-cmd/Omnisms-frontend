@@ -135,26 +135,36 @@ class MessagingService {
     String? conversationId,
     String? currentUserId,
   }) async {
+    final apiUrl = '${ApiConfig.baseUrl}${ApiConfig.sendMessageEndpoint}';
+    debugPrint('[DEBUG_SEND] MessagingService sendTextMessage called');
+    debugPrint('[DEBUG_SEND] API URL=$apiUrl');
+    debugPrint('[DEBUG_SEND] receiverId=$receiverId, content=$content, conversationId=$conversationId');
+    debugPrint('[DEBUG_SEND] HTTP request started POST $apiUrl');
     try {
       final headers = await _authHeaders();
+      debugPrint('[DEBUG_SEND] headers prepared, hasAuth=${headers.containsKey("Authorization")}');
+
+      final payload = {
+        'receiverId': receiverId,
+        'content': content,
+        'type': 'text',
+        if (conversationId != null) 'conversationId': conversationId,
+      };
+      debugPrint('[DEBUG_SEND] payload=${jsonEncode(payload)}');
 
       final response = await http
           .post(
-            Uri.parse('${ApiConfig.baseUrl}${ApiConfig.sendMessageEndpoint}'),
+            Uri.parse(apiUrl),
             headers: headers,
-            body: jsonEncode({
-              'receiverId': receiverId,
-              'content': content,
-              'type': 'text',
-              if (conversationId != null) 'conversationId': conversationId,
-            }),
+            body: jsonEncode(payload),
           )
           .timeout(ApiConfig.requestTimeout);
 
-      debugPrint(
-          '[MessagingService] POST /api/messages/send → ${response.statusCode}');
+      debugPrint('[DEBUG_SEND] HTTP status=${response.statusCode}');
+      debugPrint('[MessagingService] POST /api/messages/send → ${response.statusCode}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        debugPrint('[DEBUG_SEND] success, parsing body');
         final data = jsonDecode(response.body);
         final msgJson = data['message'] ?? data;
         if (currentUserId != null) {
@@ -163,9 +173,12 @@ class MessagingService {
         }
         return MessageModel.fromJson(msgJson as Map<String, dynamic>);
       }
+      debugPrint('[DEBUG_SEND] failed status=${response.statusCode}, body=${response.body}');
       debugPrint('[MessagingService] sendTextMessage failed: ${response.body}');
       return null;
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[DEBUG_SEND] exception: $e');
+      debugPrint('[DEBUG_SEND] stack: $st');
       debugPrint('[MessagingService] sendTextMessage error: $e');
       return null;
     }

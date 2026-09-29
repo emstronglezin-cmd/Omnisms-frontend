@@ -57,6 +57,13 @@
       </button>
     </form>
 
+    <!-- ── Connexion Google (backend : GET /api/auth/google) ── -->
+    <div class="auth-divider"><span>ou</span></div>
+    <button id="google-login-btn" type="button" class="btn-google" onclick="startGoogleLogin()">
+      <span class="g-badge" aria-hidden="true">G</span>
+      <span id="google-login-label">Continuer avec Google</span>
+    </button>
+
     <div class="auth-switch">
       Pas encore de compte ?
       <button class="btn-text" onclick="showScreen('screen-register')">Créer un compte</button>
@@ -161,6 +168,26 @@
         <button class="btn-ghost" onclick="openModal('modal-add-contact')">
           ➕ Ajouter
         </button>
+        <button class="btn-ghost" onclick="openVcfGuideModal()" style="font-size:0.82rem;opacity:0.85">
+          ❓ Comment obtenir un VCF ?
+        </button>
+      </div>
+      <!-- Import Google Contacts (backend : /api/auth/google/contacts/authorize
+           puis /api/contacts/google/import) -->
+      <div class="contacts-actions contacts-actions-google">
+        <button id="google-import-btn" class="btn-ghost" onclick="importFromGoogle()">
+          <span class="g-badge" aria-hidden="true">G</span>
+          <span id="google-import-label">Importer depuis Google</span>
+        </button>
+      </div>
+      <!-- VCF Guide small card (discrete but visible) -->
+      <div id="vcf-guide-card" class="vcf-guide-card" onclick="openVcfGuideModal()">
+        <div class="vcf-guide-card-icon">💡</div>
+        <div class="vcf-guide-card-text">
+          <span class="vcf-guide-card-title">Besoin d'aide pour le fichier VCF ?</span>
+          <span class="vcf-guide-card-sub">Guide rapide iPhone & Android</span>
+        </div>
+        <span class="vcf-guide-card-arrow">›</span>
       </div>
       <!-- Hidden VCF input -->
       <input id="vcf-import-input" type="file" accept=".vcf,text/vcard"
@@ -478,6 +505,188 @@
         </button>
         <div id="android-install-content">
           <!-- Contenu injecté par JS selon ANDROID_APK_URL -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     VCF GUIDE MODAL
+     ═══════════════════════════════════════════════════════════ -->
+<div id="modal-vcf-guide" class="modal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span class="modal-title">📇 Comment obtenir un fichier VCF ?</span>
+      <button class="modal-close-btn" onclick="closeModal('modal-vcf-guide')">✕</button>
+    </div>
+    <div id="vcf-modal-body" class="install-modal-content">
+      <!-- Vue principale : choix iPhone / Android -->
+      <div id="vcf-view-main">
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
+          Le fichier <strong style="color:var(--text-primary)">.VCF</strong> contient vos contacts. Choisissez votre téléphone pour voir les étapes.
+        </p>
+        <button class="install-choice-btn" onclick="showVcfView('ios')">
+          <div class="install-choice-icon">🍎</div>
+          <div class="install-choice-info">
+            <span class="install-choice-title">iPhone / iOS</span>
+            <span class="install-choice-sub">Exporter depuis Contacts ou iCloud</span>
+          </div>
+          <span style="color:var(--text-muted);font-size:1.2rem">›</span>
+        </button>
+        <button class="install-choice-btn" onclick="showVcfView('android')">
+          <div class="install-choice-icon">🤖</div>
+          <div class="install-choice-info">
+            <span class="install-choice-title">Android</span>
+            <span class="install-choice-sub">Exporter depuis Google Contacts</span>
+          </div>
+          <span style="color:var(--text-muted);font-size:1.2rem">›</span>
+        </button>
+        <div style="margin-top:16px;padding:12px 14px;background:rgba(0,200,255,0.06);border:1px solid rgba(0,200,255,0.15);border-radius:var(--radius-sm);font-size:0.78rem;color:var(--text-secondary);line-height:1.5">
+          💡 Une fois le fichier <strong>.vcf</strong> obtenu, revenez ici et cliquez sur <strong>📱 Importer contacts</strong> pour le sélectionner.
+        </div>
+      </div>
+
+      <!-- Vue iPhone -->
+      <div id="vcf-view-ios" style="display:none">
+        <button class="btn-ghost" onclick="showVcfView('main')" style="margin-bottom:16px;padding:8px 14px;font-size:0.8rem">
+          ← Retour
+        </button>
+        <div class="safari-tip">
+          🍎 <strong>iPhone</strong> — 2 méthodes selon vos besoins
+        </div>
+
+        <h4 style="margin:16px 0 8px;font-size:0.9rem;color:var(--text-primary)">Méthode 1 : Un seul contact (rapide)</h4>
+        <div class="install-guide">
+          <div class="install-guide-step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <span class="step-title">Ouvrir Contacts</span>
+              <span class="step-desc">Ouvrez l'app <strong>Contacts</strong> sur votre iPhone.</span>
+            </div>
+            <span class="step-icon">👤</span>
+          </div>
+          <div class="install-guide-step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <span class="step-title">Choisir le contact</span>
+              <span class="step-desc">Touchez le contact que vous voulez exporter.</span>
+            </div>
+            <span class="step-icon">👆</span>
+          </div>
+          <div class="install-guide-step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <span class="step-title">Partager le contact</span>
+              <span class="step-desc">Faites défiler vers le bas → <strong>Partager le contact</strong> → Enregistrez le fichier <strong>.vcf</strong> dans Fichiers.</span>
+            </div>
+            <span class="step-icon">📤</span>
+          </div>
+        </div>
+
+        <h4 style="margin:20px 0 8px;font-size:0.9rem;color:var(--text-primary)">Méthode 2 : Tous les contacts (recommandé)</h4>
+        <div class="install-guide">
+          <div class="install-guide-step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <span class="step-title">Aller sur iCloud.com</span>
+              <span class="step-desc">Sur un ordinateur, ouvrez <strong>iCloud.com</strong> et connectez-vous avec votre Apple ID.</span>
+            </div>
+            <span class="step-icon">💻</span>
+          </div>
+          <div class="install-guide-step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <span class="step-title">Ouvrir Contacts</span>
+              <span class="step-desc">Cliquez sur <strong>Contacts</strong>.</span>
+            </div>
+            <span class="step-icon">📇</span>
+          </div>
+          <div class="install-guide-step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <span class="step-title">Tout sélectionner</span>
+              <span class="step-desc">Appuyez sur <strong>Ctrl + A</strong> (Windows) ou <strong>Cmd + A</strong> (Mac) pour tout sélectionner.</span>
+            </div>
+            <span class="step-icon">✅</span>
+          </div>
+          <div class="install-guide-step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <span class="step-title">Exporter vCard</span>
+              <span class="step-desc">Cliquez sur l'engrenage ⚙️ en bas à gauche → <strong>Exporter vCard</strong>. Le fichier <strong>.vcf</strong> est téléchargé.</span>
+            </div>
+            <span class="step-icon">💾</span>
+          </div>
+          <div class="install-guide-step">
+            <div class="step-number">5</div>
+            <div class="step-content">
+              <span class="step-title">Importer dans OmniSMS</span>
+              <span class="step-desc">Revenez dans OmniSMS → <strong>Contacts → 📱 Importer contacts</strong> → choisissez le fichier.</span>
+            </div>
+            <span class="step-icon">🎉</span>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;padding:10px 12px;background:rgba(255,176,32,0.06);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--text-muted);line-height:1.5">
+          ℹ️ Selon votre version iOS, les noms de menus peuvent varier légèrement. Vous pouvez aussi utiliser l'app gratuite <strong>My Contacts Backup</strong> sur l'App Store.
+        </div>
+      </div>
+
+      <!-- Vue Android -->
+      <div id="vcf-view-android" style="display:none">
+        <button class="btn-ghost" onclick="showVcfView('main')" style="margin-bottom:16px;padding:8px 14px;font-size:0.8rem">
+          ← Retour
+        </button>
+        <div class="safari-tip" style="background:rgba(76,175,80,0.08);border-color:rgba(76,175,80,0.2);color:#6fbf73">
+          🤖 <strong>Android</strong> — via Google Contacts
+        </div>
+
+        <div class="install-guide" style="margin-top:16px">
+          <div class="install-guide-step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <span class="step-title">Ouvrir Contacts</span>
+              <span class="step-desc">Ouvrez l'app <strong>Contacts</strong> ou <strong>Google Contacts</strong> sur votre téléphone.</span>
+            </div>
+            <span class="step-icon">📇</span>
+          </div>
+          <div class="install-guide-step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <span class="step-title">Ouvrir le menu</span>
+              <span class="step-desc">Appuyez sur votre photo de profil en haut à droite ou sur les <strong>3 lignes ☰</strong> → <strong>Paramètres</strong>.</span>
+            </div>
+            <span class="step-icon">☰</span>
+          </div>
+          <div class="install-guide-step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <span class="step-title">Exporter</span>
+              <span class="step-desc">Faites défiler vers le bas → <strong>Exporter</strong> ou <strong>Exporter les contacts</strong>.</span>
+            </div>
+            <span class="step-icon">📤</span>
+          </div>
+          <div class="install-guide-step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <span class="step-title">Choisir et enregistrer</span>
+              <span class="step-desc">Sélectionnez le compte (si demandé) → Appuyez sur <strong>Exporter vers fichier .vcf</strong> → Enregistrez dans <strong>Téléchargements</strong>.</span>
+            </div>
+            <span class="step-icon">💾</span>
+          </div>
+          <div class="install-guide-step">
+            <div class="step-number">5</div>
+            <div class="step-content">
+              <span class="step-title">Importer dans OmniSMS</span>
+              <span class="step-desc">Revenez dans OmniSMS → <strong>Contacts → 📱 Importer contacts</strong> → choisissez le fichier <strong>.vcf</strong> depuis Téléchargements.</span>
+            </div>
+            <span class="step-icon">🎉</span>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;padding:10px 12px;background:rgba(255,255,255,0.04);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--text-muted);line-height:1.5">
+          ℹ️ Sur certains téléphones (Samsung, Xiaomi...), l'app s'appelle <strong>Contacts</strong> et l'option peut être dans <strong>Gérer les contacts → Importer/Exporter</strong>. Le principe reste le même : cherchez <strong>Exporter au format .vcf</strong>.
         </div>
       </div>
     </div>

@@ -279,11 +279,17 @@ class MessagingProvider with ChangeNotifier {
     String? conversationId,
     String? contactId, // alias for receiverId (legacy compat)
   }) async {
+    debugPrint('[DEBUG_SEND] MessagingProvider sendTextMessage called, receiverId=$receiverId, contactId=$contactId, convId=$conversationId, content=$content');
     final targetReceiver = receiverId.isNotEmpty ? receiverId : (contactId ?? '');
-    if (targetReceiver.isEmpty) return false;
+    debugPrint('[DEBUG_SEND] MessagingProvider targetReceiver=$targetReceiver, contentLen=${content.length}');
+    if (targetReceiver.isEmpty) {
+      debugPrint('[DEBUG_SEND] MessagingProvider ABORT — targetReceiver empty (receiverId empty and contactId null/empty)');
+      return false;
+    }
 
     try {
       _currentUserId ??= await _authService.getUserId();
+      debugPrint('[DEBUG_SEND] MessagingProvider currentUserId=$_currentUserId, calling MessagingService');
 
       final message = await _messagingService.sendTextMessage(
         receiverId: targetReceiver,
@@ -292,6 +298,8 @@ class MessagingProvider with ChangeNotifier {
         currentUserId: _currentUserId,
       );
 
+      debugPrint('[DEBUG_SEND] MessagingProvider service returned message=${message?.id ?? "null"}');
+
       if (message != null) {
         // Add to local message list immediately (optimistic)
         final convId = conversationId ??
@@ -299,6 +307,7 @@ class MessagingProvider with ChangeNotifier {
                 ? message.conversationId
                 : _buildConversationId(_currentUserId ?? '', targetReceiver));
 
+        debugPrint('[DEBUG_SEND] MessagingProvider adding to local map convId=$convId');
         if (!_messagesMap.containsKey(convId)) {
           _messagesMap[convId] = [];
         }
@@ -314,9 +323,10 @@ class MessagingProvider with ChangeNotifier {
 
         return true;
       }
+      debugPrint('[DEBUG_SEND] MessagingProvider service returned null → fail');
       return false;
-    } catch (e) {
-      debugPrint('sendTextMessage error: $e');
+    } catch (e, st) {
+      debugPrint('[DEBUG_SEND] MessagingProvider exception: $e\n$st');
       return false;
     }
   }

@@ -23,7 +23,7 @@ class UserModel {
       name: json['name'],
       email: json['email'],
       phone: json['phone'],
-      photoUrl: json['photoUrl'] ?? json['photo_url'],
+      photoUrl: json['photoUrl'] ?? json['photo_url'] ?? json['avatar'],
       createdAt: json['createdAt'] != null 
           ? DateTime.parse(json['createdAt']) 
           : null,

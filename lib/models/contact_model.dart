@@ -5,7 +5,12 @@ class ContactModel {
   final String? email;
   final String? photoUrl;
   final bool isRegistered; // Si le contact utilise l'app
-  
+
+  /// Provenance renvoyée par le backend (`google`, `vcf`, `manual`, null).
+  /// Le frontend ne fait que l'afficher : la déduplication et la
+  /// normalisation restent côté backend.
+  final String? source;
+
   ContactModel({
     required this.id,
     required this.name,
@@ -13,6 +18,7 @@ class ContactModel {
     this.email,
     this.photoUrl,
     this.isRegistered = false,
+    this.source,
   });
 
   factory ContactModel.fromJson(Map<String, dynamic> json) {
@@ -21,8 +27,14 @@ class ContactModel {
       name: json['name'] ?? 'Contact',
       phone: json['phone'],
       email: json['email'],
-      photoUrl: json['photoUrl'] ?? json['photo_url'],
-      isRegistered: json['isRegistered'] ?? json['is_registered'] ?? false,
+      // Le backend stocke la photo sous `avatar` (contacts Google inclus).
+      photoUrl: json['photoUrl'] ?? json['photo_url'] ?? json['avatar'],
+      // `isOnOmniSms` est le champ renvoyé par /api/contacts (sync + Google).
+      isRegistered: json['isRegistered'] ??
+          json['is_registered'] ??
+          json['isOnOmniSms'] ??
+          false,
+      source: json['source']?.toString(),
     );
   }
 
@@ -34,8 +46,15 @@ class ContactModel {
       'email': email,
       'photoUrl': photoUrl,
       'isRegistered': isRegistered,
+      if (source != null) 'source': source,
     };
   }
+
+  /// Contact importé depuis Google Contacts.
+  bool get isGoogleContact => source == 'google';
+
+  /// Contact sans compte OmniSMS associé (numéro externe).
+  bool get isExternal => !isRegistered;
 
   String get displayName => name.isNotEmpty ? name : phone ?? 'Contact';
   String get initials {

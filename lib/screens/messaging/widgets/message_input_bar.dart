@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 class MessageInputBar extends StatefulWidget {
   final Function(String) onSendMessage;
@@ -75,12 +76,16 @@ class _MessageInputBarState extends State<MessageInputBar> {
                     ),
                     onPressed: () {
                       final text = _controller.text.trim();
+                      debugPrint('[DEBUG_SEND] MessageInputBar button pressed, textLen=${text.length}, content=$text');
                       if (text.isNotEmpty) {
+                        debugPrint('[DEBUG_SEND] MessageInputBar calling onSendMessage');
                         widget.onSendMessage(text);
                         _controller.clear();
                         setState(() {
                           _hasText = false;
                         });
+                      } else {
+                        debugPrint('[DEBUG_SEND] MessageInputBar empty text, abort');
                       }
                     },
                   ),

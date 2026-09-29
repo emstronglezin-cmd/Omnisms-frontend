@@ -23,6 +23,12 @@ const State = {
   isRecording:      false,
   // Anti-race : empêche les requêtes bg de rappeler logout après une déconnexion volontaire
   _loggedOut:       false,
+  // Flux Google (connexion + import contacts) — anti double-clic et suivi du retour
+  _googleBusy:          false,
+  _googleWin:           null,
+  _googleWatcher:       null,
+  _googleMsgHandler:    null,
+  _googleStorageHandler: null,
 };
 
 // ─── API ──────────────────────────────────────────────────────────────────────
@@ -31,11 +37,22 @@ const API = {
   // Ces routes ne doivent PAS recevoir un ancien token invalide.
   _publicRoutes: ['/api/auth/login', '/api/auth/register', '/api/auth/google'],
 
+  // Ces routes peuvent renvoyer 401 sans que la session locale soit en cause
+  // (code d'échange Google expiré) : ne jamais déclencher logout().
+  _noLogoutOn401: ['/api/auth/google/exchange'],
+
+  // /api/auth/google est public, mais PAS ses sous-routes :
+  // /api/auth/google/contacts/authorize exige le Bearer OmniSMS.
+  _isPublicRoute(path = '') {
+    if (path === '/api/auth/google' || path.startsWith('/api/auth/google?')) return true;
+    return this._publicRoutes.some(r => r !== '/api/auth/google' && path.startsWith(r));
+  },
+
   headers(isFormData = false, path = '') {
     const h = { 'Accept': 'application/json' };
     if (!isFormData) h['Content-Type'] = 'application/json';
     // Ne jamais envoyer le token sur les routes publiques d'auth
-    const isPublic = this._publicRoutes.some(r => path.startsWith(r));
+    const isPublic = this._isPublicRoute(path);
     if (State.token && !isPublic) h['Authorization'] = `Bearer ${State.token}`;
     return h;
   },
@@ -45,8 +62,9 @@ const API = {
   // - Ne jamais afficher "Session expirée" sur les écrans login/register
   _handle401(path) {
     if (State._loggedOut) return;   // Déjà déconnecté — ignorer les 401 résiduels
-    const isPublic = this._publicRoutes.some(r => path.startsWith(r));
+    const isPublic = this._isPublicRoute(path);
     if (isPublic) return;           // Route publique — jamais de logout automatique
+    if (this._noLogoutOn401.some(r => path.startsWith(r))) return;
     logout();
   },
 
@@ -193,6 +211,10 @@ function logout() {
   clearInterval(State.pollTimer);
   State.pollTimer = null;
   if (_socket) { try { _socket.disconnect(); } catch (_) {} _socket = null; }
+  // Un flux Google en cours ne doit pas survivre à la déconnexion
+  try { _stopGoogleContactsWatcher(); } catch (_) {}
+  State._googleBusy = false;
+  State._googleWin  = null;
 
   // Vider l'état en mémoire
   State.token          = null;
@@ -936,11 +958,19 @@ async function requestTranscription(msgId) {
 }
 
 async function sendMessage() {
+  console.log('[DEBUG_SEND] PWA button pressed');
   const input = document.getElementById('conv-msg-input');
   const text  = input.value.trim();
-  if (!text || !State.activeConvInfo) return;
+  console.log('[DEBUG_SEND] content=', text, ' activeInfo=', State.activeConvInfo);
+  if (!text || !State.activeConvInfo) {
+    console.log('[DEBUG_SEND] abort - empty text or no activeConvInfo');
+    return;
+  }
 
   const { conversationId, contactId, isGroup } = State.activeConvInfo;
+  console.log('[DEBUG_SEND] receiverId(contactId)=', contactId, ' conversationId=', conversationId, ' isGroup=', isGroup);
+  console.log('[DEBUG_SEND] API URL=', API_BASE + '/api/messages/send');
+  console.log('[DEBUG_SEND] calling API POST /api/messages/send');
   input.value = '';
 
   const optimisticMsg = {
@@ -950,10 +980,18 @@ async function sendMessage() {
   renderMessages();
 
   let res;
-  if (isGroup) {
-    res = await API.post(`/groups/${contactId}/messages`, { content: text });
-  } else {
-    res = await API.post('/api/messages/send', { receiverId: contactId, content: text });
+  try {
+    if (isGroup) {
+      console.log('[DEBUG_SEND] isGroup true, POST /groups/'+contactId+'/messages');
+      res = await API.post(`/groups/${contactId}/messages`, { content: text });
+    } else {
+      console.log('[DEBUG_SEND] HTTP request started POST', API_BASE + '/api/messages/send', 'payload', { receiverId: contactId, content: text });
+      res = await API.post('/api/messages/send', { receiverId: contactId, content: text });
+    }
+    console.log('[DEBUG_SEND] HTTP response', res);
+  } catch(e) {
+    console.log('[DEBUG_SEND] exception', e);
+    res = null;
   }
 
   if (res && res.ok) {
@@ -1437,6 +1475,381 @@ async function syncContacts(contacts) {
     showToast(`${added} contact(s) synchronisé(s)`);
     loadContacts();
   }
+}
+
+// ─── GOOGLE AUTH & GOOGLE CONTACTS ───────────────────────────────────────────
+// Contrat backend : docs/GOOGLE_AUTH_FLUTTER.md (repo Omnisms-backend)
+//   GET  /api/auth/google                      → Google → retour avec ?code=…
+//   POST /api/auth/google/exchange { code }    → { token, user }
+//   POST /api/auth/google/contacts/authorize   → { authorizationUrl }
+//   POST /api/contacts/google/import           → compteurs d'import
+//
+// Règles :
+//   - Aucun token Google côté PWA : seul le JWT OmniSMS est stocké
+//     (mêmes clés localStorage que le login email/mot de passe).
+//   - Le backend gère People API, la normalisation, la déduplication et
+//     l'association numéro → utilisateur OmniSMS.
+//   - Les messages affichés sont des messages utilisateur : jamais de
+//     stack trace, de token ni de détail OAuth.
+
+const GOOGLE_LOGIN_URL = API_BASE + '/api/auth/google';
+const GOOGLE_FLOW_KEY  = 'omnisms_google_flow';
+const GOOGLE_DONE_KEY  = 'omnisms_google_contacts_done';
+
+function googleAuthMessage(code) {
+  switch (code) {
+    case 'GOOGLE_OAUTH_DENIED':            return 'Connexion Google annulée.';
+    case 'GOOGLE_NOT_CONFIGURED':          return 'La connexion Google n\'est pas encore disponible. Utilisez votre email et votre mot de passe.';
+    case 'GOOGLE_EXCHANGE_CODE_INVALID':   return 'La session Google a expiré. Réessayez.';
+    case 'GOOGLE_STATE_INVALID':           return 'Connexion Google interrompue. Réessayez.';
+    case 'GOOGLE_IDENTITY_CONFLICT':       return 'Ce compte Google est déjà lié à un autre compte OmniSMS.';
+    case 'GOOGLE_IDENTITY_INVALID':
+    case 'GOOGLE_IDENTITY_MISSING':        return 'Compte Google non vérifié. Réessayez avec un autre compte.';
+    case 'GOOGLE_EXCHANGE_FAILED':         return 'Impossible de finaliser la connexion Google. Réessayez.';
+    default:                               return 'Impossible de se connecter avec Google. Réessayez.';
+  }
+}
+
+function googleContactsMessage(code) {
+  switch (code) {
+    case 'GOOGLE_OAUTH_DENIED':
+    case 'GOOGLE_CONTACTS_PERMISSION_REQUIRED': return 'Autorisation Google refusée.';
+    case 'GOOGLE_NOT_CONFIGURED':               return 'L\'import des contacts Google n\'est pas encore disponible.';
+    case 'GOOGLE_CONTACTS_AUTH_REQUIRED':
+    case 'GOOGLE_TOKEN_EXPIRED':
+    case 'GOOGLE_REFRESH_TOKEN_MISSING':
+    case 'GOOGLE_STATE_INVALID':
+    case 'GOOGLE_CONTACTS_AUTH_FAILED':
+    case 'GOOGLE_CONTACTS_ACCOUNT_MISMATCH':    return 'Autorisation Google requise. Réessayez.';
+    case 'GOOGLE_PEOPLE_API_UNAVAILABLE':
+    case 'GOOGLE_ENCRYPTION_NOT_CONFIGURED':    return 'Google Contacts est temporairement indisponible. Réessayez.';
+    case 'NO_TOKEN':
+    case 'INVALID_TOKEN':
+    case 'INVALID_SESSION':
+    case 'NO_SESSION':                          return 'Vous devez être connecté pour importer vos contacts Google.';
+    case 'TIMEOUT':                             return 'Aucune réponse de Google. Réessayez.';
+    case 'BROWSER_BLOCKED':                     return 'Autorisez les fenêtres pop-up pour OmniSMS, puis réessayez.';
+    default:                                    return 'Impossible d\'importer les contacts Google.';
+  }
+}
+
+function googleImportSummary(d) {
+  if (!d) return '';
+  const n = k => Number(d[k] || 0);
+  if (d.empty === true || (n('imported') === 0 && n('updated') === 0)) return 'aucun nouveau contact';
+  const parts = [];
+  if (n('imported'))       parts.push(`${n('imported')} importé${n('imported') > 1 ? 's' : ''}`);
+  if (n('updated'))        parts.push(`${n('updated')} mis à jour`);
+  if (n('omnismsMatches')) parts.push(`${n('omnismsMatches')} sur OmniSMS`);
+  return parts.join(', ');
+}
+
+function _setGoogleBtnLoading(btnId, labelId, loading, label, defaultLabel) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = !!loading;
+  const lbl = document.getElementById(labelId);
+  if (lbl) lbl.textContent = loading ? (label || 'Chargement…') : defaultLabel;
+  const existing = btn.querySelector('.g-spinner');
+  if (loading && !existing) {
+    const sp = document.createElement('span');
+    sp.className = 'g-spinner';
+    btn.insertBefore(sp, btn.firstChild);
+  } else if (!loading && existing) {
+    existing.remove();
+  }
+}
+
+function _setGoogleLoginLoading(loading, label) {
+  _setGoogleBtnLoading('google-login-btn', 'google-login-label', loading, label, 'Continuer avec Google');
+}
+
+function _setGoogleImportLoading(loading, label) {
+  _setGoogleBtnLoading('google-import-btn', 'google-import-label', loading, label, 'Importer depuis Google');
+}
+
+// ── 1. Connexion Google ──────────────────────────────────────────────────────
+function startGoogleLogin() {
+  if (State._googleBusy) return;                 // anti double-clic
+  State._googleBusy = true;
+  showError('login-error', '');
+  _setGoogleLoginLoading(true, 'Connexion à Google…');
+  try { sessionStorage.setItem(GOOGLE_FLOW_KEY, 'login'); } catch (_) {}
+
+  // Redirection plein onglet : en PWA les schémas personnalisés
+  // (omnisms://) ne fonctionnent pas dans un navigateur.
+  window.location.href = GOOGLE_LOGIN_URL;
+}
+
+async function _finishGoogleLogin(code) {
+  _setGoogleLoginLoading(true, 'Connexion en cours…');
+  const res = await API.post('/api/auth/google/exchange', { code });
+
+  if (res.ok && res.data && res.data.token) {
+    // Même persistance que login() : un seul système de session.
+    State.token = res.data.token;
+    State.user  = res.data.user || {};
+    localStorage.setItem('auth_token', State.token);
+    localStorage.setItem('user_data', JSON.stringify(State.user));
+    showError('login-error', '');
+    State._googleBusy = false;
+    _setGoogleLoginLoading(false);
+    try { sessionStorage.removeItem(GOOGLE_FLOW_KEY); } catch (_) {}
+
+    initDashboard();
+
+    // Comme login() : un compte Google sans numéro → onglet Paramètres
+    if (State.user.needsPhone || !State.user.phone) {
+      setTimeout(() => {
+        switchTab('settings');
+        showToast('⚠️ Merci d\'ajouter votre numéro de téléphone dans Paramètres.');
+      }, 800);
+    }
+    return;
+  }
+
+  State._googleBusy = false;
+  _setGoogleLoginLoading(false);
+  showScreen('screen-login');
+  showError('login-error', googleAuthMessage(res && res.data ? res.data.code : 'NETWORK'));
+}
+
+// ── 2. Import Google Contacts ────────────────────────────────────────────────
+async function importFromGoogle() {
+  if (State._googleBusy) return;                 // anti double-clic
+  if (!State.token) { showToast(googleContactsMessage('NO_SESSION')); return; }
+
+  State._googleBusy = true;
+  _setGoogleImportLoading(true, 'Connexion à Google…');
+
+  // La fenêtre doit être ouverte PENDANT le geste utilisateur,
+  // sinon elle est bloquée par le navigateur.
+  let win = null;
+  try { win = window.open('', 'omnisms_google_contacts'); } catch (_) { win = null; }
+
+  const res = await API.post('/api/auth/google/contacts/authorize', {});
+  const url = (res && res.ok && res.data) ? res.data.authorizationUrl : null;
+
+  if (!url) {
+    if (win) { try { win.close(); } catch (_) {} }
+    State._googleBusy = false;
+    _setGoogleImportLoading(false);
+    showToast(googleContactsMessage(res && res.data ? res.data.code : 'NETWORK'), 5000);
+    return;
+  }
+
+  try { sessionStorage.setItem(GOOGLE_FLOW_KEY, 'contacts'); } catch (_) {}
+  try { localStorage.removeItem(GOOGLE_DONE_KEY); } catch (_) {}
+
+  if (win) {
+    State._googleWin = win;
+    win.location.href = url;
+    showToast('Autorisez OmniSMS dans le nouvel onglet…', 6000);
+    _startGoogleContactsWatcher();
+  } else {
+    // Pop-up bloquée → même onglet (le retour relancera l'application)
+    window.location.href = url;
+  }
+}
+
+async function _runGoogleContactsImport() {
+  _setGoogleImportLoading(true, 'Importation des contacts…');
+  showToast('Importation des contacts…', 2500);
+
+  const res = await API.post('/api/contacts/google/import', {});
+
+  State._googleBusy = false;
+  _setGoogleImportLoading(false);
+
+  if (res.ok && res.data && res.data.success !== false) {
+    // Rechargement complet depuis le backend : la déduplication est côté
+    // serveur, on ne fusionne rien localement.
+    await loadContacts();
+    const detail = googleImportSummary(res.data);
+    showToast(detail ? `✓ Contacts importés — ${detail}` : '✓ Contacts importés', 5000);
+    return { ok: true };
+  }
+
+  const code = (res && res.data) ? res.data.code : 'NETWORK';
+  showToast(googleContactsMessage(code), 5000);
+  return { ok: false, code };
+}
+
+// ── 3. Retour depuis Google (même onglet ou onglet de consentement) ──────────
+function _detectGoogleCallback(params) {
+  const path  = window.location.pathname || '';
+  const code  = params.get('code');
+  const error = params.get('error');
+  const auth  = params.get('authorized');
+  let flowHint = null;
+  try { flowHint = sessionStorage.getItem(GOOGLE_FLOW_KEY); } catch (_) {}
+
+  if (code) return { kind: 'login', code };
+  if (auth === '1' || auth === 'true') return { kind: 'contacts', authorized: true };
+  if (error) {
+    const isContacts = path.includes('contacts') || flowHint === 'contacts';
+    return { kind: isContacts ? 'contacts' : 'login', error };
+  }
+  return null;
+}
+
+function _cleanGoogleQuery() {
+  try {
+    const url = new URL(window.location.href);
+    ['code', 'error', 'authorized', 'state', 'scope', 'iss'].forEach(k => url.searchParams.delete(k));
+    const qs = url.searchParams.toString();
+    window.history.replaceState({}, '', url.pathname + (qs ? '?' + qs : '') + url.hash);
+  } catch (_) {}
+}
+
+/// Appelé au démarrage : retourne true si un callback Google a été traité.
+async function handleGoogleCallback() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const cb = _detectGoogleCallback(params);
+    if (!cb) return false;
+
+    // Le code est à usage unique : nettoyer l'URL pour éviter tout rejeu.
+    _cleanGoogleQuery();
+    try { sessionStorage.removeItem(GOOGLE_FLOW_KEY); } catch (_) {}
+
+    if (cb.kind === 'login') {
+      if (cb.code) await _finishGoogleLogin(cb.code);
+      else {
+        State._googleBusy = false;
+        showScreen('screen-login');
+        showError('login-error', googleAuthMessage(cb.error));
+      }
+      return true;
+    }
+
+    // ── Flux contacts ──
+    _notifyGoogleContactsDone(cb);
+
+    // Onglet de consentement (ouvert par window.open) : prévenir l'onglet
+    // principal puis se fermer.
+    if (window.opener && !window.opener.closed) {
+      _renderGoogleCallbackTab(cb);
+      return true;
+    }
+
+    // Retour dans le même onglet : reprendre l'app puis importer.
+    if (State.token && State.user) {
+      initDashboard();
+      switchTab('contacts');
+      if (cb.authorized) await _runGoogleContactsImport();
+      else { State._googleBusy = false; showToast(googleContactsMessage(cb.error || 'GOOGLE_OAUTH_DENIED'), 5000); }
+    } else {
+      showScreen('screen-login');
+      showToast(googleContactsMessage('NO_SESSION'), 5000);
+    }
+    return true;
+  } catch (e) {
+    console.warn('[Google] callback ignoré', e);
+    return false;
+  }
+}
+
+function _notifyGoogleContactsDone(cb) {
+  const payload = {
+    source: 'omnisms-google',
+    kind: 'contacts',
+    authorized: !!cb.authorized,
+    error: cb.error || null,
+  };
+  try { localStorage.setItem(GOOGLE_DONE_KEY, JSON.stringify({ ...payload, at: Date.now() })); } catch (_) {}
+  try {
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage(payload, window.location.origin);
+    }
+  } catch (_) {}
+}
+
+function _renderGoogleCallbackTab(cb) {
+  const ok = !!cb.authorized;
+  document.body.innerHTML = `
+    <div style="min-height:100dvh;display:flex;align-items:center;justify-content:center;
+                background:#08090f;color:#e4eaf5;font-family:Inter,system-ui,sans-serif;
+                text-align:center;padding:24px">
+      <div>
+        <div style="font-size:3rem;margin-bottom:12px">${ok ? '✅' : '⚠️'}</div>
+        <h1 style="font-size:1.05rem;margin-bottom:8px">
+          ${ok ? 'Autorisation Google enregistrée' : 'Autorisation Google annulée'}
+        </h1>
+        <p style="font-size:0.85rem;color:#6b7a96">
+          ${ok ? 'Vos contacts sont en cours d\'import dans OmniSMS.' : 'Vous pouvez réessayer depuis OmniSMS.'}
+          <br>Cet onglet va se fermer.
+        </p>
+      </div>
+    </div>`;
+  setTimeout(() => { try { window.close(); } catch (_) {} }, 1500);
+}
+
+// ── 4. Surveillance du retour (onglet principal) ─────────────────────────────
+function _stopGoogleContactsWatcher() {
+  if (State._googleWatcher) { clearInterval(State._googleWatcher); State._googleWatcher = null; }
+  if (State._googleMsgHandler) {
+    window.removeEventListener('message', State._googleMsgHandler);
+    State._googleMsgHandler = null;
+  }
+}
+
+function _startGoogleContactsWatcher() {
+  _stopGoogleContactsWatcher();
+  const startedAt = Date.now();
+  const TIMEOUT_MS = 5 * 60 * 1000;
+
+  // a) Message posté par l'onglet de consentement
+  State._googleMsgHandler = (e) => {
+    if (e.origin !== window.location.origin) return;
+    const d = e.data;
+    if (!d || d.source !== 'omnisms-google' || d.kind !== 'contacts') return;
+    _onGoogleContactsResult(d);
+  };
+  window.addEventListener('message', State._googleMsgHandler);
+
+  // b) Repli : flag écrit dans localStorage (+ événement storage)
+  const onStorage = (e) => {
+    if (e.key !== GOOGLE_DONE_KEY || !e.newValue) return;
+    let flag = null;
+    try { flag = JSON.parse(e.newValue); } catch (_) {}
+    if (flag) _onGoogleContactsResult(flag);
+  };
+  window.addEventListener('storage', onStorage);
+  State._googleStorageHandler = onStorage;
+
+  // c) Repli final : polling + timeout
+  State._googleWatcher = setInterval(() => {
+    let flag = null;
+    try { flag = JSON.parse(localStorage.getItem(GOOGLE_DONE_KEY) || 'null'); } catch (_) {}
+    if (flag && Date.now() - (flag.at || 0) < 10 * 60 * 1000) {
+      _onGoogleContactsResult(flag);
+      return;
+    }
+    if (Date.now() - startedAt > TIMEOUT_MS) {
+      _onGoogleContactsResult({ source: 'omnisms-google', kind: 'contacts', authorized: false, error: 'TIMEOUT' });
+    }
+  }, 700);
+}
+
+async function _onGoogleContactsResult(payload) {
+  _stopGoogleContactsWatcher();
+  if (State._googleStorageHandler) {
+    window.removeEventListener('storage', State._googleStorageHandler);
+    State._googleStorageHandler = null;
+  }
+  try { localStorage.removeItem(GOOGLE_DONE_KEY); } catch (_) {}
+  if (State._googleWin) { try { State._googleWin.close(); } catch (_) {} State._googleWin = null; }
+  try { sessionStorage.removeItem(GOOGLE_FLOW_KEY); } catch (_) {}
+
+  if (!payload || !payload.authorized) {
+    State._googleBusy = false;
+    _setGoogleImportLoading(false);
+    showToast(googleContactsMessage(payload && payload.error ? payload.error : 'GOOGLE_OAUTH_DENIED'), 5000);
+    return;
+  }
+
+  await _runGoogleContactsImport();
 }
 
 // ─── GROUPES ──────────────────────────────────────────────────────────────────
@@ -2333,11 +2746,37 @@ function _renderAndroidInstallContent() {
   }
 }
 
+// ─── VCF GUIDE MODAL ─────────────────────────────────────────────────────────
+function openVcfGuideModal() {
+  // Détection plateforme pour pré-sélectionner la bonne vue (comme install modal)
+  const { isIOS, isAndroid } = _detectPlatform();
+  if (isIOS) {
+    showVcfView('ios');
+  } else if (isAndroid) {
+    showVcfView('android');
+  } else {
+    showVcfView('main');
+  }
+  openModal('modal-vcf-guide');
+}
+
+function showVcfView(view) {
+  const views = ['main', 'ios', 'android'];
+  views.forEach(v => {
+    const el = document.getElementById('vcf-view-' + v);
+    if (el) el.style.display = v === view ? 'block' : 'none';
+  });
+}
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
+
+  // Retour OAuth Google (?code=… / ?authorized=1 / ?error=…) : traité avant le
+  // routage classique. Retourne false si l'URL ne contient rien de Google.
+  if (await handleGoogleCallback()) return;
 
   if (State.token && State.user) {
     initDashboard();

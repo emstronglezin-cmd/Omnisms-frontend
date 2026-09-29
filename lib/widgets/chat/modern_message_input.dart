@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 class ModernMessageInput extends StatefulWidget {
   final Function(String) onSendMessage;
@@ -38,12 +39,16 @@ class _ModernMessageInputState extends State<ModernMessageInput> {
 
   void _handleSend() {
     final text = _controller.text.trim();
+    debugPrint('[DEBUG_SEND] ModernMessageInput _handleSend pressed, hasText=$_hasText, textLen=${text.length}, content=$text');
     if (text.isNotEmpty) {
+      debugPrint('[DEBUG_SEND] ModernMessageInput calling onSendMessage');
       widget.onSendMessage(text);
       _controller.clear();
       setState(() {
         _hasText = false;
       });
+    } else {
+      debugPrint('[DEBUG_SEND] ModernMessageInput empty text, abort');
     }
   }
 

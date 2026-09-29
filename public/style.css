@@ -2438,4 +2438,147 @@ input:-webkit-autofill:focus {
     display: none;
   }
 }
+/* ── VCF GUIDE CARD (Contacts tab) ─────────────────────── */
+.vcf-guide-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 16px 14px;
+  padding: 12px 14px;
+  background: rgba(20, 23, 32, 0.60);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--t-fast), transform var(--t-fast), border-color var(--t-fast);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.vcf-guide-card:hover {
+  background: rgba(0,200,255,0.06);
+  border-color: rgba(0,200,255,0.18);
+  transform: translateY(-1px);
+}
+.vcf-guide-card:active {
+  transform: scale(0.99);
+}
+.vcf-guide-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,193,7,0.12);
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+.vcf-guide-card-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vcf-guide-card-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+.vcf-guide-card-sub {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.2;
+}
+.vcf-guide-card-arrow {
+  font-size: 1.2rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
 .anim-slide-up { animation: slideUp var(--t-normal) ease both; }
+
+/* ═══════════════════════════════════════════════════════════
+   GOOGLE — connexion & import contacts
+   (mêmes tokens que le reste du design system v5.1)
+   ═══════════════════════════════════════════════════════════ */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0 14px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.btn-google {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 20px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.93rem;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast),
+              transform var(--t-fast), opacity var(--t-fast);
+  -webkit-appearance: none;
+}
+.btn-google:hover:not(:disabled) {
+  background: var(--bg-card2);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+.btn-google:active:not(:disabled) { transform: translateY(0); opacity: 0.85; }
+.btn-google:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Pastille « G » Google (aucun asset externe requis) */
+.g-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border: 2px solid #4285f4;
+  border-radius: 50%;
+  color: #4285f4;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* Ligne dédiée au bouton Google dans l'onglet Contacts */
+.contacts-actions-google { padding-top: 0; }
+.contacts-actions-google .btn-ghost { flex: 0 0 100%; font-size: 0.85rem; }
+
+/* Spinner inline des boutons Google */
+.g-spinner {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: g-spin 0.8s linear infinite;
+}
+@keyframes g-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .g-spinner { animation-duration: 2.4s; }
+}
