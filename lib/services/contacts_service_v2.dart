@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/models.dart';
 import 'auth_service.dart';
+import 'google_oauth_flow.dart';
 
 /// ContactsServiceV2 — Gestion complète des contacts
 ///
@@ -439,6 +440,149 @@ class ContactsServiceV2 {
       return {'registered': false};
     } catch (e) {
       return {'registered': false};
+    }
+  }
+
+  // ── Google Contacts : étape 1 — autorisation ──────────────────
+  /// POST /api/auth/google/contacts/authorize  (Bearer OmniSMS requis)
+  ///
+  /// Le backend construit l'URL de consentement Google (scope
+  /// `contacts.readonly`). Aucun token Google ne transite par le frontend :
+  /// le refresh token reste chiffré côté backend.
+  ///
+  /// Retourne `{ success, authorizationUrl?, code?, error? }`.
+  Future<Map<String, dynamic>> requestGoogleContactsAuthorization() async {
+    try {
+      final token = await _authService.getToken();
+      if (token == null) {
+        return {
+          'success': false,
+          'code': 'NO_TOKEN',
+          'error': GoogleContactsMessages.notConnected,
+        };
+      }
+
+      final response = await http
+          .post(
+            Uri.parse(
+                '${ApiConfig.baseUrl}${ApiConfig.googleContactsAuthorizeEndpoint}'),
+            headers: {
+              ...ApiConfig.headers,
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(const <String, dynamic>{}),
+          )
+          .timeout(ApiConfig.requestTimeout);
+
+      final data = _decodeJsonMap(response.body);
+
+      if (response.statusCode == 200 && data['authorizationUrl'] != null) {
+        return {
+          'success': true,
+          'authorizationUrl': data['authorizationUrl'].toString(),
+          'redirectUri': data['redirectUri'],
+          'scope': data['scope'],
+        };
+      }
+
+      final code = (data['code'] ?? '').toString();
+      return {
+        'success': false,
+        'code': code,
+        'error': GoogleContactsMessages.forCode(code),
+      };
+    } on TimeoutException {
+      return {
+        'success': false,
+        'code': 'TIMEOUT',
+        'error': 'Le serveur met du temps à répondre (démarrage). Réessayez.',
+      };
+    } catch (e) {
+      debugPrint('❌ requestGoogleContactsAuthorization: $e');
+      return {
+        'success': false,
+        'code': 'NETWORK',
+        'error': GoogleContactsMessages.importFailed,
+      };
+    }
+  }
+
+  // ── Google Contacts : étape 2 — import ────────────────────────
+  /// POST /api/contacts/google/import  (Bearer OmniSMS requis)
+  ///
+  /// Le backend fait tout : People API, normalisation, déduplication et
+  /// association numéro → utilisateur OmniSMS. Le frontend ne fait que
+  /// relire les compteurs renvoyés puis recharger la liste.
+  ///
+  /// Retourne `{ success, ...compteurs }` ou `{ success:false, code, error }`.
+  Future<Map<String, dynamic>> importGoogleContacts() async {
+    try {
+      final token = await _authService.getToken();
+      if (token == null) {
+        return {
+          'success': false,
+          'code': 'NO_TOKEN',
+          'error': GoogleContactsMessages.notConnected,
+        };
+      }
+
+      final response = await http
+          .post(
+            Uri.parse(
+                '${ApiConfig.baseUrl}${ApiConfig.googleContactsImportEndpoint}'),
+            headers: {
+              ...ApiConfig.headers,
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(const <String, dynamic>{}),
+          )
+          .timeout(ApiConfig.requestTimeout);
+
+      final data = _decodeJsonMap(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        debugPrint(
+            '✅ Google import: imported=${data['imported']} updated=${data['updated']} '
+            'matches=${data['omnismsMatches']} external=${data['external']}');
+        return Map<String, dynamic>.from(data);
+      }
+
+      final code = (data['code'] ?? '').toString();
+      debugPrint('⚠️ importGoogleContacts: ${response.statusCode} code=$code');
+      return {
+        'success': false,
+        'code': code,
+        'authorizationRequired':
+            data['authorizationRequired'] == true ||
+                code == 'GOOGLE_CONTACTS_AUTH_REQUIRED' ||
+                code == 'GOOGLE_TOKEN_EXPIRED',
+        'error': GoogleContactsMessages.forCode(code),
+      };
+    } on TimeoutException {
+      return {
+        'success': false,
+        'code': 'TIMEOUT',
+        'error': 'Le serveur met du temps à répondre (démarrage). Réessayez.',
+      };
+    } catch (e) {
+      debugPrint('❌ importGoogleContacts: $e');
+      return {
+        'success': false,
+        'code': 'NETWORK',
+        'error': GoogleContactsMessages.importFailed,
+      };
+    }
+  }
+
+  /// `jsonDecode` tolérant : un corps non-JSON (page d'erreur, HTML) ne doit
+  /// jamais remonter comme exception brute jusqu'à l'utilisateur.
+  Map<String, dynamic> _decodeJsonMap(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) return decoded;
+      return <String, dynamic>{};
+    } catch (_) {
+      return <String, dynamic>{};
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/auth_service.dart';
+import '../services/google_oauth_flow.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
@@ -8,11 +9,16 @@ class AuthProvider with ChangeNotifier {
   UserModel? _currentUser;
   bool _isLoggedIn = false;
   bool _isLoading = false;
+  bool _isGoogleSignInInProgress = false;
   String? _error;
 
   UserModel? get currentUser => _currentUser;
   bool get isLoggedIn => _isLoggedIn;
   bool get isLoading => _isLoading;
+  bool get isGoogleSignInInProgress => _isGoogleSignInInProgress;
+
+  /// Bloque les doubles clics sur le bouton Google.
+  bool get isBusy => _isLoading || _isGoogleSignInInProgress;
   String? get error => _error;
 
   AuthProvider() {
@@ -26,6 +32,27 @@ class AuthProvider with ChangeNotifier {
     _isLoggedIn = await _authService.isLoggedIn();
     if (_isLoggedIn) {
       _currentUser = await _authService.getCurrentUser();
+      // Jeton explicitement refusé par /api/auth/me → session expirée.
+      // (Un backend endormi ou un timeout ne déconnecte pas l'utilisateur.)
+      if (_currentUser == null && _authService.sessionExpired) {
+        await _authService.logout();
+        _isLoggedIn = false;
+      }
+    }
+
+    // Écoute des deep links Google démarrée dès le lancement : indispensable
+    // pour capter le lien initial quand l'app est relancée par Google.
+    await GoogleOAuthFlow.instance.start();
+
+    // Retour Google « à froid » : l'app a été relancée par le deep link
+    // omnisms://auth/google/callback. On finalise la session sans redemander
+    // de saisie à l'utilisateur.
+    if (!_isLoggedIn) {
+      final recovered = await _authService.recoverGoogleLoginIfPending();
+      if (recovered['success'] == true) {
+        _currentUser = recovered['user'];
+        _isLoggedIn = true;
+      }
     }
 
     _isLoading = false;
@@ -99,6 +126,46 @@ class AuthProvider with ChangeNotifier {
     } catch (e) {
       _error = 'Erreur lors de la connexion';
       _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Connexion Google — même cycle de vie que [login] (loading, erreur,
+  /// utilisateur courant, notification de l'interface).
+  ///
+  /// Le flux lui-même (navigateur → Google → deep link → échange du code)
+  /// est porté par [AuthService.loginWithGoogle].
+  Future<bool> loginWithGoogle() async {
+    // Anti double-clic : ignore toute nouvelle tentative pendant le flux.
+    if (_isGoogleSignInInProgress) return false;
+
+    // NB : _isLoading reste réservé au login email/mot de passe (le bouton
+    // « Se connecter » affiche son spinner dessus). Le flux Google utilise son
+    // propre drapeau pour ne pas faire spinner le mauvais bouton.
+    _isGoogleSignInInProgress = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final result = await _authService.loginWithGoogle();
+
+      if (result['success'] == true) {
+        _currentUser = result['user'];
+        _isLoggedIn = true;
+        _isGoogleSignInInProgress = false;
+        notifyListeners();
+        return true;
+      }
+
+      _error = result['message'] ?? 'Impossible de se connecter avec Google.';
+      _isGoogleSignInInProgress = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      // Message générique : jamais d'exception brute ni de détail OAuth.
+      _error = 'Impossible de se connecter avec Google. Réessayez.';
+      _isGoogleSignInInProgress = false;
       notifyListeners();
       return false;
     }
