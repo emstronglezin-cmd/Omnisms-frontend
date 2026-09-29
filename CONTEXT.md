@@ -270,3 +270,74 @@ background: linear-gradient(160deg, rgba(255,255,255,0.055) 0%, transparent 100%
 Appliqués sur : `.topbar`, `.bottom-nav`, `.conv-appbar`, `.conv-input-bar`, `.modal-sheet`, `.auth-card`, `#toast`, `.msg-them .msg-bubble`
 
 Fallback `@supports not (backdrop-filter: blur(1px))` inclus pour anciens navigateurs.
+
+---
+
+## 13. Google Auth + Google Contacts (intégration Flutter)
+
+> Contrat backend : `docs/GOOGLE_AUTH_FLUTTER.md` du repo **Omnisms-backend**.
+> Le backend reste responsable de Google People API, de la normalisation, de la
+> déduplication et de l'association numéro → utilisateur OmniSMS.
+
+### Endpoints backend utilisés (aucun autre)
+
+| Étape | Méthode & route | Auth |
+|-------|-----------------|------|
+| Démarrer la connexion Google | `GET  /api/auth/google` (ouvert dans le navigateur système) | — |
+| Échanger le code contre la session | `POST /api/auth/google/exchange` `{ "code": "…" }` | — |
+| Profil / session courante | `GET  /api/auth/me` | Bearer |
+| Autoriser Google Contacts | `POST /api/auth/google/contacts/authorize` | Bearer |
+| Importer les contacts Google | `POST /api/contacts/google/import` | Bearer |
+
+Toutes les routes sont construites depuis `ApiConfig.baseUrl`
+(`https://omnisms-backend.onrender.com`) — aucune URL en dur ailleurs.
+
+### Deep links (mécanisme de retour imposé par le backend)
+
+```
+omnisms://auth/google/callback?code=<code à usage unique>   → connexion
+omnisms://auth/google/callback?error=GOOGLE_OAUTH_DENIED    → refus
+omnisms://auth/google/contacts/callback?authorized=1        → contacts autorisés
+omnisms://auth/google/contacts/callback?error=…             → refus contacts
+```
+
+- Aucun JWT OmniSMS ni token Google ne circule dans l'URL : le backend ne
+  renvoie qu'un code d'échange (valable 2 min, usage unique).
+- Configuration native : `android/app/src/main/AndroidManifest.xml`
+  (intent-filter `omnisms://auth` + `flutter_deeplinking_enabled=false`) et
+  `ios/Runner/Info.plist` (`CFBundleURLTypes` + `FlutterDeepLinkingEnabled=false`).
+- Plugin : `app_links` (Android/iOS/desktop/web).
+- **Web/PWA** : les schémas personnalisés ne fonctionnent pas dans un
+  navigateur. Pour le web, `GOOGLE_FLUTTER_REDIRECT_URI` et
+  `GOOGLE_CONTACTS_FLUTTER_REDIRECT_URI` doivent pointer vers l'URL HTTPS
+  déployée côté backend (Render). Le code relit alors `Uri.base`.
+
+### Fichiers concernés
+
+| Fichier | Rôle |
+|---------|------|
+| `lib/services/google_oauth_flow.dart` | Écoute des deep links, ouverture navigateur, parsing des callbacks, messages utilisateur |
+| `lib/services/auth_service.dart` | `loginWithGoogle()` + échange du code (même stockage que `login()`) |
+| `lib/providers/auth_provider.dart` | `loginWithGoogle()`, session persistante, session expirée (401) |
+| `lib/screens/auth/login_screen.dart` | Bouton « Continuer avec Google » |
+| `lib/services/contacts_service_v2.dart` | `requestGoogleContactsAuthorization()`, `importGoogleContacts()` |
+| `lib/providers/contacts_provider_v2.dart` | `importFromGoogle()` + états `GoogleImportState` |
+| `lib/screens/contacts/contacts_screen_v2.dart` | Action « Importer depuis Google » |
+
+### Règles
+
+1. **Un seul système de session** : le JWT OmniSMS (clé `auth_token`) est le
+   même pour login email/mot de passe et Google. Jamais de second token.
+2. **Aucun token Google côté Flutter** — ni stocké, ni transmis.
+3. **Après import Google → `loadContacts()`** : la liste est rechargée depuis
+   le backend, jamais fusionnée localement (déduplication côté serveur).
+4. Les contacts Google arrivent dans la même liste que les contacts manuels et
+   VCF (`source: "google"`, statut OmniSMS via `isOnOmniSms`).
+5. Les erreurs affichées sont des messages utilisateur : jamais de stack
+   trace, de token ou de détail OAuth.
+
+### Variables backend requises (Render)
+
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`,
+`GOOGLE_FLUTTER_REDIRECT_URI`, `GOOGLE_CONTACTS_FLUTTER_REDIRECT_URI`,
+`GOOGLE_TOKEN_ENCRYPTION_KEY` — rien de tout cela ne vit dans le frontend.
