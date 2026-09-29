@@ -113,6 +113,47 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// Connexion Google — le flux complet (navigateur → Google → deep link →
+  /// échange du code) est géré par AuthProvider/AuthService.
+  Future<void> _handleGoogleLogin() async {
+    final auth = context.read<AuthProvider>();
+    // Double protection contre les doubles clics (le bouton est aussi désactivé).
+    if (auth.isBusy) return;
+
+    auth.clearError();
+
+    // Indice « serveur en démarrage » comme pour le login classique.
+    final wakeupTimer = Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _isWakingUp = true);
+    });
+
+    final success = await auth.loginWithGoogle();
+
+    await wakeupTimer.catchError((_) {});
+    if (mounted) setState(() => _isWakingUp = false);
+    if (!mounted) return;
+
+    if (success) {
+      try {
+        context.read<MessagingProvider>().reinitialize();
+      } catch (_) {}
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+      );
+      return;
+    }
+
+    // Message utilisateur simple : ni stack trace, ni détail OAuth, ni token.
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(auth.error ?? 'Impossible de se connecter avec Google.'),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 6),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -182,7 +223,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
 
                         // ── Wakeup indicator ──────────────────────
-                        if (_isWakingUp && auth.isLoading) ...[
+                        if (_isWakingUp && auth.isBusy) ...[
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
@@ -265,7 +306,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         SizedBox(
                           height: 52,
                           child: ElevatedButton(
-                            onPressed: auth.isLoading ? null : _handleLogin,
+                            onPressed: auth.isBusy ? null : _handleLogin,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF0066FF),
                               foregroundColor: Colors.white,
@@ -289,6 +330,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   ),
                           ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // ── Google sign-in ────────────────────────
+                        _GoogleSignInButton(
+                          isLoading: auth.isGoogleSignInInProgress,
+                          enabled: !auth.isBusy,
+                          onPressed: _handleGoogleLogin,
                         ),
                         const SizedBox(height: 16),
 
@@ -320,6 +369,86 @@ class _LoginScreenState extends State<LoginScreen> {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// Bouton « Continuer avec Google » — reprend le style des boutons existants
+/// (hauteur 52, coins arrondis 12) avec la charte Google.
+class _GoogleSignInButton extends StatelessWidget {
+  final bool isLoading;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  const _GoogleSignInButton({
+    required this.isLoading,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  static const Color _googleBlue = Color(0xFF4285F4);
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return SizedBox(
+      height: 52,
+      child: OutlinedButton(
+        // Désactivé pendant tout flux d'authentification (anti double-clic).
+        onPressed: (enabled && !isLoading) ? onPressed : null,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: isDark ? const Color(0xFF1B1F27) : Colors.white,
+          foregroundColor: isDark ? Colors.white : const Color(0xFF3C4043),
+          side: BorderSide(
+            color: isDark ? Colors.white24 : const Color(0xFFDADCE0),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: isLoading
+            ? const SizedBox(
+                height: 22,
+                width: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: _googleBlue,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // « G » Google (pas d'asset requis)
+                  Container(
+                    width: 22,
+                    height: 22,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: _googleBlue, width: 2),
+                    ),
+                    child: const Text(
+                      'G',
+                      style: TextStyle(
+                        color: _googleBlue,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        height: 1.0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Continuer avec Google',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }

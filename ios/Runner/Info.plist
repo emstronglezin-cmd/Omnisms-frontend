@@ -49,5 +49,23 @@
 	<string>OmniSMS a besoin d'accéder à vos contacts pour vous permettre d'envoyer des messages à vos amis et trouver qui utilise OmniSMS.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>OmniSMS a besoin d'accéder à votre microphone pour enregistrer des messages vocaux.</string>
+	<!-- Deep linking Flutter natif désactivé : les liens sont livrés par app_links -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
+	<!-- Retour OAuth Google : omnisms://auth/google/callback
+	     et omnisms://auth/google/contacts/callback -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.omnisms.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>omnisms</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
