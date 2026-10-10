@@ -35,17 +35,21 @@ const State = {
 const API = {
   // Routes publiques qui n'ont JAMAIS besoin d'un token d'authentification.
   // Ces routes ne doivent PAS recevoir un ancien token invalide.
-  _publicRoutes: ['/api/auth/login', '/api/auth/register', '/api/auth/google'],
+  _publicRoutes: ['/api/auth/login', '/api/auth/register'],
+
+  // Contrat backend (docs/GOOGLE_AUTH_FLUTTER.md) : « Aucun Bearer sur
+  // /api/auth/google ni /api/auth/google/exchange ». Correspondance EXACTE —
+  // `/api/auth/google` ne doit surtout pas englober ses sous-routes :
+  // `/api/auth/google/contacts/authorize` exige le Bearer OmniSMS.
+  _exactPublicRoutes: ['/api/auth/google', '/api/auth/google/exchange'],
 
   // Ces routes peuvent renvoyer 401 sans que la session locale soit en cause
   // (code d'échange Google expiré) : ne jamais déclencher logout().
   _noLogoutOn401: ['/api/auth/google/exchange'],
 
-  // /api/auth/google est public, mais PAS ses sous-routes :
-  // /api/auth/google/contacts/authorize exige le Bearer OmniSMS.
   _isPublicRoute(path = '') {
-    if (path === '/api/auth/google' || path.startsWith('/api/auth/google?')) return true;
-    return this._publicRoutes.some(r => r !== '/api/auth/google' && path.startsWith(r));
+    if (this._exactPublicRoutes.some(r => path === r || path.startsWith(r + '?'))) return true;
+    return this._publicRoutes.some(r => path.startsWith(r));
   },
 
   headers(isFormData = false, path = '') {
@@ -1617,12 +1621,24 @@ function startGoogleLogin() {
   window.location.href = GOOGLE_LOGIN_URL;
 }
 
+// Écran dédié au traitement du retour OAuth web (/auth/google/callback).
+// Passe par le routeur existant (showScreen) : aucun second système d'écrans.
+function _showGoogleCallbackScreen(step) {
+  const el = document.getElementById('gcb-step');
+  if (el && step) el.textContent = step;
+  showScreen('screen-google-callback');
+}
+
 async function _finishGoogleLogin(code) {
   // Le code est à usage unique : un second passage avec le même code
   // (rechargement, bouton précédent, URL rejouée) est ignoré.
   if (!code || code === _consumedGoogleCode) return false;
   _consumedGoogleCode = code;
 
+  // Retour navigateur : l'écran de connexion n'est plus visible, on affiche
+  // donc un état de traitement explicite (le backend Render peut mettre
+  // jusqu'à ~50 s à réveiller — jamais de splash sans indication).
+  _showGoogleCallbackScreen('Connexion Google en cours…');
   _setGoogleLoginLoading(true, 'Connexion en cours…');
 
   let res = null;
@@ -1659,11 +1675,21 @@ async function _finishGoogleLogin(code) {
     return true;
   }
 
-  // Échec → retour explicite sur l'écran de connexion (jamais de spinner infini).
-  showScreen('screen-login');
+  // Échec → retour explicite, jamais de spinner infini.
   const errCode = (res && res.data && res.data.code)
     || (res && res.timedOut ? 'TIMEOUT' : 'NETWORK');
-  showError('login-error', googleAuthMessage(errCode));
+  const message = googleAuthMessage(errCode);
+
+  // Un utilisateur déjà connecté ne doit pas être projeté sur l'écran de
+  // connexion : sa session est intacte, on reste sur l'application.
+  if (State.token && State.user) {
+    initDashboard();
+    showToast(message, 6000);
+    return false;
+  }
+
+  showScreen('screen-login');
+  showError('login-error', message);
   return false;
 }
 
@@ -1770,6 +1796,10 @@ async function handleGoogleCallback() {
       if (cb.code) await _finishGoogleLogin(cb.code);
       else {
         State._googleBusy = false;
+        _setGoogleLoginLoading(false);
+        // Même écran de traitement que le chemin « code » : le refus est
+        // affiché sur l'écran de connexion, jamais sur un écran de chargement.
+        _showGoogleCallbackScreen('Connexion Google interrompue…');
         showScreen('screen-login');
         showError('login-error', googleAuthMessage(cb.error));
       }
