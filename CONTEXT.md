@@ -364,6 +364,14 @@ omnisms://auth/google/contacts/callback?error=…             → refus contacts
 
 - Échec (`?error=…`) → retour sur l'écran de connexion + message utilisateur
   (`googleAuthMessage()`), aucune donnée technique affichée.
+- **Retour interrompu** (le navigateur ne revient jamais avec `?code=` /
+  `?error=…`, ex. cible `omnisms://` non ouvrable) : au démarrage,
+  `checkPendingGoogleFlow()` détecte le drapeau `sessionStorage` posé par
+  `startGoogleLogin()`/`importFromGoogle()` et affiche un message explicite au
+  lieu d'un écran muet ou d'un spinner infini.
+- **Anti-rejeu** : un même code d'échange n'est jamais POSTé deux fois
+  (`_consumedGoogleCode`), l'échange a un délai max (`GOOGLE_EXCHANGE_TIMEOUT_MS`)
+  et l'état « chargement » est toujours refermé.
 - **Aucun Bearer** sur `/api/auth/google` ni `/api/auth/google/exchange`
   (`API._publicRoutes`). Un 401 sur `…/exchange` **ne déclenche pas** de logout
   global (`API._noLogoutOn401`) : seul l'échec de connexion est affiché.
