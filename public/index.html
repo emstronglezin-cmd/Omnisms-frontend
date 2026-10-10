@@ -30,6 +30,20 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
+     GOOGLE CALLBACK SCREEN — route web /auth/google/callback
+     Écoute le retour OAuth (GET ?code=… / ?error=…) et affiche l'état
+     de traitement de POST /api/auth/google/exchange. Aucun jeton ici.
+     ═══════════════════════════════════════════════════════════ -->
+<div id="screen-google-callback" class="screen">
+  <div class="splash-container">
+    <div class="splash-logo">🔐</div>
+    <div class="gcb-title" id="gcb-step">Connexion Google en cours…</div>
+    <div class="gcb-sub">Validation de votre compte Google auprès d'OmniSMS</div>
+    <div class="splash-spinner"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
      LOGIN SCREEN
      ═══════════════════════════════════════════════════════════ -->
 <div id="screen-login" class="screen">

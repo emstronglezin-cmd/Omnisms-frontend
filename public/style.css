@@ -215,6 +215,31 @@ a:hover { text-decoration: underline; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ═══════════════════════════════════════════════════════════
+   GOOGLE CALLBACK (/auth/google/callback) — état de traitement
+   ═══════════════════════════════════════════════════════════ */
+#screen-google-callback {
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+}
+
+.gcb-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text-primary);
+  padding: 0 20px;
+}
+
+.gcb-sub {
+  font-size: 0.85rem;
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 0 20px;
+  max-width: 320px;
+}
+
+/* ═══════════════════════════════════════════════════════════
    AUTH SCREENS (Login / Register)
    ═══════════════════════════════════════════════════════════ */
 #screen-login, #screen-register {
