@@ -75,10 +75,22 @@ const API = {
       return r.ok ? r.json() : null;
     } catch { return null; }
   },
-  async post(path, body) {
+  async post(path, body, opts = {}) {
+    // `opts.timeoutMs` est optionnel et n'est utilisé QUE par l'échange Google.
+    // Sans cette option, le comportement est strictement identique à l'existant
+    // (conversations, SMS, contacts, paiements : aucun changement).
+    let ctrl  = null;
+    let timer = null;
+    if (opts.timeoutMs) {
+      ctrl  = new AbortController();
+      timer = setTimeout(() => ctrl.abort(), opts.timeoutMs);
+    }
     try {
       const r = await fetch(API_BASE + path, {
-        method: 'POST', headers: this.headers(false, path), body: JSON.stringify(body)
+        method: 'POST',
+        headers: this.headers(false, path),
+        body: JSON.stringify(body),
+        signal: ctrl ? ctrl.signal : undefined
       });
       const data = await r.json().catch(() => ({}));
       if (r.status === 401) {
@@ -88,7 +100,15 @@ const API = {
         return { ok: false, status: 401, data };
       }
       return { ok: r.ok, status: r.status, data };
-    } catch(e) { return { ok: false, status: 0, data: { message: 'Erreur réseau — serveur en cours de démarrage...' } }; }
+    } catch(e) {
+      // Délai dépassé : réponse explicite plutôt qu'une attente infinie.
+      if (ctrl && ctrl.signal.aborted) {
+        return { ok: false, status: 0, timedOut: true, data: { code: 'TIMEOUT' } };
+      }
+      return { ok: false, status: 0, data: { message: 'Erreur réseau — serveur en cours de démarrage...' } };
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   },
   async postForm(path, formData) {
     try {
@@ -1506,6 +1526,9 @@ function googleAuthMessage(code) {
     case 'GOOGLE_IDENTITY_INVALID':
     case 'GOOGLE_IDENTITY_MISSING':        return 'Compte Google non vérifié. Réessayez avec un autre compte.';
     case 'GOOGLE_EXCHANGE_FAILED':         return 'Impossible de finaliser la connexion Google. Réessayez.';
+    case 'TIMEOUT':                        return 'Le serveur met trop de temps à répondre. Réessayez dans quelques instants.';
+    case 'NETWORK':                        return 'Impossible de joindre le serveur. Vérifiez votre connexion, puis réessayez.';
+    case 'GOOGLE_RETURN_MISSING':          return 'La connexion Google n\'a pas abouti : le navigateur n\'est pas revenu sur OmniSMS. Réessayez, ou connectez-vous avec votre email et votre mot de passe.';
     default:                               return 'Impossible de se connecter avec Google. Réessayez.';
   }
 }
@@ -1529,6 +1552,7 @@ function googleContactsMessage(code) {
     case 'NO_SESSION':                          return 'Vous devez être connecté pour importer vos contacts Google.';
     case 'TIMEOUT':                             return 'Aucune réponse de Google. Réessayez.';
     case 'BROWSER_BLOCKED':                     return 'Autorisez les fenêtres pop-up pour OmniSMS, puis réessayez.';
+    case 'GOOGLE_RETURN_MISSING':               return 'L\'autorisation Google n\'a pas abouti : le navigateur n\'est pas revenu sur OmniSMS. Réessayez.';
     default:                                    return 'Impossible d\'importer les contacts Google.';
   }
 }
@@ -1569,6 +1593,18 @@ function _setGoogleImportLoading(loading, label) {
 }
 
 // ── 1. Connexion Google ──────────────────────────────────────────────────────
+// Délai d'attente de l'échange : le backend tourne sur Render free tier
+// (réveil possible jusqu'à ~50 s). Au-delà, on affiche une erreur explicite
+// au lieu de laisser le bouton tourner indéfiniment.
+const GOOGLE_EXCHANGE_TIMEOUT_MS = 75000;
+// Délai effectif : raccourcissable uniquement pour les tests automatisés.
+const _googleExchangeTimeout = () =>
+  Number(window.__OMNISMS_GOOGLE_EXCHANGE_TIMEOUT_MS) || GOOGLE_EXCHANGE_TIMEOUT_MS;
+
+// Anti-rejeu : le code d'échange est à usage unique côté backend (2 min).
+// On ne renvoie jamais deux fois le même code, même si l'URL est rejouée.
+let _consumedGoogleCode = null;
+
 function startGoogleLogin() {
   if (State._googleBusy) return;                 // anti double-clic
   State._googleBusy = true;
@@ -1582,18 +1618,33 @@ function startGoogleLogin() {
 }
 
 async function _finishGoogleLogin(code) {
-  _setGoogleLoginLoading(true, 'Connexion en cours…');
-  const res = await API.post('/api/auth/google/exchange', { code });
+  // Le code est à usage unique : un second passage avec le même code
+  // (rechargement, bouton précédent, URL rejouée) est ignoré.
+  if (!code || code === _consumedGoogleCode) return false;
+  _consumedGoogleCode = code;
 
-  if (res.ok && res.data && res.data.token) {
+  _setGoogleLoginLoading(true, 'Connexion en cours…');
+
+  let res = null;
+  try {
+    res = await API.post('/api/auth/google/exchange', { code },
+                         { timeoutMs: _googleExchangeTimeout() });
+  } catch (e) {
+    res = { ok: false, status: 0, data: { code: 'NETWORK' } };
+  }
+
+  // Quoi qu'il arrive (succès, erreur, exception) : on sort de l'état
+  // « chargement ». Sans cela, un incident laissait le spinner actif.
+  State._googleBusy = false;
+  _setGoogleLoginLoading(false);
+
+  if (res && res.ok && res.data && res.data.token) {
     // Même persistance que login() : un seul système de session.
     State.token = res.data.token;
     State.user  = res.data.user || {};
     localStorage.setItem('auth_token', State.token);
     localStorage.setItem('user_data', JSON.stringify(State.user));
     showError('login-error', '');
-    State._googleBusy = false;
-    _setGoogleLoginLoading(false);
     try { sessionStorage.removeItem(GOOGLE_FLOW_KEY); } catch (_) {}
 
     initDashboard();
@@ -1605,13 +1656,15 @@ async function _finishGoogleLogin(code) {
         showToast('⚠️ Merci d\'ajouter votre numéro de téléphone dans Paramètres.');
       }, 800);
     }
-    return;
+    return true;
   }
 
-  State._googleBusy = false;
-  _setGoogleLoginLoading(false);
+  // Échec → retour explicite sur l'écran de connexion (jamais de spinner infini).
   showScreen('screen-login');
-  showError('login-error', googleAuthMessage(res && res.data ? res.data.code : 'NETWORK'));
+  const errCode = (res && res.data && res.data.code)
+    || (res && res.timedOut ? 'TIMEOUT' : 'NETWORK');
+  showError('login-error', googleAuthMessage(errCode));
+  return false;
 }
 
 // ── 2. Import Google Contacts ────────────────────────────────────────────────
@@ -1748,6 +1801,41 @@ async function handleGoogleCallback() {
     console.warn('[Google] callback ignoré', e);
     return false;
   }
+}
+
+/// Appelé au démarrage, après handleGoogleCallback().
+///
+/// Couvre le cas où le flux Google a bien été lancé (l'onglet est parti vers
+/// le backend) mais où le retour n'a jamais livré `?code=` / `?error=`
+/// (retour interrompu, cible de redirection non ouvrable, bouton précédent…).
+/// Sans cela l'utilisateur revenait sur un écran de connexion muet — ou, si
+/// l'échange avait été lancé, sur un bouton bloqué en « chargement ».
+/// Retourne true si un flux interrompu a été signalé.
+function checkPendingGoogleFlow() {
+  let flow = null;
+  try { flow = sessionStorage.getItem(GOOGLE_FLOW_KEY); } catch (_) {}
+  if (flow !== 'login' && flow !== 'contacts') return false;
+
+  // Le flux est clos : nettoyer le drapeau et sortir de l'état « occupé ».
+  try { sessionStorage.removeItem(GOOGLE_FLOW_KEY); } catch (_) {}
+  State._googleBusy = false;
+  _setGoogleLoginLoading(false);
+  _setGoogleImportLoading(false);
+
+  try {
+    if (flow === 'login') {
+      // Ne pas écraser un écran déjà authentifié.
+      if (!(State.token && State.user)) {
+        showScreen('screen-login');
+        showError('login-error', googleAuthMessage('GOOGLE_RETURN_MISSING'));
+      }
+    } else {
+      showToast(googleContactsMessage('GOOGLE_RETURN_MISSING'), 6000);
+    }
+  } catch (e) {
+    console.warn('[Google] flux interrompu non signalé', e);
+  }
+  return true;
 }
 
 function _notifyGoogleContactsDone(cb) {
@@ -2777,6 +2865,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Retour OAuth Google (?code=… / ?authorized=1 / ?error=…) : traité avant le
   // routage classique. Retourne false si l'URL ne contient rien de Google.
   if (await handleGoogleCallback()) return;
+
+  // Aucun retour Google dans l'URL, mais un flux avait été lancé dans cet
+  // onglet → le signaler explicitement au lieu d'un écran muet / d'un spinner.
+  checkPendingGoogleFlow();
 
   if (State.token && State.user) {
     initDashboard();

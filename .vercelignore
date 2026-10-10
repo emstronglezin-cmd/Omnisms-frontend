@@ -42,6 +42,4 @@ Thumbs.db
 !README.md
 
 # Old configs
-netlify.toml
 build.sh
-.netlify/
