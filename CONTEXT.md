@@ -373,11 +373,40 @@ omnisms://auth/google/contacts/callback?error=…             → refus contacts
   (`_consumedGoogleCode`), l'échange a un délai max (`GOOGLE_EXCHANGE_TIMEOUT_MS`)
   et l'état « chargement » est toujours refermé.
 - **Aucun Bearer** sur `/api/auth/google` ni `/api/auth/google/exchange`
-  (`API._publicRoutes`). Un 401 sur `…/exchange` **ne déclenche pas** de logout
-  global (`API._noLogoutOn401`) : seul l'échec de connexion est affiché.
+  (`API._exactPublicRoutes`, correspondance exacte). Un 401 sur `…/exchange`
+  **ne déclenche pas** de logout global (`API._noLogoutOn401`) : seul l'échec
+  de connexion est affiché.
 - **Attention (bug corrigé)** : `_isPublicRoute()` compare désormais le chemin
   exact, sinon `/api/auth/google/contacts/authorize` était traité comme public
   et partait sans `Authorization`.
+- **Utilisateur déjà connecté** : si l'échange échoue alors qu'une session
+  valide existe, l'application reste sur le dashboard (toast d'erreur) au lieu
+  de projeter l'utilisateur sur l'écran de connexion.
+
+### Route web du callback
+
+Le « routeur » de la PWA est `showScreen(id)` sur des blocs `.screen`, avec une
+réécriture SPA côté hébergement (`vercel.json` et `firebase.json` :
+`/(.*) → /index.html`). La route du callback Google est donc :
+
+```
+https://<domaine-PWA>/auth/google/callback?code=…   (ou ?error=…)
+```
+
+Elle est traitée **avant** le routage classique, au `DOMContentLoaded`, par
+`handleGoogleCallback()` — aucun `window.onpopstate`, aucun second routeur.
+
+| Élément | Rôle |
+|---------|------|
+| `public/index.html` `#screen-google-callback` | état de traitement (route du callback) |
+| `public/style.css` `.gcb-title` / `.gcb-sub` | styles de cet écran |
+| `public/app.js` `handleGoogleCallback()` | point d'entrée du callback web |
+| `public/app.js` `_showGoogleCallbackScreen()` | affichage via le routeur `showScreen()` |
+
+Pendant l'échange, `#screen-google-callback` est affiché : le splash générique
+ne peut pas rester seul à l'écran (le backend Render peut mettre ~50 s à se
+réveiller). Toutes les sorties (succès, refus, code invalide, réseau, réponse
+invalide) referment cet écran.
 
 ### Flux contacts (PWA)
 
@@ -417,6 +446,21 @@ omnisms://auth/google/contacts/callback?error=…             → refus contacts
    `https://<pwa>/auth/google/callback`). Vercel (`rewrites: /(.*) →
    /index.html`) et Firebase (`** → /index.html`) renvoient déjà ces chemins
    vers la PWA, donc aucune config d'hébergement à ajouter.
+
+   > ⚠️ **Prérequis backend bloquant pour le web.** Tant que ces deux variables
+   > Render valent `omnisms://…` (valeur par défaut de
+   > `services/googleOAuth.js`), le navigateur ne revient jamais sur la PWA :
+   > le code d'échange n'atteint jamais le frontend, et l'utilisateur voit
+   > « la connexion Google n'a pas abouti ». Il s'agit d'une variable
+   > d'environnement backend, **pas d'un changement de code frontend** — et le
+   > deep link mobile `omnisms://` doit rester enregistré pour l'app Android/iOS.
+   >
+   > Valeurs à définir côté Render (le domaine réellement déployé) :
+   > - `GOOGLE_FLUTTER_REDIRECT_URI` = `https://omnisms.vercel.app/auth/google/callback`
+   > - `GOOGLE_CONTACTS_FLUTTER_REDIRECT_URI` = `https://omnisms.vercel.app/auth/google/contacts/callback`
+   >
+   > `safeAppRedirect()` côté backend n'accepte que `omnisms:` ou `https:` — un
+   > domaine de PWA en `https` est donc supporté nativement.
 
 ### Tests PWA
 
