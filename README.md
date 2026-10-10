@@ -5,12 +5,12 @@
 [![Flutter](https://img.shields.io/badge/Flutter-3.24.5-blue.svg)](https://flutter.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Hosting-orange.svg)](https://firebase.google.com)
 [![PWA](https://img.shields.io/badge/PWA-Ready-green.svg)](https://web.dev/progressive-web-apps)
-[![Netlify](https://img.shields.io/badge/Netlify-Deployed-00C7B7.svg)](https://netlify.com)
+[![Vercel](https://img.shields.io/badge/Vercel-Deployed-000000.svg)](https://vercel.com)
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)]()
 
 ## 🌐 Live Demo
 
-- **Production (Netlify):** [https://omnisms.netlify.app](https://omnisms.netlify.app)
+- **Production (Vercel):** [https://omnisms.vercel.app](https://omnisms.vercel.app)
 - **Alternative (Firebase):** [https://omnisms-b98c5.web.app](https://omnisms-b98c5.web.app)
 - **Backend API:** [https://omnisms-backend.onrender.com](https://omnisms-backend.onrender.com)
 
