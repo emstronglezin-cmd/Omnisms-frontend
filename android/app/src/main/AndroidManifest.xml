@@ -6,6 +6,10 @@
     <!-- Permission microphone pour les messages vocaux -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Permission carnet d'adresses : import direct des contacts du téléphone
+         (flutter_contacts) → POST /api/contacts/sync -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
     <!-- Permission notifications système (Android 13+ / API 33+) -->
     <!-- Demandée à l'exécution depuis NotificationsSettingsScreen via permission_handler -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

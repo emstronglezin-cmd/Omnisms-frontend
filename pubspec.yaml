@@ -3,8 +3,11 @@ description: OmniSMS - Application de messagerie SMS complète
 publish_to: 'none'
 version: 2.5.0+1
 
+# Version de référence du projet : Flutter 3.47.7 (canal stable) / Dart 3.13.5.
+# Toute la branche 3.47.x convient ; les versions antérieures ne sont plus
+# supportées (API DialogThemeData, flutter_contacts >= 2.6).
 environment:
-  sdk: '>=3.4.0 <4.0.0'
+  sdk: '>=3.13.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -29,6 +32,9 @@ dependencies:
   # Audio recording (mobile)
   record: ^5.1.2
 
+  # Répertoire temporaire pour les fichiers audio (messages vocaux)
+  path_provider: ^2.1.5
+
   # Permission handling (Android runtime + iOS)
   permission_handler: ^11.3.1
 
@@ -43,6 +49,10 @@ dependencies:
   # Photo de profil / photo de groupe (compressée 400×400, qualité 75 —
   # équivalent de compressImageForAvatar() côté PWA)
   image_picker: ^1.1.7
+
+  # Carnet d'adresses natif du téléphone (Android/iOS).
+  # Remplace le stub ContactsService.getPhoneContacts() qui renvoyait [].
+  flutter_contacts: ^2.6.0
 
   # Deep links — retour OAuth Google imposé par le backend
   # (omnisms://auth/google/callback et omnisms://auth/google/contacts/callback)

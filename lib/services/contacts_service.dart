@@ -5,25 +5,36 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/models.dart';
 import 'auth_service.dart';
+import 'native_contacts_service.dart';
 
 class ContactsService {
   final AuthService _authService = AuthService();
 
+  final NativeContactsService _nativeContacts = NativeContactsService();
+
   // Request contacts permission
   Future<bool> requestContactsPermission() async {
     if (kIsWeb) return false;
-    // Mobile: would use FlutterContacts.requestPermission()
-    return false;
+    final status = await _nativeContacts.requestPermission();
+    return status == NativeContactsPermission.granted;
   }
 
-  // Get phone contacts — returns empty on web (no device contacts API)
+  /// Lit le carnet d'adresses de l'appareil (flutter_contacts).
+  /// Renvoie une liste vide sur le web : il n'y a pas d'API contacts.
   Future<List<ContactModel>> getPhoneContacts() async {
     if (kIsWeb) {
       debugPrint('⚠️ getPhoneContacts: not available on web');
       return [];
     }
-    // Mobile: would use FlutterContacts.getContacts()
-    return [];
+    try {
+      final entries = await _nativeContacts.fetchContacts();
+      return entries
+          .map((e) => ContactModel(id: e.phone, name: e.name, phone: e.phone))
+          .toList();
+    } catch (e) {
+      debugPrint('Error reading device contacts: $e');
+      return [];
+    }
   }
 
   // Sync contacts with backend

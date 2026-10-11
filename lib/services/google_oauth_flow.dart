@@ -64,9 +64,7 @@ class GoogleCallback {
 GoogleCallback? parseGoogleCallback(Uri uri) {
   final params = _queryParams(uri);
 
-  GoogleCallbackKind? kind = _callbackKindFromPath(uri.pathSegments);
-  // Web (hash routing) : la route peut se trouver dans le fragment.
-  kind ??= _callbackKindFromPath(_fragmentPathSegments(uri));
+  final kind = _callbackKindFromUri(uri);
   if (kind == null) return null;
 
   if (kind == GoogleCallbackKind.contacts) {
@@ -85,13 +83,46 @@ GoogleCallback? parseGoogleCallback(Uri uri) {
   );
 }
 
-GoogleCallbackKind? _callbackKindFromPath(Iterable<String> segments) {
-  final path = '/${segments.where((s) => s.isNotEmpty).join('/')}';
-  if (path.endsWith(ApiConfig.googleContactsCallbackPath)) {
-    return GoogleCallbackKind.contacts;
+/// Détermine le type de callback (login / contacts) porté par une URI.
+///
+/// Deux formes sont acceptées, car `Uri.parse` ne les traite pas de la même
+/// façon :
+///
+///   • schéma personnalisé `omnisms://auth/google/callback` — `auth` est
+///     l'**autorité** (host) de l'URI, le chemin ne vaut que
+///     `/google/callback`. La route n'est retrouvable qu'en recomposant
+///     `host + path`. C'est le cas du deep link mobile renvoyé par le backend.
+///   • `https://domaine/auth/google/callback` (App Links / web) : la route est
+///     dans le chemin — ou dans le fragment quand le site est en hash routing.
+///
+/// Sans le cas `host + path`, AUCUN retour Google n'était reconnu sur mobile
+/// (le lien était ignoré et l'utilisateur restait sur l'écran de connexion).
+GoogleCallbackKind? _callbackKindFromUri(Uri uri) {
+  final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+  final fragment =
+      _fragmentPathSegments(uri).where((s) => s.isNotEmpty).toList();
+
+  final candidates = <String>{
+    '/${segments.join('/')}',
+    if (fragment.isNotEmpty) '/${fragment.join('/')}',
+    if (uri.host.isNotEmpty) ...{
+      '/${[uri.host, ...segments].join('/')}',
+      if (fragment.isNotEmpty) '/${[uri.host, ...fragment].join('/')}',
+    },
+  };
+
+  // Le callback contacts est testé en premier sur TOUS les candidats :
+  // `…/auth/google/contacts/callback` ne doit jamais être confondu avec
+  // `…/auth/google/callback`.
+  for (final path in candidates) {
+    if (path.endsWith(ApiConfig.googleContactsCallbackPath)) {
+      return GoogleCallbackKind.contacts;
+    }
   }
-  if (path.endsWith(ApiConfig.googleLoginCallbackPath)) {
-    return GoogleCallbackKind.login;
+  for (final path in candidates) {
+    if (path.endsWith(ApiConfig.googleLoginCallbackPath)) {
+      return GoogleCallbackKind.login;
+    }
   }
   return null;
 }

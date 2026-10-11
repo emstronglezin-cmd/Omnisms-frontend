@@ -359,6 +359,100 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
     }
   }
 
+  // ── Importer le carnet d'adresses du téléphone ───────────────
+  /// Lit les contacts de l'appareil (flutter_contacts) puis les envoie à
+  /// POST /api/contacts/sync { contacts, country: 'BF' }.
+  Future<void> _importDeviceContacts() async {
+    final provider = context.read<ContactsProviderV2>();
+    if (provider.isImportingDeviceContacts) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    // Bandeau de progression pendant la lecture + la synchronisation.
+    messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(minutes: 6),
+        behavior: SnackBarBehavior.floating,
+        content: const Row(
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(child: Text('Import de vos contacts…')),
+          ],
+        ),
+      ),
+    );
+
+    final result = await provider.importDeviceContacts();
+
+    messenger.hideCurrentSnackBar();
+    if (!mounted) return;
+
+    final success = result['success'] == true;
+    final message = (result['message'] ?? result['error'] ?? '').toString();
+
+    // Permission refusée définitivement → proposer d'ouvrir les réglages.
+    if (!success && result['permanentlyDenied'] == true) {
+      final openSettings = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Accès aux contacts'),
+          content: const Text(
+            "OmniSMS n'a pas accès à vos contacts. Autorisez l'accès dans les "
+            "réglages de l'appareil pour importer votre carnet d'adresses.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Plus tard'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Ouvrir les réglages'),
+            ),
+          ],
+        ),
+      );
+      if (openSettings == true) {
+        await provider.openSystemSettings();
+      }
+      return;
+    }
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              success ? Icons.check_circle : Icons.error_outline,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message.isEmpty
+                    ? (success
+                        ? 'Contacts importés'
+                        : "Import impossible.")
+                    : message,
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: success ? Colors.green : Colors.red,
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: success ? 4 : 6),
+      ),
+    );
+  }
+
   // ── Importer depuis Google ───────────────────────────────────
   /// Déclenche le flux backend : autorisation Google → consentement →
   /// import → rechargement de la liste.
@@ -490,8 +584,18 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
               ),
               onSelected: (value) {
                 if (value == 'google') _importFromGoogle();
+                if (value == 'device') _importDeviceContacts();
               },
               itemBuilder: (ctx) => const [
+                PopupMenuItem<String>(
+                  value: 'device',
+                  child: ListTile(
+                    leading: Icon(Icons.contacts_rounded),
+                    title: Text('Importer mes contacts'),
+                    subtitle: Text('Carnet du téléphone'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
                 PopupMenuItem<String>(
                   value: 'google',
                   child: ListTile(
@@ -698,6 +802,29 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
                     horizontal: 32, vertical: 16),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Import du carnet du téléphone (même action que le menu AppBar)
+            Consumer<ContactsProviderV2>(
+              builder: (ctx, provider, _) => OutlinedButton.icon(
+                onPressed: provider.isImportingDeviceContacts
+                    ? null
+                    : _importDeviceContacts,
+                icon: provider.isImportingDeviceContacts
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.contacts_rounded),
+                label: const Text('Importer mes contacts'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 32, vertical: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
               ),
             ),
             const SizedBox(height: 12),

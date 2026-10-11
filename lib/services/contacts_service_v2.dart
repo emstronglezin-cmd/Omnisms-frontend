@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import 'native_contacts_service.dart';
 import '../models/models.dart';
 import 'auth_service.dart';
 import 'google_oauth_flow.dart';
@@ -234,6 +235,83 @@ class ContactsServiceV2 {
     } catch (e) {
       debugPrint('❌ syncContacts error: $e');
       return phoneContacts;
+    }
+  }
+
+  // ── Synchroniser le carnet d'adresses du téléphone ────────────
+  /// Envoie les contacts lus sur l'appareil à `POST /api/contacts/sync`
+  /// avec `country: 'BF'` — exactement le même contrat que l'import VCF de
+  /// la PWA (`syncContacts()` dans public/app.js).
+  ///
+  /// Retourne les compteurs du backend pour afficher le résumé :
+  ///   { success, total, registeredOnOmniSms, smsOnly }
+  Future<Map<String, dynamic>> syncDeviceContacts(
+      List<DeviceContactEntry> entries) async {
+    if (entries.isEmpty) {
+      return {
+        'success': false,
+        'code': 'EMPTY',
+        'error': 'Aucun contact à synchroniser.',
+      };
+    }
+
+    try {
+      final token = await _authService.getToken();
+      if (token == null) {
+        return {'success': false, 'code': 'NO_SESSION', 'error': 'Session expirée.'};
+      }
+
+      debugPrint('📱 Syncing ${entries.length} device contacts with backend...');
+
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}${ApiConfig.contactsEndpoint}/sync'),
+            headers: {
+              ...ApiConfig.headers,
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'contacts': entries
+                  .map((e) => {'name': e.name, 'phone': e.phone})
+                  .toList(),
+              'country': 'BF',
+            }),
+          )
+          .timeout(ApiConfig.requestTimeout);
+
+      final data = _decodeJsonMap(response.body);
+
+      if (response.statusCode == 200) {
+        final registered = data['registeredOnOmniSms'] ?? 0;
+        final smsOnly = data['smsOnly'] ?? 0;
+        debugPrint(
+            '✅ Device sync done: $registered OmniSMS / $smsOnly SMS (${entries.length} envoyés)');
+        return {
+          'success': true,
+          'total': entries.length,
+          'registeredOnOmniSms': registered is int ? registered : int.tryParse('$registered') ?? 0,
+          'smsOnly': smsOnly is int ? smsOnly : int.tryParse('$smsOnly') ?? 0,
+        };
+      }
+
+      debugPrint('⚠️ syncDeviceContacts failed: ${response.statusCode}');
+      return {
+        'success': false,
+        'status': response.statusCode,
+        'code': (data['code'] ?? '').toString(),
+        'error': (data['message'] ?? data['error'] ?? '').toString().isNotEmpty
+            ? (data['message'] ?? data['error']).toString()
+            : 'Synchronisation impossible (${response.statusCode}).',
+      };
+    } on TimeoutException {
+      return {
+        'success': false,
+        'code': 'TIMEOUT',
+        'error': 'Le serveur met du temps à répondre (démarrage). Réessayez.',
+      };
+    } catch (e) {
+      debugPrint('❌ syncDeviceContacts error: $e');
+      return {'success': false, 'code': 'NETWORK', 'error': 'Erreur réseau. Réessayez.'};
     }
   }
 
