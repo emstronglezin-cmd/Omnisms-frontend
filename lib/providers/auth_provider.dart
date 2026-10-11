@@ -59,10 +59,15 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Inscription — `username` est OBLIGATOIRE côté backend
+  /// (POST /api/auth/register renvoie 400 « Le nom d'utilisateur est requis. »).
+  /// `phone` est le canal principal (SMS/Infobip) : il reste requis par la PWA,
+  /// `email` est optionnel.
   Future<bool> register({
     required String name,
-    required String email,
     required String password,
+    required String username,
+    String? email,
     String? phone,
   }) async {
     _isLoading = true;
@@ -72,8 +77,9 @@ class AuthProvider with ChangeNotifier {
     try {
       final result = await _authService.register(
         name: name,
-        email: email,
         password: password,
+        username: username,
+        email: email,
         phone: phone,
       );
 
@@ -90,15 +96,17 @@ class AuthProvider with ChangeNotifier {
         return false;
       }
     } catch (e) {
-      _error = 'Erreur lors de l\'inscription';
+      _error = "Erreur lors de l'inscription";
       _isLoading = false;
       notifyListeners();
       return false;
     }
   }
 
+  /// Connexion par email OU numéro de téléphone (même heuristique que la PWA).
   Future<bool> login({
-    required String email,
+    String? identifier,
+    String? email,
     required String password,
   }) async {
     _isLoading = true;
@@ -107,6 +115,7 @@ class AuthProvider with ChangeNotifier {
 
     try {
       final result = await _authService.login(
+        identifier: identifier ?? email,
         email: email,
         password: password,
       );
@@ -171,10 +180,14 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  /// Mise à jour du profil — PUT /api/me/profile (name, username, phone,
+  /// email, password optionnel ≥ 8 caractères).
   Future<bool> updateProfile({
     String? name,
     String? email,
     String? phone,
+    String? username,
+    String? password,
     String? photoUrl,
   }) async {
     _isLoading = true;
@@ -186,13 +199,16 @@ class AuthProvider with ChangeNotifier {
         name: name,
         email: email,
         phone: phone,
+        username: username,
+        password: password,
         photoUrl: photoUrl,
       );
 
       if (result['success']) {
-        // AuthService.updateProfile ne retourne pas de clé 'user' :
-        // recharger le profil depuis /api/auth/me pour éviter un _currentUser null.
-        final refreshed = await _authService.getCurrentUser();
+        // Le backend renvoie l'utilisateur mis à jour ; à défaut on recharge
+        // depuis /api/me (comme le fait refreshUserProfile() dans la PWA).
+        final refreshed = (result['user'] as UserModel?) ??
+            await _authService.getCurrentUser();
         if (refreshed != null) {
           _currentUser = refreshed;
         }
@@ -207,6 +223,82 @@ class AuthProvider with ChangeNotifier {
       }
     } catch (e) {
       _error = 'Erreur lors de la mise à jour';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Upload de la photo de profil — POST /api/me/avatar.
+  /// [bytes]/[filename] fonctionnent partout ; [filePath] est un raccourci mobile.
+  Future<bool> uploadAvatar({
+    List<int>? bytes,
+    String? filename,
+    String? filePath,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final result = await _authService.uploadAvatar(
+        bytes: bytes,
+        filename: filename,
+        filePath: filePath,
+      );
+
+      if (result['success'] == true) {
+        final refreshed = (result['user'] as UserModel?) ??
+            await _authService.getCurrentUser();
+        if (refreshed != null) {
+          _currentUser = refreshed;
+        } else if (result['avatarUrl'] != null) {
+          _currentUser = _currentUser?.copyWith(
+                photoUrl: result['avatarUrl'].toString(),
+              ) ??
+              UserModel(id: '', photoUrl: result['avatarUrl'].toString());
+        }
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+
+      _error = result['message'] ?? "Échec de l'upload";
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = "Échec de l'upload de la photo";
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Suppression définitive du compte — DELETE /api/me.
+  /// En cas de succès la session locale est purgée (AuthService.logout()).
+  Future<bool> deleteAccount() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final result = await _authService.deleteAccount();
+
+      if (result['success'] == true) {
+        _currentUser = null;
+        _isLoggedIn = false;
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+
+      _error = result['message'];
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'Erreur lors de la suppression du compte';
       _isLoading = false;
       notifyListeners();
       return false;

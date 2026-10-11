@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/messaging_provider.dart';
+import '../../services/auth_service.dart';
 import 'register_screen.dart';
 import '../dashboard_screen.dart';
 
@@ -14,10 +15,14 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey          = GlobalKey<FormState>();
-  final _emailController    = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _identifierController = TextEditingController();
+  final _passwordController   = TextEditingController();
   bool _obscurePassword = true;
   bool _isWakingUp      = false; // Render free tier wakeup indicator
+
+  /// L'identifiant est un numéro de téléphone dès qu'il ne contient pas de « @ ».
+  /// Même heuristique que la PWA : /^[+\d\s\-()+]{7,20}$/ et pas de « @ ».
+  bool get _looksLikePhone => AuthService.isPhoneIdentifier(_identifierController.text);
 
   @override
   void initState() {
@@ -68,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -83,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final auth = context.read<AuthProvider>();
     final success = await auth.login(
-      email:    _emailController.text.trim(),
+      identifier: _identifierController.text.trim(),
       password: _passwordController.text,
     );
 
@@ -98,9 +103,26 @@ class _LoginScreenState extends State<LoginScreen> {
       try {
         context.read<MessagingProvider>().reinitialize();
       } catch (_) {}
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const DashboardScreen()),
       );
+      // Comme la PWA : un compte sans numéro de téléphone (vieux compte Google
+      // ou email) doit compléter son profil — le backend a besoin du numéro
+      // pour router les SMS.
+      final user = auth.currentUser;
+      if (user != null && (user.needsPhone || (user.phone?.isEmpty ?? true))) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "⚠️ Merci d'ajouter votre numéro de téléphone dans Paramètres.",
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 8),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -255,21 +277,38 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 12),
                         ],
 
-                        // ── Email ─────────────────────────────────
+                        // ── Email ou téléphone ────────────────────
                         TextFormField(
-                          controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          autofillHints: const [AutofillHints.email],
+                          controller: _identifierController,
+                          keyboardType: _looksLikePhone
+                              ? TextInputType.phone
+                              : TextInputType.emailAddress,
+                          autofillHints: _looksLikePhone
+                              ? const [AutofillHints.telephoneNumber]
+                              : const [AutofillHints.email],
+                          onChanged: (_) => setState(() {}),
                           decoration: InputDecoration(
-                            labelText: 'Email',
-                            prefixIcon: const Icon(Icons.email_outlined),
+                            labelText: 'Email ou téléphone',
+                            hintText: 'vous@email.com ou +22670123456',
+                            prefixIcon: Icon(_looksLikePhone
+                                ? Icons.phone_outlined
+                                : Icons.email_outlined),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                           validator: (v) {
-                            if (v == null || v.isEmpty) return 'Email requis';
-                            if (!v.contains('@') || !v.contains('.')) return 'Email invalide';
+                            final value = (v ?? '').trim();
+                            if (value.isEmpty) return 'Email ou téléphone requis';
+                            if (AuthService.isPhoneIdentifier(value)) {
+                              if (value.replaceAll(RegExp(r'[^\d]'), '').length < 7) {
+                                return 'Numéro de téléphone invalide';
+                              }
+                              return null;
+                            }
+                            if (!value.contains('@') || !value.contains('.')) {
+                              return 'Email invalide';
+                            }
                             return null;
                           },
                         ),

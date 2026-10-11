@@ -40,6 +40,10 @@ dependencies:
   intl: ^0.19.0
   url_launcher: ^6.3.1
 
+  # Photo de profil / photo de groupe (compressée 400×400, qualité 75 —
+  # équivalent de compressImageForAvatar() côté PWA)
+  image_picker: ^1.1.7
+
   # Deep links — retour OAuth Google imposé par le backend
   # (omnisms://auth/google/callback et omnisms://auth/google/contacts/callback)
   # https://pub.dev/packages/app_links

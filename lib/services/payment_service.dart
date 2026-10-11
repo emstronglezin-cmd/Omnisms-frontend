@@ -184,6 +184,48 @@ class PaymentService {
     }
   }
 
+  // ── Polling de secours (quand le webhook tarde) ──────────────
+  /// POST /api/payment/poll/:checkoutId { userId }
+  ///
+  /// Même mécanisme que la PWA (`startLeekPayPolling()`), qui interroge
+  /// le backend toutes les 10 s après un premier délai de 15 s tant que le
+  /// paiement n'est pas confirmé/échoué.
+  ///
+  /// Retourne { paid: bool, status: String? }.
+  Future<Map<String, dynamic>> pollPayment({
+    required String checkoutId,
+    required String userId,
+  }) async {
+    try {
+      final token = await _authService.getToken();
+      final headers = <String, String>{
+        ...ApiConfig.headers,
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+
+      final response = await http
+          .post(
+            Uri.parse(
+                '${ApiConfig.baseUrl}${ApiConfig.paymentPollEndpoint(checkoutId)}'),
+            headers: headers,
+            body: jsonEncode({'userId': userId}),
+          )
+          .timeout(ApiConfig.requestTimeout);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final status = data['status']?.toString();
+        final paid =
+            data['isPaid'] == true || status == 'paid' || status == 'success';
+        return {'success': true, 'paid': paid, 'status': status};
+      }
+      return {'success': false, 'paid': false, 'status': null};
+    } catch (e) {
+      debugPrint('[Payment] pollPayment error: $e');
+      return {'success': false, 'paid': false, 'status': null};
+    }
+  }
+
   // ── Helper messages d'erreur ─────────────────────────────────
   static String _friendlyError(dynamic e) {
     final s = e.toString();

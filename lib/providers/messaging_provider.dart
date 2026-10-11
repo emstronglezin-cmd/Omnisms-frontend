@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/messaging_service.dart';
@@ -118,12 +118,12 @@ class MessagingProvider with ChangeNotifier {
       if (updated.isNotEmpty || _conversations.isNotEmpty) {
         // Détecter les conversations avec de nouveaux messages non lus
         // (unreadCount > 0 et pas la conversation active)
-        final previousIds = {for (final c in _conversations) c.id: c.unreadCount ?? 0};
+        final previousIds = {for (final c in _conversations) c.id: c.unreadCount};
         _mergeConversations(updated);
         // Notifier si une conversation non-active a de nouveaux messages
         for (final conv in updated) {
           final prevUnread = previousIds[conv.id] ?? 0;
-          final newUnread  = conv.unreadCount ?? 0;
+          final newUnread  = conv.unreadCount;
           if (newUnread > prevUnread && conv.id != _activeConversationId) {
             final lastMsg = conv.lastMessage ?? 'Nouveau message';
             final convId  = conv.id;
@@ -131,7 +131,7 @@ class MessagingProvider with ChangeNotifier {
             final syntheticId = '${convId}_${conv.lastMessageTime?.millisecondsSinceEpoch ?? 0}';
             await _dispatchNotificationRaw(
               messageId      : syntheticId,
-              title          : conv.contactName.isNotEmpty ? conv.contactName : 'OmniSMS',
+              title          : conv.displayName.isNotEmpty ? conv.displayName : 'OmniSMS',
               body           : lastMsg.length > 80 ? '${lastMsg.substring(0, 80)}…' : lastMsg,
               conversationId : convId,
             );
@@ -308,13 +308,24 @@ class MessagingProvider with ChangeNotifier {
                 : _buildConversationId(_currentUserId ?? '', targetReceiver));
 
         debugPrint('[DEBUG_SEND] MessagingProvider adding to local map convId=$convId');
+
+        // Le backend peut renvoyer un conversationId canonique différent de
+        // l'ID provisoire (résolution téléphone → UID). On le suit pour que
+        // les messages suivants soient bien rattachés (fix P0 de la PWA).
+        final canonicalId =
+            message.conversationId.isNotEmpty ? message.conversationId : convId;
+
         if (!_messagesMap.containsKey(convId)) {
           _messagesMap[convId] = [];
         }
         _messagesMap[convId]!.add(message);
+        if (canonicalId != convId) {
+          _messagesMap[canonicalId] = List<MessageModel>.from(_messagesMap[convId]!);
+          if (_activeConversationId == convId) _activeConversationId = canonicalId;
+        }
 
         // Update conversation last message
-        _updateConversationLastMessage(convId, message);
+        _updateConversationLastMessage(canonicalId, message);
 
         notifyListeners();
 
@@ -352,40 +363,128 @@ class MessagingProvider with ChangeNotifier {
   }
 
   // ── Send voice message ────────────────────────────────────────
+  /// Flux identique à la PWA (`uploadVoiceMessage()`) :
+  ///   1. bulle optimiste affichée immédiatement ;
+  ///   2. POST /api/audio/upload ;
+  ///   3. POST /api/messages/send (type audio) ;
+  ///   4. remplacement de la bulle optimiste par le message réel.
   Future<bool> sendVoiceMessage({
     required String contactId,
     required dynamic audioFile,
     int? duration,
     String? conversationId,
+    bool isGroup = false,
   }) async {
-    // CORRECTION (Session 9) : ne pas bloquer le web en mode navigateur.
-    // Le web peut envoyer des messages vocaux via getUserMedia.
-    // La restriction kIsWeb était trop agressive — on laisse passer.
     try {
       _currentUserId ??= await _authService.getUserId();
-      final message = await _messagingService.sendVoiceMessage(
+
+      final convId = conversationId ?? '';
+      final tempId = 'temp-audio-${DateTime.now().millisecondsSinceEpoch}';
+
+      // ── 1. Bulle optimiste (état « envoi ») ──
+      if (convId.isNotEmpty) {
+        _messagesMap.putIfAbsent(convId, () => []);
+        _messagesMap[convId]!.add(MessageModel(
+          id: tempId,
+          conversationId: convId,
+          senderId: _currentUserId ?? '',
+          type: MessageType.voice,
+          content: null,
+          audioUrl: '',
+          duration: duration,
+          status: MessageStatus.sending,
+          timestamp: DateTime.now(),
+          isMe: true,
+          transcriptionStatus: 'pending',
+        ));
+        notifyListeners();
+      }
+
+      // ── 2 & 3. Upload puis envoi ──
+      final result = await _messagingService.sendVoiceMessage(
         receiverId: contactId,
         audioFile: audioFile,
         duration: duration,
         conversationId: conversationId,
         currentUserId: _currentUserId,
+        isGroup: isGroup,
       );
 
-      if (message != null) {
-        final convId = conversationId ?? message.conversationId;
-        if (!_messagesMap.containsKey(convId)) {
-          _messagesMap[convId] = [];
+      if (result == null) {
+        // Échec : retirer la bulle optimiste (comme la PWA).
+        if (convId.isNotEmpty) {
+          _messagesMap[convId]?.removeWhere((m) => m.id == tempId);
+          notifyListeners();
         }
-        _messagesMap[convId]!.add(message);
-        _updateConversationLastMessage(convId, message);
-        notifyListeners();
-        return true;
+        return false;
       }
-      return false;
+
+      final message = result['message'] as MessageModel;
+      final resolvedUrl = (result['audioUrl'] ?? '').toString();
+      final uploadDuration = (result['duration'] as num?)?.round();
+
+      // ── 4. Remplacement de la bulle optimiste ──
+      final canonicalId = message.conversationId.isNotEmpty
+          ? message.conversationId
+          : convId;
+
+      if (convId.isNotEmpty) {
+        final list = _messagesMap[convId];
+        if (list != null) {
+          final idx = list.indexWhere((m) => m.id == tempId);
+          final real = message.copyWith(
+            audioUrl: resolvedUrl.isNotEmpty ? resolvedUrl : message.audioUrl,
+            duration: uploadDuration ?? message.duration,
+            status: MessageStatus.sent,
+            isMe: true,
+          );
+          if (idx != -1) {
+            list[idx] = real;
+          } else {
+            list.add(real);
+          }
+        }
+        if (canonicalId != convId) {
+          _messagesMap[canonicalId] = List<MessageModel>.from(
+            _messagesMap[convId] ?? [],
+          );
+        }
+      }
+
+      _updateConversationLastMessage(canonicalId, message);
+
+      // Le serveur peut renvoyer un conversationId canonique différent du
+      // provisoire (résolution téléphone → UID) : on le suit (fix P0 PWA).
+      if (_activeConversationId == convId && canonicalId != convId) {
+        _activeConversationId = canonicalId;
+      }
+
+      notifyListeners();
+
+      // Rafraîchissement de fond (idem PWA : setTimeout(…, 1000)).
+      Future.delayed(const Duration(seconds: 1), () async {
+        await loadMessages(canonicalId.isNotEmpty ? canonicalId : convId);
+      });
+      return true;
     } catch (e) {
       debugPrint('sendVoiceMessage error: $e');
       return false;
     }
+  }
+
+  // ── Send group voice message (raccourci) ──────────────────────
+  Future<bool> sendGroupVoiceMessage({
+    required String groupId,
+    required dynamic audioFile,
+    int? duration,
+  }) async {
+    return sendVoiceMessage(
+      contactId: groupId,
+      audioFile: audioFile,
+      duration: duration,
+      conversationId: groupId,
+      isGroup: true,
+    );
   }
 
   // ── React to message ──────────────────────────────────────────
@@ -412,12 +511,102 @@ class MessagingProvider with ChangeNotifier {
   }
 
   // ── Transcribe voice message ──────────────────────────────────
-  Future<String?> transcribeMessage(String messageId) async {
-    try {
-      return await _messagingService.transcribeVoiceMessage(messageId);
-    } catch (e) {
+  /// Même séquence que la PWA (`requestTranscription()`) :
+  ///   • POST /api/audio/transcribe/:id  → lance le traitement
+  ///   • GET  /api/audio/:id toutes les 3 s (40 tentatives max ≈ 120 s)
+  ///   • statut local mis à jour : processing → done | error
+  /// Le texte trouvé est renvoyé (null si échec/timeout).
+  Future<String?> transcribeMessage(
+    String messageId, {
+    String? conversationId,
+  }) async {
+    final convId = conversationId ?? _findConversationOfMessage(messageId);
+    if (convId == null) return null;
+
+    _updateLocalMessage(
+        convId, messageId, (m) => m.copyWith(transcriptionStatus: 'processing'));
+
+    final started = await _messagingService.startTranscription(messageId);
+    if (!started) {
+      _updateLocalMessage(
+          convId, messageId, (m) => m.copyWith(transcriptionStatus: 'error'));
       return null;
     }
+
+    const maxAttempts = 40;
+    const pollInterval = Duration(seconds: 3);
+
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      await Future.delayed(pollInterval);
+      final data = await _messagingService.getAudioMessage(messageId);
+
+      final status = data?['transcriptionStatus']?.toString();
+      final text = data?['transcription']?.toString() ?? '';
+
+      if (status == 'done' && text.isNotEmpty) {
+        _updateLocalMessage(
+          convId,
+          messageId,
+          (m) => m.copyWith(
+            transcription: text,
+            transcriptionStatus: 'done',
+          ),
+        );
+        return text;
+      }
+
+      if (status == 'error') {
+        final err = data?['transcriptionError']?.toString();
+        _updateLocalMessage(
+          convId,
+          messageId,
+          (m) => m.copyWith(
+            transcriptionStatus: 'error',
+            transcriptionError: err,
+          ),
+        );
+        return null;
+      }
+    }
+
+    // Timeout 120 s : dernier contrôle puis état d'erreur (idem PWA).
+    final finalData = await _messagingService.getAudioMessage(messageId);
+    final finalText = finalData?['transcription']?.toString() ?? '';
+    if (finalData?['transcriptionStatus']?.toString() == 'done' &&
+        finalText.isNotEmpty) {
+      _updateLocalMessage(
+        convId,
+        messageId,
+        (m) => m.copyWith(transcription: finalText, transcriptionStatus: 'done'),
+      );
+      return finalText;
+    }
+
+    _updateLocalMessage(
+        convId, messageId, (m) => m.copyWith(transcriptionStatus: 'error'));
+    return null;
+  }
+
+  /// Retrouve la conversation qui contient [messageId].
+  String? _findConversationOfMessage(String messageId) {
+    for (final entry in _messagesMap.entries) {
+      if (entry.value.any((m) => m.id == messageId)) return entry.key;
+    }
+    return null;
+  }
+
+  /// Applique [transform] au message [messageId] de la conversation [convId].
+  void _updateLocalMessage(
+    String convId,
+    String messageId,
+    MessageModel Function(MessageModel) transform,
+  ) {
+    final list = _messagesMap[convId];
+    if (list == null) return;
+    final idx = list.indexWhere((m) => m.id == messageId);
+    if (idx == -1) return;
+    list[idx] = transform(list[idx]);
+    notifyListeners();
   }
 
   // ── Update transcription in local state ───────────────────────

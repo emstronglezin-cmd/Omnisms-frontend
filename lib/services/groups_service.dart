@@ -49,10 +49,12 @@ class GroupsService {
           ...ApiConfig.headers,
           'Authorization': 'Bearer $token',
         },
+        // La PWA envoie `members` (public/app.js — createGroup()) :
+        // c'est le champ attendu par le backend.
         body: jsonEncode({
           'name': name,
           'description': description,
-          'memberIds': memberIds,
+          'members': memberIds,
         }),
       ).timeout(ApiConfig.requestTimeout);
 
@@ -102,25 +104,123 @@ class GroupsService {
     }
   }
 
-  // Add member to group
-  Future<bool> addMember(String groupId, String userId) async {
+  /// Ajoute un membre par identifiant générique.
+  ///
+  /// Le backend résout indifféremment un numéro de téléphone, un @username
+  /// ou un UID (userResolver) — c'est ce que fait la PWA avec
+  /// POST /groups/:id/members { identifier }.
+  Future<bool> addMemberByIdentifier(String groupId, String identifier) async {
     try {
       final token = await _authService.getToken();
       if (token == null) return false;
 
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.groupsEndpoint}/$groupId/members'),
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.groupMembersEndpoint(groupId)}'),
         headers: {
           ...ApiConfig.headers,
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({'userId': userId}),
+        body: jsonEncode({'identifier': identifier}),
+      ).timeout(ApiConfig.requestTimeout);
+
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      debugPrint('Error adding member by identifier: $e');
+      return false;
+    }
+  }
+
+  /// Ajoute un membre par UID (alias conservé pour compatibilité).
+  Future<bool> addMember(String groupId, String userId) async {
+    final ok = await addMemberByIdentifier(groupId, userId);
+    if (ok) return true;
+
+    // Repli : ancien format { userId } / { members: [uid] }.
+    try {
+      final token = await _authService.getToken();
+      if (token == null) return false;
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.groupMembersEndpoint(groupId)}'),
+        headers: {
+          ...ApiConfig.headers,
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'userId': userId, 'members': [userId]}),
+      ).timeout(ApiConfig.requestTimeout);
+
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      debugPrint('Error adding member: $e');
+      return false;
+    }
+  }
+
+  /// Transfère le rôle d'administrateur — PUT /groups/:id/admin { newOwner }.
+  /// (PWA : transferAdmin())
+  Future<bool> transferAdmin(String groupId, String newOwnerId) async {
+    try {
+      final token = await _authService.getToken();
+      if (token == null) return false;
+
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.groupAdminEndpoint(groupId)}'),
+        headers: {
+          ...ApiConfig.headers,
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'newOwner': newOwnerId}),
       ).timeout(ApiConfig.requestTimeout);
 
       return response.statusCode == 200;
     } catch (e) {
-      debugPrint('Error adding member: $e');
+      debugPrint('Error transferring admin: $e');
       return false;
+    }
+  }
+
+  /// Upload de la photo du groupe — POST /groups/:id/avatar (champ « image »).
+  /// (PWA : saveGroupEdits())
+  Future<String?> uploadGroupAvatar({
+    required String groupId,
+    List<int>? bytes,
+    String? filePath,
+    String? filename,
+  }) async {
+    try {
+      final token = await _authService.getToken();
+      if (token == null) return null;
+      if ((bytes == null || bytes.isEmpty) && (filePath == null || filePath.isEmpty)) {
+        return null;
+      }
+
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.groupAvatarEndpoint(groupId)}'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.headers['Accept'] = 'application/json';
+
+      final name = filename ?? 'group.jpg';
+      request.files.add(
+        bytes != null && bytes.isNotEmpty
+            ? http.MultipartFile.fromBytes('image', bytes, filename: name)
+            : await http.MultipartFile.fromPath('image', filePath!, filename: name),
+      );
+
+      final streamed = await request.send().timeout(const Duration(seconds: 90));
+      final response = await http.Response.fromStream(streamed);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        if (data is Map) {
+          return (data['image'] ?? data['avatarUrl'] ?? data['url'])?.toString();
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error uploading group avatar: $e');
+      return null;
     }
   }
 
@@ -183,7 +283,12 @@ class GroupsService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final List members = data['members'] ?? [];
-        return members.cast<Map<String, dynamic>>();
+        return members.map((m) {
+          if (m is Map<String, dynamic>) return m;
+          if (m is Map) return Map<String, dynamic>.from(m);
+          // Ancien format : tableau d'UID.
+          return <String, dynamic>{'uid': m.toString()};
+        }).toList();
       }
       return [];
     } catch (e) {

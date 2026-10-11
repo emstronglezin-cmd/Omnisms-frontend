@@ -313,7 +313,7 @@ class ThemeProvider with ChangeNotifier {
     ),
 
     // ─── Dialogs ────────────────────────────────────────────────────────────
-    dialogTheme: const DialogTheme(
+    dialogTheme: const DialogThemeData(
       backgroundColor: OmniColors.bgCard,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(20)),

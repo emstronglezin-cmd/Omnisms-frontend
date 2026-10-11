@@ -82,6 +82,64 @@ class GroupsProvider with ChangeNotifier {
     }
   }
 
+  /// Ajoute un membre à partir d'un numéro de téléphone, d'un @username
+  /// ou d'un UID — le backend fait la résolution (idem PWA).
+  Future<bool> addMemberByIdentifier(String groupId, String identifier) async {
+    try {
+      final success =
+          await _groupsService.addMemberByIdentifier(groupId, identifier);
+      if (success) {
+        await loadGroups();
+      }
+      return success;
+    } catch (e) {
+      _error = "Erreur lors de l'ajout du membre: $e";
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Transfère le rôle d'administrateur (PUT /groups/:id/admin).
+  Future<bool> transferAdmin(String groupId, String newOwnerId) async {
+    try {
+      final success = await _groupsService.transferAdmin(groupId, newOwnerId);
+      if (success) {
+        await loadGroups();
+      }
+      return success;
+    } catch (e) {
+      _error = 'Erreur lors du transfert: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Upload de la photo du groupe (POST /groups/:id/avatar).
+  Future<bool> uploadGroupAvatar({
+    required String groupId,
+    List<int>? bytes,
+    String? filePath,
+    String? filename,
+  }) async {
+    try {
+      final url = await _groupsService.uploadGroupAvatar(
+        groupId: groupId,
+        bytes: bytes,
+        filePath: filePath,
+        filename: filename,
+      );
+      if (url != null) {
+        await loadGroups();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      _error = "Erreur lors de l'upload de la photo: $e";
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> removeMember(String groupId, String userId) async {
     try {
       final success = await _groupsService.removeMember(groupId, userId);

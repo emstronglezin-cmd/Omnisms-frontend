@@ -1,3 +1,5 @@
+import '../config/api_config.dart';
+
 enum MessageType {
   text,
   voice,
@@ -23,8 +25,12 @@ class MessageModel {
   final MessageType type;
   final String? content; // For text messages
   final String? mediaUrl; // For voice, image, video, file
+  final String? audioUrl; // Raw audio URL as returned by the backend (relative or absolute)
   final String? transcription; // For voice messages
+  final String? transcriptionStatus; // pending | processing | done | error
+  final String? transcriptionError;
   final int? duration; // For voice messages (in seconds)
+  final String? durationFormatted; // '0:42' — affichage direct quand fourni par le backend
   final MessageStatus status;
   final DateTime timestamp;
   final bool isMe;
@@ -39,8 +45,12 @@ class MessageModel {
     required this.type,
     this.content,
     this.mediaUrl,
+    this.audioUrl,
     this.transcription,
+    this.transcriptionStatus,
+    this.transcriptionError,
     this.duration,
+    this.durationFormatted,
     required this.status,
     required this.timestamp,
     required this.isMe,
@@ -75,8 +85,15 @@ class MessageModel {
       receiverId: json['receiverId'] ?? json['receiver_id'],
       type: _parseMessageType(json['type']),
       content: json['content'],
-      mediaUrl: json['mediaUrl'] ?? json['media_url'],
+      mediaUrl: json['mediaUrl'] ?? json['media_url'] ?? json['audioUrl'] ?? json['url'],
+      audioUrl: json['audioUrl'] ?? json['audio_url'] ?? json['url'],
       transcription: json['transcription'],
+      transcriptionStatus: (json['transcriptionStatus'] ?? json['transcription_status'])
+          ?.toString(),
+      transcriptionError: (json['transcriptionError'] ?? json['transcription_error'])
+          ?.toString(),
+      durationFormatted: (json['durationFormatted'] ?? json['duration_formatted'])
+          ?.toString(),
       duration: json['duration'] is int
           ? json['duration']
           : int.tryParse(json['duration']?.toString() ?? ''),
@@ -99,6 +116,16 @@ class MessageModel {
     return base.copyWith(isMe: isMe);
   }
 
+  /// URL audio exploitable par le lecteur.
+  ///
+  /// Le backend stocke parfois un chemin relatif (/uploads/audio/…) : on le
+  /// résout sur l'URL du backend, exactement comme la PWA
+  /// (`renderAudioMessage` / `uploadVoiceMessage` dans public/app.js).
+  String get playableAudioUrl =>
+      ApiConfig.resolveMediaUrl(audioUrl ?? mediaUrl);
+
+  bool get isAudio => type == MessageType.voice;
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -109,7 +136,11 @@ class MessageModel {
       'type': type.name,
       'content': content,
       'mediaUrl': mediaUrl,
+      'audioUrl': audioUrl,
       'transcription': transcription,
+      'transcriptionStatus': transcriptionStatus,
+      'transcriptionError': transcriptionError,
+      'durationFormatted': durationFormatted,
       'duration': duration,
       'status': status.name,
       'timestamp': timestamp.toIso8601String(),
@@ -162,8 +193,12 @@ class MessageModel {
     MessageType? type,
     String? content,
     String? mediaUrl,
+    String? audioUrl,
     String? transcription,
+    String? transcriptionStatus,
+    String? transcriptionError,
     int? duration,
+    String? durationFormatted,
     MessageStatus? status,
     DateTime? timestamp,
     bool? isMe,
@@ -178,8 +213,12 @@ class MessageModel {
       type: type ?? this.type,
       content: content ?? this.content,
       mediaUrl: mediaUrl ?? this.mediaUrl,
+      audioUrl: audioUrl ?? this.audioUrl,
       transcription: transcription ?? this.transcription,
+      transcriptionStatus: transcriptionStatus ?? this.transcriptionStatus,
+      transcriptionError: transcriptionError ?? this.transcriptionError,
       duration: duration ?? this.duration,
+      durationFormatted: durationFormatted ?? this.durationFormatted,
       status: status ?? this.status,
       timestamp: timestamp ?? this.timestamp,
       isMe: isMe ?? this.isMe,

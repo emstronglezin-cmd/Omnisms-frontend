@@ -62,12 +62,63 @@ class SettingsScreen extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      if (user?.username != null && user!.username!.isNotEmpty)
+                        Text(
+                          '@${user.username}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
                       if (user?.email != null)
                         Text(
                           user!.email!,
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[600],
+                          ),
+                        ),
+                      if (user?.phone != null && user!.phone!.isNotEmpty)
+                        Text(
+                          user.phone!,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      const SizedBox(height: 6),
+                      // Badge Premium (PWA : renderSettings())
+                      if (user?.isPremium == true)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00D4FF).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: const Color(0xFF00D4FF).withOpacity(0.4),
+                            ),
+                          ),
+                          child: const Text(
+                            '💎 Premium actif',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF00D4FF),
+                            ),
+                          ),
+                        ),
+                      // Avertissement téléphone manquant (PWA : renderSettings())
+                      if (user != null &&
+                          (user.phone == null || user.phone!.isEmpty))
+                        const Padding(
+                          padding: EdgeInsets.only(top: 6),
+                          child: Text(
+                            '⚠️ Téléphone non renseigné',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange,
+                            ),
                           ),
                         ),
                     ],
@@ -142,6 +193,25 @@ class SettingsScreen extends StatelessWidget {
           ),
           
           const Divider(),
+
+          // ── Compte (PWA : renderSettings()) ─────────────────
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('Se déconnecter'),
+            subtitle: const Text('Fermer la session de cet appareil'),
+            onTap: () => _confirmLogout(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_forever, color: Colors.red),
+            title: const Text(
+              'Supprimer mon compte',
+              style: TextStyle(color: Colors.red),
+            ),
+            subtitle: const Text('Action irréversible'),
+            onTap: () => _confirmDeleteAccount(context),
+          ),
+
+          const Divider(),
           
           // 🔥 TEST CRASHLYTICS (DEBUG ONLY)
           if (!const bool.fromEnvironment('dart.vm.product'))
@@ -181,7 +251,7 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('À propos'),
-            subtitle: const Text('Version 2.2.0'),
+            subtitle: const Text('Version 2.5.0'),
             onTap: () {
               showAboutDialog(
                 context: context,
@@ -204,5 +274,105 @@ class SettingsScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+
+  // ── Déconnexion ─────────────────────────────────────────────
+  Future<void> _confirmLogout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Déconnexion'),
+        content: const Text('Voulez-vous vraiment vous déconnecter ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Se déconnecter'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    await context.read<AuthProvider>().logout();
+    if (!context.mounted) return;
+
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+  }
+
+  // ── Suppression du compte (DELETE /api/me) ──────────────────
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer mon compte'),
+        content: const Text(
+          '⚠️ Cette action est irréversible. Votre compte sera désactivé et '
+          'vos données anonymisées.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Supprimer',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    // Double confirmation (idem PWA).
+    if (!context.mounted) return;
+    final confirmed2 = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Êtes-vous absolument sûr(e) ?'),
+        content: const Text('Cette action ne peut pas être annulée.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Supprimer définitivement',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed2 != true) return;
+    if (!context.mounted) return;
+
+    final auth = context.read<AuthProvider>();
+    final ok = await auth.deleteAccount();
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok
+            ? 'Compte supprimé. Au revoir !'
+            : (auth.error ?? 'Erreur lors de la suppression du compte')),
+        backgroundColor: ok ? Colors.green : Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    if (ok) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    }
   }
 }

@@ -8,13 +8,21 @@
 /// ⚠️  CONFIGURATION REQUISE AVANT PRODUCTION :
 ///   Remplacer YOUR_START_IO_APP_ID par l'App ID fourni par Start.io dashboard.
 ///   Obtenir votre App ID sur : https://portal.start.io/
-
+///
+/// API réelle du paquet `startapp_sdk` (v1.0.1) :
+///   StartAppSdk().setTestAdsEnabled(bool)
+///   StartAppSdk().loadBannerAd(StartAppBannerType.BANNER) → StartAppBannerAd
+///   StartAppSdk().loadInterstitialAd()                    → StartAppInterstitialAd
+///   StartAppBanner(StartAppBannerAd)                      → Widget
+///   StartAppInterstitialAd.show()                         → Future<bool>
 library;
 
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 
-// Start.io SDK — Android only, web/iOS non supportés
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+
+// Start.io SDK — Android/iOS uniquement (pas de support web)
 // ignore: depend_on_referenced_packages
 import 'package:startapp_sdk/startapp.dart';
 
@@ -37,10 +45,18 @@ class AdsService {
   /// Indique si les publicités sont supportées sur cette plateforme
   bool get _isSupported => !kIsWeb && Platform.isAndroid;
 
+  /// App ID configuré (utile pour les diagnostics)
+  String get appId => _kStartIoAppId;
+
+  /// Vrai tant que l'App ID Start.io n'a pas été remplacé.
+  bool get isConfigured =>
+      _kStartIoAppId.isNotEmpty && _kStartIoAppId != 'YOUR_START_IO_APP_ID';
+
   /// Mettre à jour le statut Premium (appelé au login et à chaque vérification)
   void setPremiumStatus(bool premium) {
     _isPremium = premium;
-    debugPrint('[Ads] Premium status: $_isPremium — ads ${_isPremium ? "disabled" : "enabled"}');
+    debugPrint(
+        '[Ads] Premium status: $_isPremium — ads ${_isPremium ? "disabled" : "enabled"}');
   }
 
   /// Initialiser le SDK Start.io
@@ -48,10 +64,15 @@ class AdsService {
   Future<void> initialize() async {
     if (_initialized || !_isSupported) return;
 
+    if (!isConfigured) {
+      debugPrint('[Ads] Start.io non configuré (App ID placeholder) — ignoré');
+      return;
+    }
+
     try {
       await StartAppSdk().setTestAdsEnabled(_kTestMode);
       // Le SDK s'initialise automatiquement avec l'App ID dans AndroidManifest.xml
-      // Voir : android/app/src/main/AndroidManifest.xml (à configurer)
+      // Voir : android/app/src/main/AndroidManifest.xml
       _initialized = true;
       debugPrint('[Ads] Start.io SDK initialized (test: $_kTestMode)');
     } catch (e) {
@@ -60,17 +81,15 @@ class AdsService {
   }
 
   /// Charger une bannière publicitaire
-  /// Retourne null si premium ou non supporté
-  Future<StartAppBanner?> loadBanner() async {
+  /// Retourne null si premium, non supporté ou non initialisé
+  Future<StartAppBannerAd?> loadBanner() async {
     if (!_isSupported || _isPremium || !_initialized) return null;
 
     try {
-      final banner = StartAppBanner(type: BannerType.banner);
-      final result = await banner.load();
-      if (result) {
-        debugPrint('[Ads] Banner loaded');
-        return banner;
-      }
+      final banner = await StartAppSdk()
+          .loadBannerAd(StartAppBannerType.BANNER);
+      debugPrint('[Ads] Banner loaded');
+      return banner;
     } catch (e) {
       debugPrint('[Ads] Banner load failed: $e');
     }
@@ -83,13 +102,10 @@ class AdsService {
     if (!_isSupported || _isPremium || !_initialized) return false;
 
     try {
-      final interstitial = StartAppInterstitial();
-      final loaded = await interstitial.load();
-      if (loaded) {
-        final shown = await interstitial.show();
-        debugPrint('[Ads] Interstitial shown: $shown');
-        return shown;
-      }
+      final interstitial = await StartAppSdk().loadInterstitialAd();
+      final shown = await interstitial.show();
+      debugPrint('[Ads] Interstitial shown: $shown');
+      return shown;
     } catch (e) {
       debugPrint('[Ads] Interstitial failed: $e');
     }
@@ -104,8 +120,6 @@ class AdsService {
 /// Widget bannière publicitaire à placer dans les écrans
 /// S'affiche uniquement pour les utilisateurs gratuits sur Android
 /// Usage : BannerAdWidget() — à placer hors des zones de saisie
-import 'package:flutter/material.dart';
-
 class BannerAdWidget extends StatefulWidget {
   /// Position de la bannière (préférer le bas des listes, jamais dans la conversation)
   const BannerAdWidget({super.key});
@@ -115,7 +129,7 @@ class BannerAdWidget extends StatefulWidget {
 }
 
 class _BannerAdWidgetState extends State<BannerAdWidget> {
-  StartAppBanner? _banner;
+  StartAppBannerAd? _banner;
   bool _loading = true;
 
   @override
@@ -138,17 +152,16 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   Widget build(BuildContext context) {
     // Sur le web ou iOS : widget vide invisible
     if (kIsWeb || !Platform.isAndroid) return const SizedBox.shrink();
-    // Utilisateur premium : widget vide invisible
+    // Utilisateur premium ou SDK non initialisé : widget vide invisible
     if (!AdsService().adsEnabled) return const SizedBox.shrink();
     // Chargement en cours
     if (_loading) return const SizedBox(height: 50);
     // Pas de bannière disponible
     if (_banner == null) return const SizedBox.shrink();
 
-    return Container(
-      height: 50,
-      color: Colors.transparent,
-      child: StartAppBannerAd(banner: _banner!),
+    return SizedBox(
+      height: _banner?.height ?? 50,
+      child: StartAppBanner(_banner!),
     );
   }
 }

@@ -30,6 +30,37 @@ class ApiConfig {
   static const String authLoginEndpoint = '/api/auth/login';
   static const String authMeEndpoint = '/api/auth/me';
 
+  // ── Profil (mêmes routes que la PWA — public/app.js) ────────
+  // GET    /api/me           → profil courant
+  // PUT    /api/me/profile   → mise à jour (name, username, phone, email, password)
+  // POST   /api/me/avatar    → upload photo (multipart, champ « avatar »)
+  // DELETE /api/me           → suppression du compte
+  static const String meEndpoint = '/api/me';
+  static const String meProfileEndpoint = '/api/me/profile';
+  static const String meAvatarEndpoint = '/api/me/avatar';
+
+  // ── Audio (messages vocaux + transcription) ─────────────────
+  // POST /api/audio/upload            → { id, url, duration, durationFormatted }
+  // POST /api/audio/transcribe/:msgId → lance la transcription
+  // GET  /api/audio/:msgId            → { transcriptionStatus, transcription }
+  static const String audioUploadEndpoint = '/api/audio/upload';
+  static String audioTranscribeEndpoint(String messageId) =>
+      '/api/audio/transcribe/$messageId';
+  static String audioMessageEndpoint(String messageId) =>
+      '/api/audio/$messageId';
+
+  // ── Contacts ────────────────────────────────────────────────
+  static const String contactsSyncEndpoint = '/api/contacts/sync';
+  static const String contactsAddEndpoint = '/api/contacts/add';
+  static String contactByPhoneEndpoint(String phone) =>
+      '/api/contacts/${Uri.encodeComponent(phone)}';
+  static String contactCheckEndpoint(String phone) =>
+      '/api/contacts/check/${Uri.encodeComponent(phone)}';
+
+  // ── Paiement (fallback polling quand le webhook tarde) ───────
+  static String paymentPollEndpoint(String checkoutId) =>
+      '/api/payment/poll/${Uri.encodeComponent(checkoutId)}';
+
   // ── Google Auth (contrat backend : docs/GOOGLE_AUTH_FLUTTER.md) ──
   // 1. GET  /api/auth/google                  → ouverture dans le navigateur système
   //    (redirige vers Google, puis vers le deep link Flutter avec un code à usage unique)
@@ -58,6 +89,29 @@ class ApiConfig {
       };
 
   static Map<String, String> get defaultHeaders => headers;
+
+  // ── Groupes (routes montées à /groups, pas /api/groups) ──────
+  static String groupMembersEndpoint(String groupId) => '/groups/$groupId/members';
+  static String groupMessagesEndpoint(String groupId) => '/groups/$groupId/messages';
+  static String groupAdminEndpoint(String groupId) => '/groups/$groupId/admin';
+  static String groupAvatarEndpoint(String groupId) => '/groups/$groupId/avatar';
+
+  // ── Résolution d'URL média ────────────────────────────────────
+  /// Le backend renvoie parfois des chemins relatifs (/uploads/audio/…).
+  /// Dans ce cas on les préfixe avec l'URL du backend, exactement comme
+  /// le fait la PWA (public/app.js — renderAudioMessage / uploadVoiceMessage).
+  static String resolveMediaUrl(String? url) {
+    if (url == null || url.isEmpty) return '';
+    if (url.startsWith('data:') ||
+        url.startsWith('http://') ||
+        url.startsWith('https://')) {
+      return url;
+    }
+    if (url.startsWith('/') && !url.startsWith('//')) {
+      return '$baseUrl$url';
+    }
+    return url;
+  }
 
   // ── Timeouts ──────────────────────────────────────────────────
   // Render free tier peut prendre jusqu'à 50s pour se réveiller

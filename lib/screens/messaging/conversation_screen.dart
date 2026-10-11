@@ -174,7 +174,9 @@ class _ConversationScreenState extends State<ConversationScreen>
       final success = await context.read<MessagingProvider>().sendVoiceMessage(
             contactId: widget.contactId,
             audioFile: audioPath,
+            duration: duration.inSeconds,
             conversationId: widget.conversationId,
+            isGroup: widget.isGroup,
           );
 
       if (!success && mounted) {
@@ -331,7 +333,10 @@ class _ConversationScreenState extends State<ConversationScreen>
     );
 
     final transcription =
-        await context.read<MessagingProvider>().transcribeMessage(message.id);
+        await context.read<MessagingProvider>().transcribeMessage(
+              message.id,
+              conversationId: widget.conversationId,
+            );
 
     if (mounted) {
       Navigator.pop(context);
@@ -593,7 +598,7 @@ class _ConversationScreenState extends State<ConversationScreen>
                               message.type == MessageType.voice
                                   ? AudioPlayerWidget(
                                       audioUrl:
-                                          message.mediaUrl ?? '',
+                                          message.playableAudioUrl,
                                       duration: Duration(
                                           seconds:
                                               message.duration ?? 0),
