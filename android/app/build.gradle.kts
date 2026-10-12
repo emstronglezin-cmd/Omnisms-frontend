@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -40,7 +42,7 @@ android {
             // SÉCURITÉ : les secrets de signature ne doivent JAMAIS être hardcodés.
             // Ils sont lus depuis android/key.properties (hors dépôt) ou des
             // variables d'environnement CI. Voir README sécurité.
-            val keystoreProperties = java.util.Properties()
+            val keystoreProperties = Properties()
             val keystorePropertiesFile = rootProject.file("key.properties")
             if (keystorePropertiesFile.exists()) {
                 keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
