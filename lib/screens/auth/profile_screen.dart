@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/auth_service.dart';
 import '../auth/login_screen.dart';
 
+/// Écran « Profil » — aligné sur l'onglet Paramètres de la PWA
+/// (`renderSettings()` / `saveProfile()` / `uploadAvatar()` dans public/app.js).
+///
+/// Champs éditables : nom, nom d'utilisateur, téléphone, email, mot de passe.
+/// La photo de profil est envoyée sur POST /api/me/avatar.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -13,17 +20,21 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
+  late TextEditingController _usernameController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
+  final _passwordController = TextEditingController();
+
   bool _isEditing = false;
+  bool _isUploadingAvatar = false;
 
   @override
   void initState() {
     super.initState();
-    final authProvider = context.read<AuthProvider>();
-    final user = authProvider.currentUser;
-    
+    final user = context.read<AuthProvider>().currentUser;
+
     _nameController = TextEditingController(text: user?.name ?? '');
+    _usernameController = TextEditingController(text: user?.username ?? '');
     _emailController = TextEditingController(text: user?.email ?? '');
     _phoneController = TextEditingController(text: user?.phone ?? '');
   }
@@ -31,42 +42,96 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _usernameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _passwordController.dispose();
     super.dispose();
+  }
+
+  void _snack(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 6),
+      ),
+    );
   }
 
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
     final authProvider = context.read<AuthProvider>();
+
+    final password = _passwordController.text;
+    if (password.isNotEmpty && password.length < 8) {
+      _snack('Le mot de passe doit contenir au moins 8 caractères',
+          isError: true);
+      return;
+    }
+
     final success = await authProvider.updateProfile(
       name: _nameController.text.trim(),
-      email: _emailController.text.trim(),
-      phone: _phoneController.text.trim().isNotEmpty 
-          ? _phoneController.text.trim() 
+      username: _usernameController.text.trim(),
+      email: _emailController.text.trim().isNotEmpty
+          ? _emailController.text.trim()
           : null,
+      phone: _phoneController.text.trim(),
+      password: password.isNotEmpty ? password : null,
     );
 
     if (!mounted) return;
 
     if (success) {
-      setState(() {
-        _isEditing = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profil mis à jour avec succès'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      _passwordController.clear();
+      setState(() => _isEditing = false);
+      _snack('Profil mis à jour ✓');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authProvider.error ?? 'Erreur de mise à jour'),
-          backgroundColor: Colors.red,
-        ),
+      _snack(authProvider.error ?? 'Erreur de mise à jour', isError: true);
+    }
+  }
+
+  /// Photo de profil — POST /api/me/avatar.
+  ///
+  /// L'image est redimensionnée à 400×400 et compressée (qualité 75) par
+  /// image_picker : équivalent direct du canvas de compression de la PWA
+  /// (`compressImageForAvatar()`).
+  Future<void> _handleChangePhoto() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 400,
+        maxHeight: 400,
+        imageQuality: 75,
       );
+      if (picked == null) return;
+
+      setState(() => _isUploadingAvatar = true);
+
+      final authProvider = context.read<AuthProvider>();
+      // readAsBytes() fonctionne sur mobile comme sur web : un seul chemin.
+      final bytes = await picked.readAsBytes();
+      final ok = await authProvider.uploadAvatar(
+        bytes: bytes,
+        filename: picked.name.isNotEmpty ? picked.name : 'avatar.jpg',
+      );
+
+      if (!mounted) return;
+      setState(() => _isUploadingAvatar = false);
+      _snack(
+        ok
+            ? 'Photo de profil mise à jour ✓'
+            : (authProvider.error ?? "Échec de l'upload"),
+        isError: !ok,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isUploadingAvatar = false);
+      _snack("Impossible d'accéder à la galerie : $e", isError: true);
     }
   }
 
@@ -89,17 +154,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
 
-    if (confirmed == true) {
-      final authProvider = context.read<AuthProvider>();
-      await authProvider.logout();
-      
-      if (!mounted) return;
-      
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
-    }
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    await context.read<AuthProvider>().logout();
+    if (!mounted) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
   }
 
   @override
@@ -116,54 +180,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
           else
             IconButton(
               icon: const Icon(Icons.edit),
-              onPressed: () {
-                setState(() {
-                  _isEditing = true;
-                });
-              },
+              onPressed: () => setState(() => _isEditing = true),
             ),
         ],
       ),
       body: Consumer<AuthProvider>(
         builder: (context, authProvider, _) {
           final user = authProvider.currentUser;
-          
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: Form(
               key: _formKey,
               child: Column(
                 children: [
-                  // Avatar
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    child: user?.photoUrl != null
-                        ? ClipOval(
-                            child: Image.network(
-                              user!.photoUrl!,
-                              width: 120,
-                              height: 120,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                Icons.person,
-                                size: 60,
-                                color: Colors.white,
-                              ),
+                  // ── Avatar (clic → upload) ──────────────────
+                  Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 60,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        child: _avatarContent(user?.photoUrl),
+                      ),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Material(
+                          color: const Color(0xFF00D4FF),
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            onTap:
+                                _isUploadingAvatar ? null : _handleChangePhoto,
+                            customBorder: const CircleBorder(),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: _isUploadingAvatar
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.photo_camera,
+                                      size: 18,
+                                      color: Colors.white,
+                                    ),
                             ),
-                          )
-                        : const Icon(
-                            Icons.person,
-                            size: 60,
-                            color: Colors.white,
                           ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 32),
-                  
-                  // Name Field
+
+                  // ── Nom ─────────────────────────────────────
                   TextFormField(
                     controller: _nameController,
                     enabled: _isEditing,
+                    textCapitalization: TextCapitalization.words,
                     decoration: InputDecoration(
                       labelText: 'Nom complet',
                       prefixIcon: const Icon(Icons.person_outlined),
@@ -171,16 +248,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
+                    validator: (value) =>
+                        (value == null || value.trim().isEmpty)
+                            ? 'Nom requis'
+                            : null,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── Nom d'utilisateur ───────────────────────
+                  TextFormField(
+                    controller: _usernameController,
+                    enabled: _isEditing,
+                    decoration: InputDecoration(
+                      labelText: "Nom d'utilisateur",
+                      prefixIcon: const Icon(Icons.alternate_email),
+                      helperText: 'Lettres, chiffres, _ . - (2 à 50)',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Nom requis';
+                      final v = (value ?? '').trim();
+                      if (v.isEmpty) return "Nom d'utilisateur requis";
+                      if (!AuthService.isValidUsername(v)) {
+                        return AuthService.usernameHint();
                       }
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
-                  
-                  // Email Field
+
+                  // ── Téléphone ───────────────────────────────
+                  TextFormField(
+                    controller: _phoneController,
+                    enabled: _isEditing,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: 'Téléphone',
+                      hintText: '+22670123456',
+                      prefixIcon: const Icon(Icons.phone_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── Email ───────────────────────────────────
                   TextFormField(
                     controller: _emailController,
                     enabled: _isEditing,
@@ -193,74 +307,70 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Email requis';
-                      }
-                      if (!value.contains('@')) {
+                      final v = (value ?? '').trim();
+                      if (v.isEmpty) return null; // optionnel
+                      if (!v.contains('@') || !v.contains('.')) {
                         return 'Email invalide';
                       }
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
-                  
-                  // Phone Field
-                  TextFormField(
-                    controller: _phoneController,
-                    enabled: _isEditing,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(
-                      labelText: 'Téléphone',
-                      prefixIcon: const Icon(Icons.phone_outlined),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+
+                  if (_isEditing) ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Nouveau mot de passe',
+                        helperText: 'Laisser vide pour ne pas changer',
+                        prefixIcon: const Icon(Icons.lock_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
+
                   const SizedBox(height: 32),
-                  
-                  // Account Info
-                  if (user?.createdAt != null) ...[
+
+                  // ── Infos compte ────────────────────────────
+                  if (user?.createdAt != null)
                     Card(
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
-                        child: Column(
+                        child: Row(
                           children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.calendar_today),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Membre depuis',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                      Text(
-                                        _formatDate(user!.createdAt!),
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
+                            const Icon(Icons.calendar_today),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Membre depuis',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  Text(
+                                    _formatDate(user!.createdAt!),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                  ],
-                  
-                  // Logout Button
+                  const SizedBox(height: 16),
+
+                  // ── Déconnexion ─────────────────────────────
                   SizedBox(
                     width: double.infinity,
                     height: 50,
@@ -277,7 +387,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-                  
+
                   if (authProvider.isLoading)
                     const Padding(
                       padding: EdgeInsets.only(top: 16.0),
@@ -292,8 +402,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _avatarContent(String? photoUrl) {
+    if (photoUrl == null || photoUrl.isEmpty) {
+      return const Icon(Icons.person, size: 60, color: Colors.white);
+    }
+    return ClipOval(
+      child: Image.network(
+        photoUrl,
+        width: 120,
+        height: 120,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(
+          Icons.person,
+          size: 60,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
   String _formatDate(DateTime date) {
-    final months = [
+    const months = [
       'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
       'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
     ];

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/api_config.dart';
@@ -61,12 +62,17 @@ class GoogleCallback {
 /// Retourne `null` si l'URI ne correspond à aucun des deux callbacks définis
 /// par le backend. Le schéma `omnisms://` (mobile) et `https://` (web / App
 /// Links) sont tous les deux acceptés.
-GoogleCallback? parseGoogleCallback(Uri uri) {
+///
+/// [expect] indique le flux réellement en cours (ouvert par l'application).
+/// Quand il est fourni, un retour arrivant sur un hôte OmniSMS autorisé est
+/// reconnu **quel que soit le chemin** : c'est indispensable parce que la
+/// variante « app » du backend redirige aujourd'hui vers la racine de la PWA
+/// (`https://…vercel.app/?code=…`), et non vers `/auth/google/callback`.
+/// Sans flux en cours, aucun lien n'est détourné.
+GoogleCallback? parseGoogleCallback(Uri uri, {GoogleCallbackKind? expect}) {
   final params = _queryParams(uri);
 
-  GoogleCallbackKind? kind = _callbackKindFromPath(uri.pathSegments);
-  // Web (hash routing) : la route peut se trouver dans le fragment.
-  kind ??= _callbackKindFromPath(_fragmentPathSegments(uri));
+  final kind = _callbackKindFromUri(uri) ?? _pendingFlowKind(uri, params, expect);
   if (kind == null) return null;
 
   if (kind == GoogleCallbackKind.contacts) {
@@ -85,15 +91,79 @@ GoogleCallback? parseGoogleCallback(Uri uri) {
   );
 }
 
-GoogleCallbackKind? _callbackKindFromPath(Iterable<String> segments) {
-  final path = '/${segments.where((s) => s.isNotEmpty).join('/')}';
-  if (path.endsWith(ApiConfig.googleContactsCallbackPath)) {
-    return GoogleCallbackKind.contacts;
+/// Détermine le type de callback (login / contacts) porté par une URI.
+///
+/// Deux formes sont acceptées, car `Uri.parse` ne les traite pas de la même
+/// façon :
+///
+///   • schéma personnalisé `omnisms://auth/google/callback` — `auth` est
+///     l'**autorité** (host) de l'URI, le chemin ne vaut que
+///     `/google/callback`. La route n'est retrouvable qu'en recomposant
+///     `host + path`. C'est le cas du deep link mobile renvoyé par le backend.
+///   • `https://domaine/auth/google/callback` (App Links / web) : la route est
+///     dans le chemin — ou dans le fragment quand le site est en hash routing.
+///
+/// Sans le cas `host + path`, AUCUN retour Google n'était reconnu sur mobile
+/// (le lien était ignoré et l'utilisateur restait sur l'écran de connexion).
+GoogleCallbackKind? _callbackKindFromUri(Uri uri) {
+  final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+  final fragment =
+      _fragmentPathSegments(uri).where((s) => s.isNotEmpty).toList();
+
+  final candidates = <String>{
+    '/${segments.join('/')}',
+    if (fragment.isNotEmpty) '/${fragment.join('/')}',
+    if (uri.host.isNotEmpty) ...{
+      '/${[uri.host, ...segments].join('/')}',
+      if (fragment.isNotEmpty) '/${[uri.host, ...fragment].join('/')}',
+    },
+  };
+
+  // Le callback contacts est testé en premier sur TOUS les candidats :
+  // `…/auth/google/contacts/callback` ne doit jamais être confondu avec
+  // `…/auth/google/callback`.
+  for (final path in candidates) {
+    if (path.endsWith(ApiConfig.googleContactsCallbackPath)) {
+      return GoogleCallbackKind.contacts;
+    }
   }
-  if (path.endsWith(ApiConfig.googleLoginCallbackPath)) {
-    return GoogleCallbackKind.login;
+  for (final path in candidates) {
+    if (path.endsWith(ApiConfig.googleLoginCallbackPath)) {
+      return GoogleCallbackKind.login;
+    }
   }
   return null;
+}
+
+/// Reconnaît un retour OAuth pendant qu'un flux est en cours.
+///
+/// Conditions cumulatives, volontairement strictes :
+///   1. un flux [expect] est ouvert par l'application (ou relancé à froid
+///      dans la fenêtre de validité) ;
+///   2. l'hôte fait partie de [ApiConfig.googleCallbackHosts] ;
+///   3. l'URI porte bien la charge utile attendue (`code`/`error` pour le
+///      login, `authorized`/`error` pour les contacts).
+GoogleCallbackKind? _pendingFlowKind(
+  Uri uri,
+  Map<String, String> params,
+  GoogleCallbackKind? expect,
+) {
+  if (expect == null) return null;
+  if (!ApiConfig.isGoogleCallbackHost(uri.host)) return null;
+
+  final hasError = (params['error'] ?? '').isNotEmpty;
+  switch (expect) {
+    case GoogleCallbackKind.contacts:
+      if (params.containsKey('authorized') || hasError) {
+        return GoogleCallbackKind.contacts;
+      }
+      return null;
+    case GoogleCallbackKind.login:
+      if ((params['code'] ?? '').isNotEmpty || hasError) {
+        return GoogleCallbackKind.login;
+      }
+      return null;
+  }
 }
 
 List<String> _fragmentPathSegments(Uri uri) {
@@ -275,6 +345,80 @@ class GoogleOAuthFlow {
   GoogleCallbackKind? _pendingKind;
   GoogleCallback? _buffered;
 
+  // ── Suivi du flux (cold start) et anti-rejeu ─────────────────
+  // Mêmes clés que la PWA (`omnisms_google_flow`) : un seul modèle mental.
+  static const String _flowPrefsKey = 'omnisms_google_flow';
+  static const String _flowPrefsAtKey = 'omnisms_google_flow_at';
+
+  /// Durée pendant laquelle un retour est accepté après l'ouverture du
+  /// navigateur (l'utilisateur peut mettre du temps à choisir son compte, et
+  /// l'application peut être relancée par le lien).
+  static const Duration flowValidity = Duration(minutes: 15);
+
+  GoogleCallbackKind? _flowKind;
+  DateTime? _flowStartedAt;
+
+  /// Codes d'échange déjà consommés : un code est à usage unique côté backend.
+  final Set<String> _consumedCodes = <String>{};
+  static const int _maxConsumedCodes = 32;
+
+  /// Type de flux attendu : celui en cours d'attente, ou celui ouvert avant
+  /// un éventuel redémarrage de l'application (cold start).
+  GoogleCallbackKind? get expectedKind {
+    if (_pendingKind != null) return _pendingKind;
+    final startedAt = _flowStartedAt;
+    if (_flowKind == null || startedAt == null) return null;
+    if (DateTime.now().difference(startedAt) > flowValidity) return null;
+    return _flowKind;
+  }
+
+  /// Marque l'ouverture d'un flux Google (avant d'ouvrir le navigateur).
+  ///
+  /// Indispensable pour reconnaître le retour après un **lancement à froid** :
+  /// Android recrée l'application pour livrer le lien, le completer en mémoire
+  /// n'existe plus.
+  Future<void> markFlowStarted(GoogleCallbackKind kind) async {
+    _flowKind = kind;
+    _flowStartedAt = DateTime.now();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_flowPrefsKey, kind.name);
+      await prefs.setInt(
+          _flowPrefsAtKey, _flowStartedAt!.millisecondsSinceEpoch);
+    } catch (e) {
+      debugPrint('⚠️ GoogleOAuthFlow: marqueur de flux non persisté ($e)');
+    }
+  }
+
+  /// Oublie le flux en cours (fin de traitement ou déconnexion).
+  Future<void> clearFlow() async {
+    _flowKind = null;
+    _flowStartedAt = null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_flowPrefsKey);
+      await prefs.remove(_flowPrefsAtKey);
+    } catch (_) {}
+  }
+
+  void _clearFlowMarkerOnly() {
+    _flowKind = null;
+    _flowStartedAt = null;
+  }
+
+  Future<void> _restoreFlowMarker() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final name = prefs.getString(_flowPrefsKey);
+      final at = prefs.getInt(_flowPrefsAtKey);
+      if (name == null || at == null) return;
+      _flowKind = GoogleCallbackKind.values
+          .where((k) => k.name == name)
+          .firstOrNull;
+      _flowStartedAt = DateTime.fromMillisecondsSinceEpoch(at);
+    } catch (_) {}
+  }
+
   /// `true` quand l'écoute des deep links est active.
   bool get isListening => _subscription != null;
 
@@ -283,10 +427,12 @@ class GoogleOAuthFlow {
     if (_started) return;
     _started = true;
 
+    await _restoreFlowMarker();
+
     try {
       // app_links émet le lien initial (cold start) puis les suivants.
       _subscription = AppLinks().uriLinkStream.listen(
-        _handleUri,
+        handleIncomingUri,
         onError: (Object e) => debugPrint('⚠️ GoogleOAuthFlow stream: $e'),
       );
     } catch (e) {
@@ -296,13 +442,30 @@ class GoogleOAuthFlow {
     if (kIsWeb) {
       // Sur web, seul le lien initial est fourni par app_links : on relit
       // l'URL courante (cas d'un retour Google sur l'URL HTTPS déployée).
-      _handleUri(Uri.base);
+      handleIncomingUri(Uri.base);
     }
   }
 
-  void _handleUri(Uri uri) {
-    final callback = parseGoogleCallback(uri);
+  /// Traite une URI entrante (deep link ou App Link).
+  ///
+  /// Exposée pour les tests et pour un éventuel relais manuel : c'est le seul
+  /// point d'entrée des retours Google.
+  void handleIncomingUri(Uri uri) {
+    final callback = parseGoogleCallback(uri, expect: expectedKind);
     if (callback == null) return;
+
+    // Anti-rejeu : le backend n'accepte un code qu'une seule fois. Un même
+    // retour livré deux fois (deep link + App Link, ou reprise de l'app) ne
+    // doit pas déclencher deux échanges.
+    if (callback.code != null && callback.code!.isNotEmpty) {
+      if (!_consumedCodes.add(callback.code!)) {
+        debugPrint('🔗 Google callback ignoré (code déjà consommé)');
+        return;
+      }
+      if (_consumedCodes.length > _maxConsumedCodes) {
+        _consumedCodes.remove(_consumedCodes.first);
+      }
+    }
 
     debugPrint('🔗 Google callback reçu: $callback');
 
@@ -310,6 +473,9 @@ class GoogleOAuthFlow {
     if (completer != null && !completer.isCompleted && _pendingKind == callback.kind) {
       _pending = null;
       _pendingKind = null;
+      // Le flux est terminé : on ne doit plus reconnaître de retour du même
+      // type tant qu'un nouveau navigateur n'a pas été ouvert.
+      _clearFlowMarkerOnly();
       completer.complete(callback);
       return;
     }
@@ -378,6 +544,8 @@ class GoogleOAuthFlow {
   /// Oublie tout callback en attente (évite de rejouer un code déjà consommé).
   void clearPending() {
     _buffered = null;
+    _flowKind = null;
+    _flowStartedAt = null;
     final completer = _pending;
     _pending = null;
     _pendingKind = null;

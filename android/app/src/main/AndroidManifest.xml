@@ -6,6 +6,10 @@
     <!-- Permission microphone pour les messages vocaux -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Permission carnet d'adresses : import direct des contacts du téléphone
+         (flutter_contacts) → POST /api/contacts/sync -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
     <!-- Permission notifications système (Android 13+ / API 33+) -->
     <!-- Demandée à l'exécution depuis NotificationsSettingsScreen via permission_handler -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -49,6 +53,45 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="omnisms" android:host="auth"/>
+            </intent-filter>
+
+            <!-- ─── Android App Links (retour OAuth en HTTPS) ───────────────
+                 Le backend redirige le flux « app » vers GOOGLE_FLUTTER_REDIRECT_URI,
+                 qui pointe aujourd'hui vers la PWA :
+                     https://omnisms-frontend-drab.vercel.app/?code=…
+                 Sans ce filtre, ce lien ouvre Chrome (et donc la PWA) au lieu
+                 de revenir dans l'APK.
+
+                 Pour que l'ouverture soit DIRECTE (sans dialogue « Ouvrir
+                 avec »), le domaine doit publier :
+                     https://<host>/.well-known/assetlinks.json
+                 avec l'empreinte SHA-256 du certificat de signature.
+                 Fichier fourni : android/assetlinks.json (à déployer).
+
+                 Chemins revendiqués, volontairement limités :
+                   • /                       → retour « app » (racine de la PWA)
+                   • /auth/google/…          → retours login et contacts
+                 ─────────────────────────────────────────────────────────── -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="omnisms-frontend-drab.vercel.app"
+                    android:path="/"/>
+                <data
+                    android:scheme="https"
+                    android:host="omnisms-frontend-drab.vercel.app"
+                    android:pathPrefix="/auth/google/"/>
+                <data
+                    android:scheme="https"
+                    android:host="omnisms.vercel.app"
+                    android:path="/"/>
+                <data
+                    android:scheme="https"
+                    android:host="omnisms.vercel.app"
+                    android:pathPrefix="/auth/google/"/>
             </intent-filter>
 
             <!-- Le deep linking Flutter par défaut doit être désactivé à partir

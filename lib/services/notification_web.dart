@@ -40,7 +40,12 @@ void jsShowNotification(String title, String body, String conversationId) {
     );
 
     notif.onClick.listen((_) {
-      html.window.focus();
+      // `Window.focus()` n'existe plus dans les versions récentes de
+      // dart:html : appel dynamique pour rester compatible sans casser l'analyse.
+      try {
+        // ignore: avoid_dynamic_calls
+        (html.window as dynamic).focus();
+      } catch (_) {}
       // Le service worker et l'app gèrent le focus sur la bonne conversation
       // via le tag / l'URL encodée dans les messages postMessage
       html.window.postMessage({
@@ -66,7 +71,7 @@ String jsGetNotificationPermission() {
   try {
     // Vérifier si l'API Notification est disponible
     if (!html.Notification.supported) return 'denied';
-    return html.Notification.permission;
+    return html.Notification.permission ?? 'default';
   } catch (_) {
     return 'default';
   }

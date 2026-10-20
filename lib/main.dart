@@ -13,6 +13,7 @@ import 'providers/groups_provider.dart';
 
 // Notifications
 import 'services/notification_service.dart';
+import 'services/presence_service.dart';
 
 // Screens — use canonical paths only
 import 'screens/splash_screen.dart';
@@ -51,6 +52,8 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ContactsProvider()), // for old screens
         ChangeNotifierProvider(create: (_) => MessagingProvider()),
         ChangeNotifierProvider(create: (_) => GroupsProvider()),
+        // Présence des destinataires (source : le backend, via Socket.IO).
+        ChangeNotifierProvider(create: (_) => PresenceService()),
       ],
       child: const OmniSMSApp(),
     ),
@@ -64,24 +67,35 @@ class OmniSMSApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, _) {
-        return InAppNotificationWrapper(
-          // Callback : ouvrir la conversation depuis la notification
-          // Actuellement enregistré pour une future navigation directe
-          onTap: (conversationId) {
-            // Navigation vers la conversation depuis la notification :
-            // Le navigatorKey global permettrait une navigation directe.
-            // Cette fonctionnalité est enregistrée — l'overlay ferme la bannière
-            // et l'app amène l'utilisateur à la bonne conversation quand
-            // l'infrastructure de navigation globale est configurée.
-            debugPrint('[NOTIFICATION] Tap → conversation: $conversationId');
+        return MaterialApp(
+          title: 'OmniSMS',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeProvider.lightTheme,
+          darkTheme: ThemeProvider.darkTheme,
+          themeMode: themeProvider.themeMode,
+          // CORRECTION : la bannière de notification est un `Stack`, qui a
+          // besoin d'un ancêtre `Directionality` — fourni par MaterialApp.
+          // Placée AU-DESSUS de MaterialApp, elle faisait échouer la toute
+          // première frame ("No Directionality widget found") : l'app
+          // n'affichait qu'un écran d'erreur au démarrage, sur mobile.
+          builder: (context, child) {
+            return InAppNotificationWrapper(
+              // Callback : ouvrir la conversation depuis la notification
+              // Actuellement enregistré pour une future navigation directe
+              onTap: (conversationId) {
+                // Navigation vers la conversation depuis la notification :
+                // Le navigatorKey global permettrait une navigation directe.
+                // Cette fonctionnalité est enregistrée — l'overlay ferme la
+                // bannière et l'app amène l'utilisateur à la bonne
+                // conversation quand l'infrastructure de navigation globale
+                // est configurée.
+                debugPrint(
+                    '[NOTIFICATION] Tap → conversation: $conversationId');
+              },
+              child: child ?? const SizedBox.shrink(),
+            );
           },
-          child: MaterialApp(
-            title: 'OmniSMS',
-            debugShowCheckedModeBanner: false,
-            theme: ThemeProvider.lightTheme,
-            darkTheme: ThemeProvider.darkTheme,
-            themeMode: themeProvider.themeMode,
-            home: const SplashScreen(),
+          home: const SplashScreen(),
             routes: {
               '/login': (_) => const LoginScreen(),
               '/register': (_) => const RegisterScreen(),
@@ -92,8 +106,7 @@ class OmniSMSApp extends StatelessWidget {
               '/subscription': (_) => const SubscriptionScreen(),
               '/settings': (_) => const SettingsScreen(),
             },
-          ),
-        );
+          );
       },
     );
   }

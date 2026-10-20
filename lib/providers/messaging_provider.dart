@@ -1,11 +1,12 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/messaging_service.dart';
 import '../services/auth_service.dart';
 import '../services/settings_service.dart';
 import '../services/notification_service.dart';
+import '../services/realtime_service.dart';
 
 /// MessagingProvider — Central state for conversations + messages.
 ///
@@ -13,7 +14,10 @@ import '../services/notification_service.dart';
 ///   _conversations     → List<ConversationModel>  (sorted newest-first)
 ///   _messagesMap       → Map<conversationId, List<MessageModel>>
 ///
-/// Real-time: periodic polling every 5 seconds (Socket.IO pkg not installed).
+/// Real-time: Socket.IO (RealtimeService) + polling de secours toutes les
+/// 5 secondes. Le socket n'est pas qu'une optimisation : c'est lui qui
+/// maintient la session de présence côté backend, donc c'est lui qui évite
+/// qu'un message destiné à cet utilisateur parte en SMS.
 /// On new message receipt: conversation bubbles to top, unread counter updated.
 class MessagingProvider with ChangeNotifier {
   final MessagingService _messagingService = MessagingService();
@@ -40,6 +44,30 @@ class MessagingProvider with ChangeNotifier {
   // ── Active conversation (for per-conv polling) ──────────────
   String? _activeConversationId;
 
+  // ── Temps réel (Socket.IO) ──────────────────────────────────
+  StreamSubscription<Map<String, dynamic>>? _realtimeSubscription;
+
+  // ── Envois : suivi des échecs récupérables et anti-doublons ─
+  /// Charge utile des messages en échec, pour un renvoi explicite.
+  final Map<String, _PendingSend> _pendingSends = <String, _PendingSend>{};
+
+  /// Identifiants de messages déjà injectés (événements Socket.IO dupliqués).
+  final Set<String> _knownMessageIds = <String>{};
+
+  /// Garde anti-double envoi : `receiverId|contenu` → horodatage.
+  ///
+  /// Un événement dupliqué (double clic, touche Entrée maintenue, reprise
+  /// d'une file d'attente) ne doit pas produire deux messages — donc
+  /// potentiellement deux SMS facturés.
+  final Map<String, DateTime> _recentSends = <String, DateTime>{};
+  static const Duration _sendDedupWindow = Duration(seconds: 3);
+
+  /// Dernière route décidée par le backend (`OMNISMS` / `INFOBIP`).
+  String? _lastSendRoute;
+
+  /// `true` si le dernier envoi est réellement parti en SMS.
+  bool _lastSendSmsFallback = false;
+
   // ── Getters ─────────────────────────────────────────────────
   List<ConversationModel> get conversations => _conversations;
   bool get isLoadingConversations => _isLoadingConversations;
@@ -49,6 +77,18 @@ class MessagingProvider with ChangeNotifier {
   List<MessageModel> getMessages(String conversationId) {
     return _messagesMap[conversationId] ?? [];
   }
+
+  /// Route retenue par le backend lors du dernier envoi
+  /// (`OMNISMS` = interne, `INFOBIP` = SMS). `null` si inconnue.
+  String? get lastSendRoute => _lastSendRoute;
+
+  /// `true` si le dernier message envoyé est parti en SMS (destinataire sans
+  /// session active côté backend au moment de l'envoi).
+  bool get lastSendSmsFallback => _lastSendSmsFallback;
+
+  /// `true` quand le socket temps réel est connecté : la présence de
+  /// l'utilisateur est alors active côté backend.
+  bool get isRealtimeConnected => RealtimeService.instance.isConnected;
 
   bool isLoadingMessages(String conversationId) {
     return _messagesLoading[conversationId] ?? false;
@@ -61,6 +101,8 @@ class MessagingProvider with ChangeNotifier {
   // ── Constructor ─────────────────────────────────────────────
   MessagingProvider() {
     _init();
+    _realtimeSubscription =
+        RealtimeService.instance.messageStream.listen(_handleRealtimeMessage);
   }
 
   /// Initialisation interne.
@@ -118,12 +160,12 @@ class MessagingProvider with ChangeNotifier {
       if (updated.isNotEmpty || _conversations.isNotEmpty) {
         // Détecter les conversations avec de nouveaux messages non lus
         // (unreadCount > 0 et pas la conversation active)
-        final previousIds = {for (final c in _conversations) c.id: c.unreadCount ?? 0};
+        final previousIds = {for (final c in _conversations) c.id: c.unreadCount};
         _mergeConversations(updated);
         // Notifier si une conversation non-active a de nouveaux messages
         for (final conv in updated) {
           final prevUnread = previousIds[conv.id] ?? 0;
-          final newUnread  = conv.unreadCount ?? 0;
+          final newUnread  = conv.unreadCount;
           if (newUnread > prevUnread && conv.id != _activeConversationId) {
             final lastMsg = conv.lastMessage ?? 'Nouveau message';
             final convId  = conv.id;
@@ -131,7 +173,7 @@ class MessagingProvider with ChangeNotifier {
             final syntheticId = '${convId}_${conv.lastMessageTime?.millisecondsSinceEpoch ?? 0}';
             await _dispatchNotificationRaw(
               messageId      : syntheticId,
-              title          : conv.contactName.isNotEmpty ? conv.contactName : 'OmniSMS',
+              title          : conv.displayName.isNotEmpty ? conv.displayName : 'OmniSMS',
               body           : lastMsg.length > 80 ? '${lastMsg.substring(0, 80)}…' : lastMsg,
               conversationId : convId,
             );
@@ -226,7 +268,14 @@ class MessagingProvider with ChangeNotifier {
 
   /// Set the currently open conversation (for focused polling).
   void setActiveConversation(String? conversationId) {
+    final previous = _activeConversationId;
     _activeConversationId = conversationId;
+    if (previous != null && previous != conversationId) {
+      RealtimeService.instance.leaveConversation(previous);
+    }
+    if (conversationId != null) {
+      RealtimeService.instance.joinConversation(conversationId);
+    }
   }
 
   // ── Load conversations list ──────────────────────────────────
@@ -281,53 +330,257 @@ class MessagingProvider with ChangeNotifier {
   }) async {
     debugPrint('[DEBUG_SEND] MessagingProvider sendTextMessage called, receiverId=$receiverId, contactId=$contactId, convId=$conversationId, content=$content');
     final targetReceiver = receiverId.isNotEmpty ? receiverId : (contactId ?? '');
-    debugPrint('[DEBUG_SEND] MessagingProvider targetReceiver=$targetReceiver, contentLen=${content.length}');
     if (targetReceiver.isEmpty) {
-      debugPrint('[DEBUG_SEND] MessagingProvider ABORT — targetReceiver empty (receiverId empty and contactId null/empty)');
+      debugPrint('[DEBUG_SEND] MessagingProvider ABORT — targetReceiver empty');
       return false;
     }
 
-    try {
-      _currentUserId ??= await _authService.getUserId();
-      debugPrint('[DEBUG_SEND] MessagingProvider currentUserId=$_currentUserId, calling MessagingService');
+    _currentUserId ??= await _authService.getUserId();
 
-      final message = await _messagingService.sendTextMessage(
-        receiverId: targetReceiver,
+    final result = await _sendToBackend(
+      receiverId: targetReceiver,
+      content: content,
+      conversationId: conversationId,
+    );
+
+    // Un envoi dupliqué n'est pas un échec : le message existe déjà.
+    if (result.duplicated) {
+      debugPrint('[DEBUG_SEND] envoi identique déjà effectué → ignoré');
+      return true;
+    }
+
+    // Décision de routage du backend : on la rend visible, on ne la devine pas.
+    _lastSendRoute = result.route;
+    _lastSendSmsFallback = result.isSmsFallback;
+    notifyListeners();
+
+    return result.isSuccess;
+  }
+
+  /// Appel réseau + gestion de l'échec (message conservé, renvoyable).
+  Future<MessageSendResult> _sendToBackend({
+    required String receiverId,
+    required String content,
+    String? conversationId,
+  }) async {
+    // Anti-double envoi : un même (destinataire, contenu) dans une fenêtre
+    // courte est considéré comme un événement dupliqué.
+    final dedupKey = '$receiverId|$content';
+    final previous = _recentSends[dedupKey];
+    final now = DateTime.now();
+    if (previous != null && now.difference(previous) < _sendDedupWindow) {
+      debugPrint('[MessagingProvider] envoi dupliqué ignoré ($dedupKey)');
+      return const MessageSendResult(duplicated: true);
+    }
+    _recentSends[dedupKey] = now;
+    _recentSends.removeWhere(
+        (key, at) => now.difference(at) > const Duration(minutes: 1));
+
+    MessageSendResult result;
+    try {
+      result = await _messagingService.sendTextMessageDetailed(
+        receiverId: receiverId,
         content: content,
         conversationId: conversationId,
         currentUserId: _currentUserId,
       );
+    } catch (e) {
+      debugPrint('[DEBUG_SEND] exception: $e');
+      result = const MessageSendResult(networkError: true);
+    }
 
-      debugPrint('[DEBUG_SEND] MessagingProvider service returned message=${message?.id ?? "null"}');
+    if (result.isSuccess) {
+      _addSentMessage(result.message!, conversationId, receiverId);
+      return result;
+    }
 
-      if (message != null) {
-        // Add to local message list immediately (optimistic)
-        final convId = conversationId ??
-            (message.conversationId.isNotEmpty
-                ? message.conversationId
-                : _buildConversationId(_currentUserId ?? '', targetReceiver));
+    // Échec : le message reste dans la conversation, marqué « échec », avec
+    // un bouton « Renvoyer ». Rien n'est perdu silencieusement, et surtout on
+    // ne suppose pas qu'un SMS est parti : le backend seul en décide.
+    _addFailedMessage(
+      receiverId: receiverId,
+      content: content,
+      conversationId: conversationId,
+      networkError: result.networkError,
+    );
+    return result;
+  }
 
-        debugPrint('[DEBUG_SEND] MessagingProvider adding to local map convId=$convId');
-        if (!_messagesMap.containsKey(convId)) {
-          _messagesMap[convId] = [];
-        }
-        _messagesMap[convId]!.add(message);
+  void _addSentMessage(
+    MessageModel message,
+    String? conversationId,
+    String receiverId,
+  ) {
+    final convId = conversationId ??
+        (message.conversationId.isNotEmpty
+            ? message.conversationId
+            : _buildConversationId(_currentUserId ?? '', receiverId));
 
-        // Update conversation last message
-        _updateConversationLastMessage(convId, message);
+    // Le backend peut renvoyer un conversationId canonique différent de l'ID
+    // provisoire (résolution téléphone → UID). On le suit pour que les
+    // messages suivants soient bien rattachés (fix P0 de la PWA).
+    final canonicalId =
+        message.conversationId.isNotEmpty ? message.conversationId : convId;
 
-        notifyListeners();
+    _messagesMap.putIfAbsent(convId, () => <MessageModel>[]);
+    final list = _messagesMap[convId]!;
 
-        // Refresh conversations after a brief delay
-        Future.delayed(const Duration(seconds: 2), loadConversations);
+    // Anti-doublon : le backend peut renvoyer un message déjà injecté par le
+    // socket temps réel (même id). On remplace alors l'entrée locale.
+    final existingIndex = list.indexWhere((m) => m.id == message.id);
+    if (existingIndex >= 0) {
+      list[existingIndex] = message;
+    } else {
+      list.add(message);
+    }
+    _knownMessageIds.add(message.id);
 
-        return true;
+    if (canonicalId != convId) {
+      _messagesMap[canonicalId] = List<MessageModel>.from(_messagesMap[convId]!);
+      if (_activeConversationId == convId) _activeConversationId = canonicalId;
+    }
+
+    _updateConversationLastMessage(canonicalId, message);
+    notifyListeners();
+
+    // Refresh conversations after a brief delay
+    Future.delayed(const Duration(seconds: 2), loadConversations);
+  }
+
+  /// Conserve un message non envoyé, visible et renvoyable.
+  void _addFailedMessage({
+    required String receiverId,
+    required String content,
+    String? conversationId,
+    required bool networkError,
+  }) {
+    final tempId = 'pending-${DateTime.now().millisecondsSinceEpoch}';
+    final convId = conversationId ??
+        _buildConversationId(_currentUserId ?? '', receiverId);
+
+    _pendingSends[tempId] = _PendingSend(
+      receiverId: receiverId,
+      content: content,
+      conversationId: conversationId,
+    );
+
+    final message = MessageModel(
+      id: tempId,
+      tempId: tempId,
+      conversationId: convId,
+      senderId: _currentUserId ?? '',
+      receiverId: receiverId,
+      type: MessageType.text,
+      content: content,
+      status: MessageStatus.failed,
+      timestamp: DateTime.now(),
+      isMe: true,
+    );
+
+    _messagesMap.putIfAbsent(convId, () => <MessageModel>[]).add(message);
+    notifyListeners();
+
+    debugPrint(
+        '[MessagingProvider] envoi en échec conservé ($tempId, réseau: $networkError)');
+  }
+
+  /// Renvoie un message resté en échec. Retourne `true` si le backend l'a
+  /// accepté cette fois.
+  Future<bool> retryMessage(String messageId) async {
+    final pending = _pendingSends[messageId];
+    if (pending == null) return false;
+
+    _markMessageStatus(messageId, MessageStatus.sending);
+
+    final result = await _sendToBackend(
+      receiverId: pending.receiverId,
+      content: pending.content,
+      conversationId: pending.conversationId,
+    );
+
+    _lastSendRoute = result.route;
+    _lastSendSmsFallback = result.isSmsFallback;
+
+    if (result.isSuccess) {
+      _pendingSends.remove(messageId);
+      _removeMessage(messageId);
+      _addSentMessage(
+        result.message!,
+        pending.conversationId,
+        pending.receiverId,
+      );
+      notifyListeners();
+      return true;
+    }
+
+    _markMessageStatus(messageId, MessageStatus.failed);
+    notifyListeners();
+    return false;
+  }
+
+  /// `true` si le message peut être renvoyé (envoi resté en échec).
+  bool canRetry(String messageId) => _pendingSends.containsKey(messageId);
+
+  void _markMessageStatus(String messageId, MessageStatus status) {
+    for (final entry in _messagesMap.entries) {
+      final index = entry.value.indexWhere((m) => m.id == messageId);
+      if (index >= 0) {
+        entry.value[index] = entry.value[index].copyWith(status: status);
+        return;
       }
-      debugPrint('[DEBUG_SEND] MessagingProvider service returned null → fail');
-      return false;
-    } catch (e, st) {
-      debugPrint('[DEBUG_SEND] MessagingProvider exception: $e\n$st');
-      return false;
+    }
+  }
+
+  void _removeMessage(String messageId) {
+    for (final entry in _messagesMap.entries) {
+      entry.value.removeWhere((m) => m.id == messageId);
+    }
+  }
+
+  // ── Temps réel (Socket.IO) ────────────────────────────────────
+  //
+  // Le socket apporte les messages internes en temps réel. Les événements
+  // peuvent arriver en double (reconnexion avec reprise d'état) : chaque
+  // message est dédupliqué par identifiant avant insertion.
+
+  void _handleRealtimeMessage(Map<String, dynamic> data) {
+    try {
+      final currentUserId = _currentUserId;
+      if (currentUserId == null || currentUserId.isEmpty) return;
+
+      final message =
+          MessageModel.fromJsonWithCurrentUser(data, currentUserId);
+      if (message.id.isEmpty) return;
+
+      // Nos propres envois sont déjà dans la liste (ajout local immédiat).
+      if (message.isMe) return;
+
+      final convId = message.conversationId.isNotEmpty
+          ? message.conversationId
+          : _buildConversationId(currentUserId, message.senderId);
+      if (convId.isEmpty) return;
+
+      final list = _messagesMap.putIfAbsent(convId, () => <MessageModel>[]);
+      if (list.any((m) => m.id == message.id)) return; // événement dupliqué
+      if (!_knownMessageIds.add(message.id)) {
+        // Déjà vu lors d'une session précédente de la liste : on revérifie
+        // tout de même la liste courante (qui peut avoir été rechargée).
+        if (list.any((m) => m.id == message.id)) return;
+      }
+
+      list.add(message);
+      list.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      _updateConversationLastMessage(convId, message);
+      notifyListeners();
+
+      debugPrint('[Realtime] message entrant injecté: ${message.id} ($convId)');
+
+      // Conversation inconnue de la liste → on resynchronise.
+      if (!_conversations.any((c) => c.id == convId)) {
+        Future.delayed(const Duration(milliseconds: 500), loadConversations);
+      }
+    } catch (e) {
+      debugPrint('[Realtime] message entrant illisible: $e');
     }
   }
 
@@ -352,40 +605,128 @@ class MessagingProvider with ChangeNotifier {
   }
 
   // ── Send voice message ────────────────────────────────────────
+  /// Flux identique à la PWA (`uploadVoiceMessage()`) :
+  ///   1. bulle optimiste affichée immédiatement ;
+  ///   2. POST /api/audio/upload ;
+  ///   3. POST /api/messages/send (type audio) ;
+  ///   4. remplacement de la bulle optimiste par le message réel.
   Future<bool> sendVoiceMessage({
     required String contactId,
     required dynamic audioFile,
     int? duration,
     String? conversationId,
+    bool isGroup = false,
   }) async {
-    // CORRECTION (Session 9) : ne pas bloquer le web en mode navigateur.
-    // Le web peut envoyer des messages vocaux via getUserMedia.
-    // La restriction kIsWeb était trop agressive — on laisse passer.
     try {
       _currentUserId ??= await _authService.getUserId();
-      final message = await _messagingService.sendVoiceMessage(
+
+      final convId = conversationId ?? '';
+      final tempId = 'temp-audio-${DateTime.now().millisecondsSinceEpoch}';
+
+      // ── 1. Bulle optimiste (état « envoi ») ──
+      if (convId.isNotEmpty) {
+        _messagesMap.putIfAbsent(convId, () => []);
+        _messagesMap[convId]!.add(MessageModel(
+          id: tempId,
+          conversationId: convId,
+          senderId: _currentUserId ?? '',
+          type: MessageType.voice,
+          content: null,
+          audioUrl: '',
+          duration: duration,
+          status: MessageStatus.sending,
+          timestamp: DateTime.now(),
+          isMe: true,
+          transcriptionStatus: 'pending',
+        ));
+        notifyListeners();
+      }
+
+      // ── 2 & 3. Upload puis envoi ──
+      final result = await _messagingService.sendVoiceMessage(
         receiverId: contactId,
         audioFile: audioFile,
         duration: duration,
         conversationId: conversationId,
         currentUserId: _currentUserId,
+        isGroup: isGroup,
       );
 
-      if (message != null) {
-        final convId = conversationId ?? message.conversationId;
-        if (!_messagesMap.containsKey(convId)) {
-          _messagesMap[convId] = [];
+      if (result == null) {
+        // Échec : retirer la bulle optimiste (comme la PWA).
+        if (convId.isNotEmpty) {
+          _messagesMap[convId]?.removeWhere((m) => m.id == tempId);
+          notifyListeners();
         }
-        _messagesMap[convId]!.add(message);
-        _updateConversationLastMessage(convId, message);
-        notifyListeners();
-        return true;
+        return false;
       }
-      return false;
+
+      final message = result['message'] as MessageModel;
+      final resolvedUrl = (result['audioUrl'] ?? '').toString();
+      final uploadDuration = (result['duration'] as num?)?.round();
+
+      // ── 4. Remplacement de la bulle optimiste ──
+      final canonicalId = message.conversationId.isNotEmpty
+          ? message.conversationId
+          : convId;
+
+      if (convId.isNotEmpty) {
+        final list = _messagesMap[convId];
+        if (list != null) {
+          final idx = list.indexWhere((m) => m.id == tempId);
+          final real = message.copyWith(
+            audioUrl: resolvedUrl.isNotEmpty ? resolvedUrl : message.audioUrl,
+            duration: uploadDuration ?? message.duration,
+            status: MessageStatus.sent,
+            isMe: true,
+          );
+          if (idx != -1) {
+            list[idx] = real;
+          } else {
+            list.add(real);
+          }
+        }
+        if (canonicalId != convId) {
+          _messagesMap[canonicalId] = List<MessageModel>.from(
+            _messagesMap[convId] ?? [],
+          );
+        }
+      }
+
+      _updateConversationLastMessage(canonicalId, message);
+
+      // Le serveur peut renvoyer un conversationId canonique différent du
+      // provisoire (résolution téléphone → UID) : on le suit (fix P0 PWA).
+      if (_activeConversationId == convId && canonicalId != convId) {
+        _activeConversationId = canonicalId;
+      }
+
+      notifyListeners();
+
+      // Rafraîchissement de fond (idem PWA : setTimeout(…, 1000)).
+      Future.delayed(const Duration(seconds: 1), () async {
+        await loadMessages(canonicalId.isNotEmpty ? canonicalId : convId);
+      });
+      return true;
     } catch (e) {
       debugPrint('sendVoiceMessage error: $e');
       return false;
     }
+  }
+
+  // ── Send group voice message (raccourci) ──────────────────────
+  Future<bool> sendGroupVoiceMessage({
+    required String groupId,
+    required dynamic audioFile,
+    int? duration,
+  }) async {
+    return sendVoiceMessage(
+      contactId: groupId,
+      audioFile: audioFile,
+      duration: duration,
+      conversationId: groupId,
+      isGroup: true,
+    );
   }
 
   // ── React to message ──────────────────────────────────────────
@@ -412,12 +753,102 @@ class MessagingProvider with ChangeNotifier {
   }
 
   // ── Transcribe voice message ──────────────────────────────────
-  Future<String?> transcribeMessage(String messageId) async {
-    try {
-      return await _messagingService.transcribeVoiceMessage(messageId);
-    } catch (e) {
+  /// Même séquence que la PWA (`requestTranscription()`) :
+  ///   • POST /api/audio/transcribe/:id  → lance le traitement
+  ///   • GET  /api/audio/:id toutes les 3 s (40 tentatives max ≈ 120 s)
+  ///   • statut local mis à jour : processing → done | error
+  /// Le texte trouvé est renvoyé (null si échec/timeout).
+  Future<String?> transcribeMessage(
+    String messageId, {
+    String? conversationId,
+  }) async {
+    final convId = conversationId ?? _findConversationOfMessage(messageId);
+    if (convId == null) return null;
+
+    _updateLocalMessage(
+        convId, messageId, (m) => m.copyWith(transcriptionStatus: 'processing'));
+
+    final started = await _messagingService.startTranscription(messageId);
+    if (!started) {
+      _updateLocalMessage(
+          convId, messageId, (m) => m.copyWith(transcriptionStatus: 'error'));
       return null;
     }
+
+    const maxAttempts = 40;
+    const pollInterval = Duration(seconds: 3);
+
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      await Future.delayed(pollInterval);
+      final data = await _messagingService.getAudioMessage(messageId);
+
+      final status = data?['transcriptionStatus']?.toString();
+      final text = data?['transcription']?.toString() ?? '';
+
+      if (status == 'done' && text.isNotEmpty) {
+        _updateLocalMessage(
+          convId,
+          messageId,
+          (m) => m.copyWith(
+            transcription: text,
+            transcriptionStatus: 'done',
+          ),
+        );
+        return text;
+      }
+
+      if (status == 'error') {
+        final err = data?['transcriptionError']?.toString();
+        _updateLocalMessage(
+          convId,
+          messageId,
+          (m) => m.copyWith(
+            transcriptionStatus: 'error',
+            transcriptionError: err,
+          ),
+        );
+        return null;
+      }
+    }
+
+    // Timeout 120 s : dernier contrôle puis état d'erreur (idem PWA).
+    final finalData = await _messagingService.getAudioMessage(messageId);
+    final finalText = finalData?['transcription']?.toString() ?? '';
+    if (finalData?['transcriptionStatus']?.toString() == 'done' &&
+        finalText.isNotEmpty) {
+      _updateLocalMessage(
+        convId,
+        messageId,
+        (m) => m.copyWith(transcription: finalText, transcriptionStatus: 'done'),
+      );
+      return finalText;
+    }
+
+    _updateLocalMessage(
+        convId, messageId, (m) => m.copyWith(transcriptionStatus: 'error'));
+    return null;
+  }
+
+  /// Retrouve la conversation qui contient [messageId].
+  String? _findConversationOfMessage(String messageId) {
+    for (final entry in _messagesMap.entries) {
+      if (entry.value.any((m) => m.id == messageId)) return entry.key;
+    }
+    return null;
+  }
+
+  /// Applique [transform] au message [messageId] de la conversation [convId].
+  void _updateLocalMessage(
+    String convId,
+    String messageId,
+    MessageModel Function(MessageModel) transform,
+  ) {
+    final list = _messagesMap[convId];
+    if (list == null) return;
+    final idx = list.indexWhere((m) => m.id == messageId);
+    if (idx == -1) return;
+    list[idx] = transform(list[idx]);
+    notifyListeners();
   }
 
   // ── Update transcription in local state ───────────────────────
@@ -533,6 +964,20 @@ class MessagingProvider with ChangeNotifier {
   @override
   void dispose() {
     _pollingTimer?.cancel();
+    _realtimeSubscription?.cancel();
     super.dispose();
   }
+}
+
+/// Charge utile d'un message resté en échec, conservée pour un renvoi.
+class _PendingSend {
+  final String receiverId;
+  final String content;
+  final String? conversationId;
+
+  const _PendingSend({
+    required this.receiverId,
+    required this.content,
+    this.conversationId,
+  });
 }

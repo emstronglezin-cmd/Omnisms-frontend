@@ -160,13 +160,14 @@ class PaginatedMessagingProvider with ChangeNotifier {
       return false;
     }
     try {
-      final message = await _messagingService.sendVoiceMessage(
+      final result = await _messagingService.sendVoiceMessage(
         receiverId: contactId,
         audioFile: audioFile,
         duration: duration,
         conversationId: conversationId,
       );
 
+      final message = result?['message'] as MessageModel?;
       if (message != null) {
         _addMessageToConversation(message);
         return true;

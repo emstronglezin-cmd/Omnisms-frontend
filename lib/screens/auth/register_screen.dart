@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/auth_service.dart';
 import '../dashboard_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -13,6 +14,7 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey                  = GlobalKey<FormState>();
   final _nameController            = TextEditingController();
+  final _usernameController        = TextEditingController();
   final _emailController           = TextEditingController();
   final _phoneController           = TextEditingController();
   final _passwordController        = TextEditingController();
@@ -24,6 +26,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _usernameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
@@ -53,10 +56,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final auth = context.read<AuthProvider>();
     final success = await auth.register(
       name:     _nameController.text.trim(),
-      email:    _emailController.text.trim(),
+      username: _usernameController.text.trim(),
       password: _passwordController.text,
-      phone:    _phoneController.text.trim().isNotEmpty
-                  ? _phoneController.text.trim()
+      phone:    _phoneController.text.trim(),
+      email:    _emailController.text.trim().isNotEmpty
+                  ? _emailController.text.trim()
                   : null,
     );
 
@@ -195,20 +199,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 14),
 
-                        // ── Email ─────────────────────────────────
+                        // ── Username (obligatoire côté backend) ───
+                        TextFormField(
+                          controller: _usernameController,
+                          autofillHints: const [AutofillHints.username],
+                          decoration: InputDecoration(
+                            labelText: "Nom d'utilisateur",
+                            hintText: 'monpseudo',
+                            prefixIcon: const Icon(Icons.alternate_email),
+                            helperText: 'Lettres, chiffres, _ . - (2 à 50)',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          validator: (v) {
+                            final value = (v ?? '').trim();
+                            if (value.isEmpty) {
+                              return "Nom d'utilisateur requis";
+                            }
+                            if (!AuthService.isValidUsername(value)) {
+                              return AuthService.usernameHint();
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
+
+                        // ── Email (optionnel) ─────────────────────
                         TextFormField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
                           autofillHints: const [AutofillHints.email],
                           decoration: InputDecoration(
-                            labelText: 'Email',
+                            labelText: 'Email (optionnel)',
                             prefixIcon: const Icon(Icons.email_outlined),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                           validator: (v) {
-                            if (v == null || v.isEmpty) return 'Email requis';
+                            if (v == null || v.trim().isEmpty) return null;
                             final emailRegex = RegExp(
                                 r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
                             if (!emailRegex.hasMatch(v.trim())) {
@@ -225,7 +255,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           keyboardType: TextInputType.phone,
                           autofillHints: const [AutofillHints.telephoneNumber],
                           decoration: InputDecoration(
-                            labelText: 'Téléphone (optionnel)',
+                            labelText: 'Téléphone',
                             hintText: '+22670000000',
                             prefixIcon: const Icon(Icons.phone_outlined),
                             border: OutlineInputBorder(
@@ -233,7 +263,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           ),
                           validator: (v) {
-                            if (v == null || v.trim().isEmpty) return null;
+                            if (v == null || v.trim().isEmpty) {
+                              return 'Numéro de téléphone requis';
+                            }
                             final phoneRegex = RegExp(r'^\+?[0-9\s\-().]{7,20}$');
                             if (!phoneRegex.hasMatch(v.trim())) {
                               return 'Numéro invalide (ex: +22670000000)';

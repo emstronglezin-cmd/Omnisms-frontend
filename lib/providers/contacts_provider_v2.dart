@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/auth_service.dart';
 import '../services/contacts_service_v2.dart';
+import '../services/native_contacts_service.dart';
 import '../services/google_oauth_flow.dart';
 
 /// Permission status — stub pour compatibilité web
@@ -70,6 +71,12 @@ class ContactsProviderV2 with ChangeNotifier {
   String _searchQuery = '';
   bool _isAddingContact = false;
 
+  // ── Import du carnet d'adresses de l'appareil ────────────────
+  bool _isImportingDeviceContacts = false;
+  String? _deviceImportMessage;
+
+  final NativeContactsService _nativeContacts = NativeContactsService();
+
   // ── Import Google ────────────────────────────────────────────
   GoogleImportState _googleImportState = GoogleImportState.idle;
   String? _googleImportMessage;
@@ -100,6 +107,11 @@ class ContactsProviderV2 with ChangeNotifier {
       _permissionStatus == PermissionStatusExtended.limited;
   bool get isPermissionPermanentlyDenied =>
       _permissionStatus == PermissionStatusExtended.permanentlyDenied;
+
+  // ── Getters import carnet d'adresses ─────────────────────────
+  bool get isImportingDeviceContacts => _isImportingDeviceContacts;
+  String? get deviceImportMessage => _deviceImportMessage;
+  bool get isDeviceImportSupported => _nativeContacts.isSupported;
 
   // ── Getters import Google ────────────────────────────────────
   GoogleImportState get googleImportState => _googleImportState;
@@ -147,29 +159,153 @@ class ContactsProviderV2 with ChangeNotifier {
   }
 
   // ── Vérifier la permission ───────────────────────────────────
+  /// Statut réel de la permission contacts (Android/iOS).
+  /// Sur le web il n'y a pas de carnet d'adresses : accordé par défaut.
   Future<void> checkPermissionStatus() async {
-    if (kIsWeb) {
+    if (kIsWeb || !_nativeContacts.isSupported) {
       _permissionStatus = PermissionStatusExtended.granted;
-      debugPrint('📋 Permission (web): granted');
       notifyListeners();
       return;
     }
-    _permissionStatus = PermissionStatusExtended.granted;
+
+    final status = await _nativeContacts.checkPermission();
+    _permissionStatus = _mapNativePermission(status);
+    debugPrint('📋 Permission contacts: $_permissionStatus');
     notifyListeners();
   }
 
   // ── Demander la permission ────────────────────────────────────
   Future<bool> requestPermission() async {
-    if (kIsWeb) {
+    if (kIsWeb || !_nativeContacts.isSupported) {
       _permissionStatus = PermissionStatusExtended.granted;
       notifyListeners();
       await loadContacts();
       return true;
     }
-    _permissionStatus = PermissionStatusExtended.granted;
+
+    final status = await _nativeContacts.requestPermission();
+    _permissionStatus = _mapNativePermission(status);
     notifyListeners();
-    await loadContacts();
-    return true;
+
+    final granted = _permissionStatus == PermissionStatusExtended.granted ||
+        _permissionStatus == PermissionStatusExtended.limited;
+
+    if (granted) await loadContacts();
+    return granted;
+  }
+
+  /// Ouvre les réglages système (permission refusée définitivement).
+  Future<void> openSystemSettings() async {
+    await _nativeContacts.openSettings();
+  }
+
+  static PermissionStatusExtended _mapNativePermission(
+      NativeContactsPermission status) {
+    switch (status) {
+      case NativeContactsPermission.granted:
+        return PermissionStatusExtended.granted;
+      case NativeContactsPermission.permanentlyDenied:
+        return PermissionStatusExtended.permanentlyDenied;
+      case NativeContactsPermission.restricted:
+        return PermissionStatusExtended.restricted;
+      case NativeContactsPermission.denied:
+      case NativeContactsPermission.unsupported:
+        return PermissionStatusExtended.denied;
+    }
+  }
+
+  // ── Importer le carnet d'adresses de l'appareil ─────────────
+  /// Flux complet :
+  ///   1. permission de lecture du carnet (demandée si besoin) ;
+  ///   2. lecture des contacts (nom + numéros) ;
+  ///   3. POST /api/contacts/sync { contacts, country: 'BF' } ;
+  ///   4. rechargement de la liste depuis le backend.
+  ///
+  /// Retourne { success, message?, error?, code?, registeredOnOmniSms, smsOnly }
+  Future<Map<String, dynamic>> importDeviceContacts() async {
+    if (_isImportingDeviceContacts) {
+      return {'success': false, 'error': 'Import déjà en cours.'};
+    }
+
+    _isImportingDeviceContacts = true;
+    _deviceImportMessage = null;
+    notifyListeners();
+
+    try {
+      if (!_nativeContacts.isSupported) {
+        _deviceImportMessage =
+            "L'import du carnet d'adresses n'est disponible que sur mobile.";
+        return {
+          'success': false,
+          'code': 'UNSUPPORTED',
+          'error': _deviceImportMessage,
+        };
+      }
+
+      // 1. Permission — ne redemander que si elle n'est pas déjà accordée.
+      var status = await _nativeContacts.checkPermission();
+      if (status != NativeContactsPermission.granted) {
+        status = await _nativeContacts.requestPermission();
+      }
+      _permissionStatus = _mapNativePermission(status);
+      notifyListeners();
+
+      if (status != NativeContactsPermission.granted) {
+        final permanent =
+            status == NativeContactsPermission.permanentlyDenied ||
+                status == NativeContactsPermission.restricted;
+        _deviceImportMessage = permanent
+            ? 'Autorisez l\'accès aux contacts dans les réglages de l\'appareil.'
+            : 'Autorisation d\'accès aux contacts refusée.';
+        return {
+          'success': false,
+          'code': permanent ? 'PERMANENTLY_DENIED' : 'DENIED',
+          'permanentlyDenied': permanent,
+          'error': _deviceImportMessage,
+        };
+      }
+
+      // 2. Lecture du carnet.
+      final entries = await _nativeContacts.fetchContacts();
+      if (entries.isEmpty) {
+        _deviceImportMessage = 'Aucun contact trouvé dans le carnet.';
+        return {'success': false, 'code': 'EMPTY', 'error': _deviceImportMessage};
+      }
+
+      // 3. Synchronisation backend.
+      final result = await _contactsService.syncDeviceContacts(entries);
+
+      // 4. Rechargement depuis le backend (source de vérité).
+      await loadContacts();
+
+      if (result['success'] == true) {
+        final omni = result['registeredOnOmniSms'] ?? 0;
+        final smsOnly = result['smsOnly'] ?? 0;
+        _deviceImportMessage = '✓ $omni OmniSMS · $smsOnly SMS uniquement';
+        return {
+          'success': true,
+          'message': _deviceImportMessage,
+          'total': result['total'] ?? entries.length,
+          'registeredOnOmniSms': omni,
+          'smsOnly': smsOnly,
+        };
+      }
+
+      _deviceImportMessage = (result['error'] ?? 'Synchronisation impossible.')
+          .toString();
+      return {
+        'success': false,
+        'code': result['code'],
+        'error': _deviceImportMessage,
+      };
+    } catch (e) {
+      debugPrint('❌ importDeviceContacts error: $e');
+      _deviceImportMessage = "Impossible de lire le carnet d'adresses.";
+      return {'success': false, 'code': 'UNKNOWN', 'error': _deviceImportMessage};
+    } finally {
+      _isImportingDeviceContacts = false;
+      notifyListeners();
+    }
   }
 
   // ── Charger les contacts depuis le backend ────────────────────
@@ -304,12 +440,17 @@ class ContactsProviderV2 with ChangeNotifier {
       _loadingState = ContactsLoadingState.loading;
       notifyListeners();
 
-      final phoneContacts = await _contactsService.getPhoneContacts();
-      if (phoneContacts.isEmpty) {
-        // Sur web ou si pas de contacts : charger depuis le backend directement
+      // Lecture réelle du carnet d'adresses (flutter_contacts).
+      final entries = await _nativeContacts.fetchContacts();
+      if (entries.isEmpty) {
+        // Sur web ou carnet vide : charger depuis le backend directement
         await loadContacts();
         return;
       }
+
+      final phoneContacts = entries
+          .map((e) => ContactModel(id: e.phone, name: e.name, phone: e.phone))
+          .toList();
 
       await syncContacts(phoneContacts);
     } catch (e) {
@@ -371,10 +512,14 @@ class ContactsProviderV2 with ChangeNotifier {
       // 3. Consentement dans le navigateur système
       flow.clearPending();
       await flow.start();
+      // Même marqueur persistant que pour le login : l'application peut être
+      // relancée par le lien de retour (cold start).
+      await flow.markFlowStarted(GoogleCallbackKind.contacts);
 
       final opened =
           await flow.openExternal(authorization['authorizationUrl'].toString());
       if (!opened) {
+        await flow.clearFlow();
         return _failGoogleImport(
           GoogleContactsMessages.browserUnavailable,
           'BROWSER_UNAVAILABLE',
@@ -386,10 +531,16 @@ class ContactsProviderV2 with ChangeNotifier {
       try {
         callback = await flow.waitFor(GoogleCallbackKind.contacts);
       } on TimeoutException {
+        await flow.clearFlow();
         return _failGoogleImport(GoogleContactsMessages.timeout, 'TIMEOUT');
       } on GoogleFlowCancelledException {
+        await flow.clearFlow();
         return _failGoogleImport(GoogleContactsMessages.denied, 'CANCELLED');
       }
+
+      // Le retour a été consommé : on oublie le flux (le code backend est à
+      // usage unique et l'import ne doit pas être rejoué).
+      await flow.clearFlow();
 
       if (!callback.isSuccess) {
         return _failGoogleImport(

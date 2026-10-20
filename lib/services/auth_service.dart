@@ -10,7 +10,7 @@ class AuthService {
   static const String _tokenKey  = 'auth_token';
   static const String _userIdKey = 'user_id';
 
-  /// `true` quand `/api/auth/me` a explicitement rejeté le jeton (401).
+  /// `true` quand `/api/me` a explicitement rejeté le jeton (401).
   /// Sert à distinguer une session expirée d'un backend simplement endormi.
   bool _sessionExpired = false;
   bool get sessionExpired => _sessionExpired;
@@ -33,23 +33,57 @@ class AuthService {
     return 'Erreur réseau. Réessayez.';
   }
 
+  /// Détecte si l'identifiant saisi est un numéro de téléphone.
+  /// Même heuristique que la PWA (`login()` dans public/app.js) :
+  ///   isPhone = /^[+\d\s\-()+]{7,20}$/ ET pas de « @ ».
+  static bool isPhoneIdentifier(String identifier) {
+    final v = identifier.trim();
+    if (v.contains('@')) return false;
+    return RegExp(r'^[+\d\s\-()+]{7,20}$').hasMatch(v);
+  }
+
+  /// Format de nom d'utilisateur accepté par le backend (PWA : register()).
+  static final RegExp _usernameRegex = RegExp(r'^[a-zA-Z0-9_.-]{2,50}$');
+
+  static bool isValidUsername(String username) =>
+      _usernameRegex.hasMatch(username.trim());
+
+  /// Message d'erreur lisible pour un nom d'utilisateur invalide.
+  static String usernameHint() =>
+      "Le nom d'utilisateur ne peut contenir que des lettres, chiffres, _ . - (2-50 caractères).";
+
   // ── Register ─────────────────────────────────────────────────
+  /// `username` est OBLIGATOIRE côté backend (validation renvoyée en 400 :
+  /// « Le nom d'utilisateur est requis. »). La PWA l'envoie toujours —
+  /// sans lui, l'inscription est impossible.
   Future<Map<String, dynamic>> register({
     required String name,
-    required String email,
     required String password,
+    required String username,
+    String? email,
     String? phone,
   }) async {
+    final cleanUsername = username.trim();
+    if (cleanUsername.isEmpty) {
+      return {'success': false, 'message': "Le nom d'utilisateur est requis."};
+    }
+    if (!isValidUsername(cleanUsername)) {
+      return {'success': false, 'message': usernameHint()};
+    }
+
     try {
+      final body = <String, dynamic>{
+        'name': name.trim(),
+        'password': password,
+        'username': cleanUsername,
+      };
+      if (phone != null && phone.trim().isNotEmpty) body['phone'] = phone.trim();
+      if (email != null && email.trim().isNotEmpty) body['email'] = email.trim();
+
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/auth/register'),
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.authRegisterEndpoint}'),
         headers: ApiConfig.headers,
-        body: jsonEncode({
-          'name': name,
-          'email': email,
-          'password': password,
-          if (phone != null && phone.isNotEmpty) 'phone': phone,
-        }),
+        body: jsonEncode(body),
       ).timeout(ApiConfig.wakeupTimeout);
 
       final data = jsonDecode(response.body);
@@ -68,7 +102,8 @@ class AuthService {
       } else {
         return {
           'success': false,
-          'message': data['message'] ?? data['error'] ?? 'Erreur lors de l\'inscription',
+          'message': data['message'] ?? data['error'] ?? "Erreur lors de l'inscription",
+          'code': data['code'],
         };
       }
     } on TimeoutException {
@@ -82,15 +117,29 @@ class AuthService {
   }
 
   // ── Login ─────────────────────────────────────────────────────
+  /// Accepte un email OU un numéro de téléphone, comme la PWA :
+  ///   body = isPhone ? { phone, password } : { email, password }
   Future<Map<String, dynamic>> login({
-    required String email,
-    required String password,
+    String? identifier,
+    String? email,
+    String? password,
   }) async {
+    final id = (identifier ?? email ?? '').trim();
+    final pwd = password ?? '';
+
+    if (id.isEmpty || pwd.isEmpty) {
+      return {'success': false, 'message': 'Identifiant et mot de passe requis.'};
+    }
+
+    final body = isPhoneIdentifier(id)
+        ? {'phone': id, 'password': pwd}
+        : {'email': id, 'password': pwd};
+
     try {
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/auth/login'),
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.authLoginEndpoint}'),
         headers: ApiConfig.headers,
-        body: jsonEncode({'email': email, 'password': password}),
+        body: jsonEncode(body),
       ).timeout(ApiConfig.wakeupTimeout);
 
       final data = jsonDecode(response.body);
@@ -107,10 +156,15 @@ class AuthService {
           'token': data['token'],
         };
       } else {
-        // Retourne le message exact du backend (ex: "Identifiants invalides")
+        // Message exact du backend (ex: « Identifiants invalides. »).
+        // Jamais « Session expirée » sur l'écran de connexion (cf. PWA).
+        final raw = (data['message'] ?? data['error'] ?? '').toString();
+        final isTokenNoise = raw.contains('Session expir') || raw.contains('TOKEN_EXPIRED');
         return {
           'success': false,
-          'message': data['message'] ?? data['error'] ?? 'Email ou mot de passe incorrect',
+          'message': isTokenNoise || raw.isEmpty
+              ? 'Identifiants incorrects. Vérifiez votre téléphone/email et mot de passe.'
+              : raw,
         };
       }
     } on TimeoutException {
@@ -140,9 +194,14 @@ class AuthService {
       flow.clearPending();
       await flow.start();
 
+      // Marqueur persistant : indispensable si Android relance l'application
+      // pour livrer le lien (cold start) — voir GoogleOAuthFlow.markFlowStarted.
+      await flow.markFlowStarted(GoogleCallbackKind.login);
+
       final opened = await flow
           .openExternal('${ApiConfig.baseUrl}${ApiConfig.authGoogleStartEndpoint}');
       if (!opened) {
+        await flow.clearFlow();
         return {'success': false, 'message': GoogleAuthMessages.browserUnavailable};
       }
 
@@ -150,6 +209,7 @@ class AuthService {
       try {
         callback = await flow.waitFor(GoogleCallbackKind.login);
       } on TimeoutException {
+        await flow.clearFlow();
         return {'success': false, 'message': GoogleAuthMessages.timeout};
       }
 
@@ -181,6 +241,10 @@ class AuthService {
           .timeout(ApiConfig.wakeupTimeout);
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+      // Le code est à usage unique : le flux est terminé, quel que soit le
+      // résultat. On ne doit plus reconnaître de retour du même type.
+      await GoogleOAuthFlow.instance.clearFlow();
 
       if (response.statusCode == 200 && data['token'] != null) {
         await _saveToken(data['token'] as String);
@@ -245,18 +309,30 @@ class AuthService {
   }
 
   // ── Get current user ──────────────────────────────────────────
+  /// GET /api/me — même route que la PWA (`refreshUserProfile()`).
+  /// Repli sur /api/auth/me si la première route n'est pas disponible.
   Future<UserModel?> getCurrentUser() async {
     try {
       final token = await getToken();
       if (token == null) return null;
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/auth/me'),
+
+      http.Response response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.meEndpoint}'),
         headers: {...ApiConfig.headers, 'Authorization': 'Bearer $token'},
       ).timeout(ApiConfig.requestTimeout);
+
+      if (response.statusCode == 404) {
+        response = await http.get(
+          Uri.parse('${ApiConfig.baseUrl}${ApiConfig.authMeEndpoint}'),
+          headers: {...ApiConfig.headers, 'Authorization': 'Bearer $token'},
+        ).timeout(ApiConfig.requestTimeout);
+      }
+
       if (response.statusCode == 200) {
         _sessionExpired = false;
         final data = jsonDecode(response.body);
-        return UserModel.fromJson(data['user'] ?? data);
+        final raw = (data is Map && data['user'] != null) ? data['user'] : data;
+        return UserModel.fromJson(Map<String, dynamic>.from(raw as Map));
       }
       // 401 = jeton refusé par le backend → session réellement expirée.
       // Les autres codes (timeout, 5xx, backend endormi) ne déconnectent pas.
@@ -268,27 +344,172 @@ class AuthService {
   }
 
   // ── Update profile ────────────────────────────────────────────
+  /// PUT /api/me/profile — mêmes champs que la PWA (`saveProfile()`) :
+  /// name, username, phone, email, password (mot de passe optionnel, ≥ 8).
   Future<Map<String, dynamic>> updateProfile({
-    String? name, String? email, String? phone, String? photoUrl,
+    String? name,
+    String? email,
+    String? phone,
+    String? username,
+    String? password,
+    String? photoUrl,
   }) async {
     try {
       final token = await getToken();
       if (token == null) return {'success': false, 'message': 'Non authentifié'};
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/auth/profile'),
-        headers: {...ApiConfig.headers, 'Authorization': 'Bearer $token'},
-        body: jsonEncode({
-          if (name != null)     'name': name,
-          if (email != null)    'email': email,
-          if (phone != null)    'phone': phone,
-          if (photoUrl != null) 'photoUrl': photoUrl,
-        }),
-      ).timeout(ApiConfig.requestTimeout);
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return {'success': true, 'message': data['message'] ?? 'Profil mis à jour'};
+
+      final body = <String, dynamic>{};
+      if (name != null && name.trim().isNotEmpty) body['name'] = name.trim();
+      if (email != null && email.trim().isNotEmpty) body['email'] = email.trim();
+      if (phone != null && phone.trim().isNotEmpty) body['phone'] = phone.trim();
+      if (username != null && username.trim().isNotEmpty) {
+        final u = username.trim();
+        if (!isValidUsername(u)) {
+          return {'success': false, 'message': usernameHint(), 'code': 'INVALID_USERNAME'};
+        }
+        body['username'] = u;
       }
-      return {'success': false, 'message': data['message'] ?? 'Erreur'};
+      if (password != null && password.length >= 8) body['password'] = password;
+      if (photoUrl != null && photoUrl.isNotEmpty) body['avatar'] = photoUrl;
+
+      if (body.isEmpty) {
+        return {'success': false, 'message': 'Aucune modification'};
+      }
+
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.meProfileEndpoint}'),
+        headers: {...ApiConfig.headers, 'Authorization': 'Bearer $token'},
+        body: jsonEncode(body),
+      ).timeout(ApiConfig.requestTimeout);
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        // La PWA recharge le profil depuis /api/me après sauvegarde :
+        // on fait la même chose pour rester synchronisé avec le serveur.
+        UserModel? user;
+        if (data is Map && data['user'] != null) {
+          user = UserModel.fromJson(Map<String, dynamic>.from(data['user'] as Map));
+        } else {
+          user = await getCurrentUser();
+        }
+        return {
+          'success': true,
+          'message': (data is Map ? data['message'] : null) ?? 'Profil mis à jour',
+          'user': user,
+        };
+      }
+
+      final code = (data is Map ? data['code'] : null)?.toString();
+      String message;
+      if (code == 'USERNAME_EXISTS') {
+        message = "Nom d'utilisateur déjà utilisé — choisissez-en un autre";
+      } else if (code == 'INVALID_USERNAME') {
+        message = usernameHint();
+      } else {
+        message = (data is Map ? (data['message'] ?? data['error']) : null) ?? 'Erreur';
+      }
+      return {'success': false, 'message': message, 'code': code};
+    } catch (e) {
+      return {'success': false, 'message': _friendlyError(e)};
+    }
+  }
+
+  // ── Upload avatar ─────────────────────────────────────────────
+  /// POST /api/me/avatar (multipart, champ « avatar ») — idem PWA
+  /// (`uploadAvatar()`), qui compresse l'image avant l'envoi.
+  ///
+  /// [bytes] + [filename] fonctionnent sur mobile comme sur web.
+  /// [filePath] est une alternative pratique sur mobile (dart:io).
+  Future<Map<String, dynamic>> uploadAvatar({
+    List<int>? bytes,
+    String? filename,
+    String? filePath,
+  }) async {
+    try {
+      final token = await getToken();
+      if (token == null) return {'success': false, 'message': 'Non authentifié'};
+      if ((bytes == null || bytes.isEmpty) && (filePath == null || filePath.isEmpty)) {
+        return {'success': false, 'message': 'Aucune image sélectionnée'};
+      }
+
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.meAvatarEndpoint}'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.headers['Accept'] = 'application/json';
+
+      request.files.add(
+        bytes != null && bytes.isNotEmpty
+            ? http.MultipartFile.fromBytes(
+                'avatar',
+                bytes,
+                filename: filename ?? 'avatar.jpg',
+              )
+            : await http.MultipartFile.fromPath(
+                'avatar',
+                filePath!,
+                filename: filename ?? 'avatar.jpg',
+              ),
+      );
+
+      final streamed = await request.send().timeout(ApiConfig.wakeupTimeout);
+      final response = await http.Response.fromStream(streamed);
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final avatarUrl = (data is Map ? (data['avatarUrl'] ?? data['avatar']) : null)
+            ?.toString();
+        if (avatarUrl == null || avatarUrl.isEmpty) {
+          return {'success': false, 'message': "URL de l'avatar manquante"};
+        }
+        // Resynchronisation depuis le serveur (idem PWA : refreshUserProfile()).
+        final user = await getCurrentUser();
+        return {'success': true, 'avatarUrl': avatarUrl, 'user': user};
+      }
+
+      return {
+        'success': false,
+        'message': (data is Map ? (data['message'] ?? data['error']) : null) ??
+            "Échec de l'upload",
+      };
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message': 'Le serveur met du temps à répondre. Réessayez.',
+      };
+    } catch (e) {
+      return {'success': false, 'message': _friendlyError(e)};
+    }
+  }
+
+  // ── Delete account ────────────────────────────────────────────
+  /// DELETE /api/me — idem PWA (`deleteAccount()`).
+  Future<Map<String, dynamic>> deleteAccount() async {
+    try {
+      final token = await getToken();
+      if (token == null) return {'success': false, 'message': 'Non authentifié'};
+
+      final response = await http.delete(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.meEndpoint}'),
+        headers: {...ApiConfig.headers, 'Authorization': 'Bearer $token'},
+      ).timeout(ApiConfig.requestTimeout);
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        await logout();
+        return {
+          'success': true,
+          'message': (data is Map ? data['message'] : null) ?? 'Compte supprimé',
+        };
+      }
+      return {
+        'success': false,
+        'message': (data is Map ? (data['message'] ?? data['error']) : null) ??
+            'Erreur lors de la suppression du compte',
+      };
     } catch (e) {
       return {'success': false, 'message': _friendlyError(e)};
     }

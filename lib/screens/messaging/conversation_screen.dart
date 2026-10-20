@@ -10,6 +10,8 @@ import '../../widgets/chat/online_status_widget.dart';
 import '../../widgets/chat/reaction_widget.dart';
 import '../../widgets/audio/voice_recorder_widget.dart';
 import '../../widgets/audio/audio_player_widget.dart';
+import '../../services/presence_service.dart';
+import '../../services/realtime_service.dart';
 
 /// ConversationScreen — Full message thread.
 ///
@@ -55,8 +57,10 @@ class _ConversationScreenState extends State<ConversationScreen>
   bool _isTyping = false;
   bool _showTypingIndicator = false;
 
-  bool _isContactOnline = true;
-  DateTime? _lastSeen;
+  // Présence du destinataire : trois états possibles (connecté, déconnecté,
+  // inconnu). Elle vient du backend (session Socket.IO), jamais de la
+  // connectivité du téléphone — et surtout jamais d'une valeur codée en dur.
+  PresenceInfo _presence = const PresenceInfo.unknown('');
 
   // Suivi pour le scroll automatique
   // Ne scroll vers le bas qu'après le chargement initial et l'envoi de messages
@@ -73,6 +77,12 @@ class _ConversationScreenState extends State<ConversationScreen>
       provider.setActiveConversation(widget.conversationId);
       // Load history using conversationId
       provider.loadMessages(widget.conversationId);
+
+      // Présence réelle du destinataire (backend). Pour un groupe, la notion
+      // de présence individuelle n'a pas de sens : on ne suit rien.
+      if (!widget.isGroup && widget.contactId.isNotEmpty) {
+        context.read<PresenceService>().watch(widget.contactId);
+      }
     });
 
     _textController.addListener(_onTextChanged);
@@ -85,6 +95,11 @@ class _ConversationScreenState extends State<ConversationScreen>
     // Bug Session 11 : sans ce clearance, _activeConversationId reste défini
     // et TOUTES les notifications suivantes pour cette conversation sont
     // silencieusement ignorées même lorsque l'utilisateur n'est plus dans la conv.
+    try {
+      if (!widget.isGroup && widget.contactId.isNotEmpty) {
+        context.read<PresenceService>().unwatch(widget.contactId);
+      }
+    } catch (_) {}
     try {
       final provider = context.read<MessagingProvider>();
       provider.setActiveConversation(null);
@@ -123,6 +138,20 @@ class _ConversationScreenState extends State<ConversationScreen>
           );
       debugPrint('[DEBUG_SEND] ConversationScreen provider returned success=$success');
       setState(() => _isSending = false);
+
+      // Le canal réellement utilisé est annoncé, jamais supposé.
+      final provider = context.read<MessagingProvider>();
+      if (success && provider.lastSendSmsFallback && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Destinataire hors ligne à cet instant : message envoyé par SMS.',
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
 
       if (!success && mounted) {
         debugPrint('[DEBUG_SEND] ConversationScreen send failed → snackbar');
@@ -174,7 +203,9 @@ class _ConversationScreenState extends State<ConversationScreen>
       final success = await context.read<MessagingProvider>().sendVoiceMessage(
             contactId: widget.contactId,
             audioFile: audioPath,
+            duration: duration.inSeconds,
             conversationId: widget.conversationId,
+            isGroup: widget.isGroup,
           );
 
       if (!success && mounted) {
@@ -331,7 +362,10 @@ class _ConversationScreenState extends State<ConversationScreen>
     );
 
     final transcription =
-        await context.read<MessagingProvider>().transcribeMessage(message.id);
+        await context.read<MessagingProvider>().transcribeMessage(
+              message.id,
+              conversationId: widget.conversationId,
+            );
 
     if (mounted) {
       Navigator.pop(context);
@@ -420,6 +454,13 @@ class _ConversationScreenState extends State<ConversationScreen>
   // ── Build ──────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    // Présence réelle, issue du backend (3 états distincts).
+    final presence = widget.isGroup
+        ? const PresenceInfo.unknown('')
+        : context.watch<PresenceService>().stateOf(widget.contactId);
+    _presence = presence;
+    final isContactOnline = presence.isOnline;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -432,8 +473,9 @@ class _ConversationScreenState extends State<ConversationScreen>
         title: ConversationHeader(
           imageUrl: widget.contactImageUrl,
           name: widget.contactName,
-          isOnline: _isContactOnline,
-          lastSeen: _lastSeen,
+          isOnline: isContactOnline,
+          lastSeen: presence.lastSeen,
+          presence: presence,
           onTap: () {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -564,7 +606,7 @@ class _ConversationScreenState extends State<ConversationScreen>
                             AvatarWithStatus(
                               imageUrl: widget.contactImageUrl,
                               name: widget.contactName,
-                              isOnline: _isContactOnline,
+                              isOnline: isContactOnline,
                               size: 32,
                               showStatusIndicator: false,
                             ),
@@ -576,6 +618,8 @@ class _ConversationScreenState extends State<ConversationScreen>
                     }
 
                     final message = messages[index];
+                    final canRetry =
+                        message.isMe && provider.canRetry(message.id);
 
                     return Stack(
                       clipBehavior: Clip.none,
@@ -593,7 +637,7 @@ class _ConversationScreenState extends State<ConversationScreen>
                               message.type == MessageType.voice
                                   ? AudioPlayerWidget(
                                       audioUrl:
-                                          message.mediaUrl ?? '',
+                                          message.playableAudioUrl,
                                       duration: Duration(
                                           seconds:
                                               message.duration ?? 0),
@@ -613,6 +657,44 @@ class _ConversationScreenState extends State<ConversationScreen>
                             emoji: message.reaction!,
                             isMe: message.isMe,
                           ),
+
+                        // Message interne vs SMS : distinction explicite.
+                        if (message.isSms)
+                          Positioned(
+                            left: message.isMe ? null : 8,
+                            right: message.isMe ? 8 : null,
+                            bottom: -2,
+                            child: _ChannelChip(
+                              label: 'SMS',
+                              color: Colors.orange.shade700,
+                              icon: Icons.sms_outlined,
+                            ),
+                          ),
+
+                        // Envoi resté en échec : bouton de renvoi explicite.
+                        if (canRetry)
+                          Positioned(
+                            right: message.isMe ? null : 8,
+                            left: message.isMe ? 8 : null,
+                            bottom: -4,
+                            child: _RetryButton(
+                              onPressed: () async {
+                                final ok = await context
+                                    .read<MessagingProvider>()
+                                    .retryMessage(message.id);
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(ok
+                                        ? 'Message renvoyé.'
+                                        : "Échec du renvoi. Réessayez."),
+                                    backgroundColor:
+                                        ok ? Colors.green : Colors.red,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
                       ],
                     );
                   },
@@ -620,6 +702,11 @@ class _ConversationScreenState extends State<ConversationScreen>
               },
             ),
           ),
+
+          // ── Acheminement annoncé (jamais deviné) ───────────
+          // Le backend décide au moment de l'envoi ; on affiche ici l'état de
+          // présence qui expliquera cette décision.
+          if (!widget.isGroup) _RoutingHint(presence: _presence),
 
           // ── Input bar — ALWAYS VISIBLE ─────────────────────
           Container(
@@ -662,5 +749,118 @@ class _ConversationScreenState extends State<ConversationScreen>
       default:
         return modern.MessageType.text;
     }
+  }
+}
+
+/// Bandeau expliquant l'acheminement probable, à partir de la présence RÉELLE.
+///
+/// Aucune promesse : le backend décide au moment de l'envoi. On indique
+/// seulement ce que la présence connue laisse prévoir.
+class _RoutingHint extends StatelessWidget {
+  final PresenceInfo presence;
+
+  const _RoutingHint({required this.presence});
+
+  @override
+  Widget build(BuildContext context) {
+    final (String text, Color color, IconData icon) = switch (presence.state) {
+      PresenceState.online => (
+          'Destinataire connecté : message OmniSMS (sans frais SMS).',
+          Colors.green.shade700,
+          Icons.flash_on_rounded,
+        ),
+      PresenceState.offline => (
+          'Destinataire hors ligne : le serveur enverra un SMS.',
+          Colors.orange.shade700,
+          Icons.sms_outlined,
+        ),
+      PresenceState.unknown => (
+          'Présence inconnue : le serveur choisira OmniSMS ou SMS à l\'envoi.',
+          Colors.grey.shade700,
+          Icons.help_outline_rounded,
+        ),
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      color: color.withOpacity(0.08),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 11.5, color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Étiquette « SMS » sous un message réellement passé par le réseau SMS.
+class _ChannelChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final IconData icon;
+
+  const _ChannelChip({
+    required this.label,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bouton « Renvoyer » sur un message resté en échec.
+class _RetryButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _RetryButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.red.shade50,
+      shape: const CircleBorder(),
+      elevation: 1,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(Icons.refresh_rounded,
+              size: 16, color: Colors.red.shade700),
+        ),
+      ),
+    );
   }
 }

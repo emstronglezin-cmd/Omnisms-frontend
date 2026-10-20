@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../services/presence_service.dart';
+
 /// Widget pour afficher le statut en ligne d'un utilisateur
 class OnlineStatusIndicator extends StatelessWidget {
   final bool isOnline;
@@ -184,6 +186,10 @@ class ConversationHeader extends StatelessWidget {
   final DateTime? lastSeen;
   final VoidCallback? onTap;
 
+  /// Présence réelle (backend). Quand elle est fournie, elle remplace
+  /// [isOnline]/[lastSeen] : l'état « inconnu » devient alors affichable.
+  final PresenceInfo? presence;
+
   const ConversationHeader({
     super.key,
     this.imageUrl,
@@ -191,6 +197,7 @@ class ConversationHeader extends StatelessWidget {
     required this.isOnline,
     this.lastSeen,
     this.onTap,
+    this.presence,
   });
 
   @override
@@ -202,7 +209,7 @@ class ConversationHeader extends StatelessWidget {
           AvatarWithStatus(
             imageUrl: imageUrl,
             name: name,
-            isOnline: isOnline,
+            isOnline: presence?.isOnline ?? isOnline,
             size: 40,
           ),
           const SizedBox(width: 12),
@@ -222,19 +229,76 @@ class ConversationHeader extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                OnlineStatusText(
-                  isOnline: isOnline,
-                  lastSeen: lastSeen,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.white70,
-                  ),
-                ),
+                presence != null
+                    ? PresenceStatusText(
+                        presence: presence!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
+                      )
+                    : OnlineStatusText(
+                        isOnline: isOnline,
+                        lastSeen: lastSeen,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
+                      ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Statut de présence en 3 états — la seule source est le backend.
+///
+///   • `En ligne`            → session Socket.IO active côté serveur ;
+///   • `Hors ligne · vu …`   → le serveur répond « pas de session » ;
+///   • `Présence inconnue`   → aucune réponse exploitable (socket coupé,
+///                             requête expirée). Ce n'est PAS « hors ligne » :
+///                             afficher « hors ligne » ici laisserait croire
+///                             qu'un SMS va partir, ce qui est faux.
+class PresenceStatusText extends StatelessWidget {
+  final PresenceInfo presence;
+  final TextStyle? style;
+
+  const PresenceStatusText({
+    super.key,
+    required this.presence,
+    this.style,
+  });
+
+  static String _time(DateTime value) {
+    final h = value.hour.toString().padLeft(2, '0');
+    final m = value.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
+  String get label {
+    final lastSeen = presence.lastSeen;
+    return switch (presence.state) {
+      PresenceState.online => 'En ligne',
+      PresenceState.offline => lastSeen == null
+          ? 'Hors ligne'
+          : 'Hors ligne · vu à ${_time(lastSeen)}',
+      PresenceState.unknown => 'Présence inconnue',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = presence.isOnline
+        ? Colors.green.shade300
+        : (presence.isUnknown ? Colors.white54 : Colors.white70);
+    return Text(
+      label,
+      style: (style ?? const TextStyle(fontSize: 12)).copyWith(color: color),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }
