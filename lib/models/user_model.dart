@@ -18,6 +18,17 @@ class UserModel {
   /// sans numéro de téléphone : la PWA redirige alors vers les paramètres.
   final bool needsPhone;
 
+  /// Numéro de téléphone vérifié par OTP ?
+  ///
+  /// Sémantique serveur (routes/auth.js, services/googleOAuth.js) :
+  /// `phoneVerified: user.phoneVerified !== false` — un champ absent vaut
+  /// donc VRAI. On reproduit exactement cette règle : seul un `false`
+  /// explicite marque un compte en attente de vérification.
+  ///
+  /// Ce drapeau vient du SERVEUR. L'application ne le déduit jamais de
+  /// l'écran affiché ni d'un état local.
+  final bool phoneVerified;
+
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -32,6 +43,7 @@ class UserModel {
     this.premium = false,
     this.credits = 0,
     this.needsPhone = false,
+    this.phoneVerified = true,
     this.createdAt,
     this.updatedAt,
   });
@@ -72,6 +84,7 @@ class UserModel {
           ? json['credits'] as num
           : num.tryParse(json['credits']?.toString() ?? '') ?? 0,
       needsPhone: json['needsPhone'] == true,
+      phoneVerified: json['phoneVerified'] != false,
       createdAt: parseDate(json['createdAt'] ?? json['created_at']),
       updatedAt: parseDate(json['updatedAt'] ?? json['updated_at']),
     );
@@ -89,6 +102,7 @@ class UserModel {
       'premium': premium,
       'credits': credits,
       'needsPhone': needsPhone,
+      'phoneVerified': phoneVerified,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
     };
@@ -105,6 +119,7 @@ class UserModel {
     bool? premium,
     num? credits,
     bool? needsPhone,
+    bool? phoneVerified,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -119,6 +134,7 @@ class UserModel {
       premium: premium ?? this.premium,
       credits: credits ?? this.credits,
       needsPhone: needsPhone ?? this.needsPhone,
+      phoneVerified: phoneVerified ?? this.phoneVerified,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

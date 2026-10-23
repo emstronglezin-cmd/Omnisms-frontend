@@ -35,7 +35,14 @@ const State = {
 const API = {
   // Routes publiques qui n'ont JAMAIS besoin d'un token d'authentification.
   // Ces routes ne doivent PAS recevoir un ancien token invalide.
-  _publicRoutes: ['/api/auth/login', '/api/auth/register'],
+  // Les endpoints OTP sont publics : ni Bearer, ni déconnexion automatique
+  // sur 401 (un code faux n'est pas une session expirée).
+  _publicRoutes: [
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/send-otp',
+    '/api/auth/verify-otp',
+  ],
 
   // Contrat backend (docs/GOOGLE_AUTH_FLUTTER.md) : « Aucun Bearer sur
   // /api/auth/google ni /api/auth/google/exchange ». Correspondance EXACTE —
@@ -161,6 +168,10 @@ async function login(identifier, password) {
   const res = await API.post('/api/auth/login', body);
   setLoading('login-btn', false, 'Se connecter');
   if (res.ok && res.data.token) {
+    // Compte existant dont le numéro n'a jamais été vérifié : le serveur le
+    // signale (`phoneVerified: false`) → reprise du parcours, sans session.
+    if (otpBegin(res.data, 'login', false)) return;
+
     State.token = res.data.token;
     State.user  = res.data.user || { phone: identifier };
     localStorage.setItem('auth_token', State.token);
@@ -208,6 +219,10 @@ async function register(name, phone, email, password) {
   const res = await API.post('/api/auth/register', body);
   setLoading('register-btn', false, "S'inscrire");
   if (res.ok && res.data.token) {
+    // Le serveur exige-t-il la vérification du numéro ? Si oui, l'écran OTP
+    // prend la main et la session reste fermée.
+    if (otpBegin(res.data, 'signup', true)) return;
+
     State.token = res.data.token;
     State.user  = res.data.user || { name, phone };
     localStorage.setItem('auth_token', State.token);
@@ -225,6 +240,105 @@ async function register(name, phone, email, password) {
       : 'Erreur lors de la création du compte. Réessayez.';
     showError('register-error', regDisplay);
   }
+}
+
+
+// ─── VÉRIFICATION DU TÉLÉPHONE PAR OTP ────────────────────────────────────────
+// Logique métier : public/otp.js (contrat backend réel — voir son en-tête).
+// Ici, uniquement le câblage avec les conventions existantes de la PWA :
+// API.post pour le transport, showScreen/showError pour l'affichage,
+// initDashboard pour l'ouverture de session.
+const Otp = window.OmniSmsOtp;
+
+const otpFlow = Otp.createOtpFlow({
+  client: Otp.createOtpClient({
+    request: (path, body) => API.post(path, body),
+  }),
+  store: Otp.createPendingStore(window.localStorage),
+  // OUVERTURE DE SESSION — appelée SEULEMENT quand le serveur a confirmé la
+  // vérification et renvoyé un jeton d'accès.
+  onSession: ({ token, user }) => {
+    State.token = token;
+    State.user  = user || State.user || {};
+    localStorage.setItem('auth_token', token);
+    localStorage.setItem('user_data', JSON.stringify(State.user));
+    showScreen('screen-dashboard');
+    initDashboard();
+  },
+  onUpdate: renderOtpScreen,
+});
+
+/**
+ * Analyse une réponse d'authentification (inscription, connexion, Google).
+ * Si le serveur exige la vérification du numéro, l'écran OTP prend la main
+ * et AUCUNE session n'est ouverte.
+ *
+ * @returns {boolean} `true` si l'écran de vérification a pris la main.
+ */
+function otpBegin(authResponse, origin, isSignup) {
+  const res = otpFlow.begin(authResponse, { isSignup, origin });
+  if (!res.required) return false;
+
+  showScreen('screen-otp');
+  // Premier envoi du code, une seule fois à l'ouverture de l'écran.
+  otpFlow.resend();
+  return true;
+}
+
+/** Rendu de l'écran à partir de l'état du parcours (jamais du code saisi). */
+function renderOtpScreen(state) {
+  const phoneEl = document.getElementById('otp-phone');
+  if (phoneEl && state.pending) phoneEl.textContent = Otp.maskPhone(state.pending.phone);
+
+  const errorEl = document.getElementById('otp-error');
+  if (errorEl) {
+    errorEl.textContent = state.error || '';
+    errorEl.style.display = state.error ? 'block' : 'none';
+  }
+
+  const resendBtn = document.getElementById('otp-resend-btn');
+  if (resendBtn) {
+    const wait = state.resendWait;
+    resendBtn.disabled = wait > 0 || state.sending;
+    resendBtn.textContent = state.sending
+      ? 'Envoi en cours…'
+      : (wait > 0 ? `Renvoyer un code dans ${wait} s` : 'Renvoyer un code');
+  }
+
+  const submitBtn = document.getElementById('otp-submit-btn');
+  if (submitBtn) submitBtn.disabled = !!state.verifying;
+}
+
+/** Soumission du code — le code ne quitte pas cette fonction. */
+async function otpSubmitCode() {
+  const input   = document.getElementById('otp-code');
+  const code    = (input && input.value ? input.value : '').trim();
+  const errorEl = document.getElementById('otp-error');
+
+  if (code.length !== Otp.CONTRACT.codeLength) {
+    if (errorEl) {
+      errorEl.textContent = `Saisissez les ${Otp.CONTRACT.codeLength} chiffres du code.`;
+      errorEl.style.display = 'block';
+    }
+    return;
+  }
+
+  const verified = await otpFlow.verify(code);
+  // En cas d'échec le champ est vidé pour permettre une nouvelle saisie ;
+  // en cas de succès onSession() a déjà basculé sur le tableau de bord.
+  if (!verified && input) input.value = '';
+}
+
+async function otpResendCode() {
+  const input = document.getElementById('otp-code');
+  if (input) input.value = '';
+  await otpFlow.resend();
+}
+
+/** Abandon : retour à la connexion, aucune session ouverte. */
+function otpCancelVerification() {
+  otpFlow.cancel();
+  showScreen('screen-login');
 }
 
 function logout() {
@@ -254,6 +368,8 @@ function logout() {
   // Vider le stockage local
   localStorage.removeItem('auth_token');
   localStorage.removeItem('user_data');
+  // Une vérification en attente ne survit pas à une déconnexion.
+  try { otpFlow.cancel(); } catch (_) {}
   localStorage.removeItem('leekpay_pending');
   sessionStorage.clear();
 
@@ -1655,6 +1771,10 @@ async function _finishGoogleLogin(code) {
   _setGoogleLoginLoading(false);
 
   if (res && res.ok && res.data && res.data.token) {
+    // Compte Google neuf (ou existant non vérifié) : le serveur décide.
+    // Aucune session ni tableau de bord avant confirmation du numéro.
+    if (otpBegin(res.data, 'google', true)) return true;
+
     // Même persistance que login() : un seul système de session.
     State.token = res.data.token;
     State.user  = res.data.user || {};
@@ -2899,6 +3019,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Aucun retour Google dans l'URL, mais un flux avait été lancé dans cet
   // onglet → le signaler explicitement au lieu d'un écran muet / d'un spinner.
   checkPendingGoogleFlow();
+
+  // Vérification OTP laissée en suspens (onglet fermé, rechargement,
+  // perte réseau) : on la reprend AVANT d'ouvrir le tableau de bord.
+  if (!State.token && otpFlow.restore()) {
+    showScreen('screen-otp');
+    return;
+  }
 
   if (State.token && State.user) {
     initDashboard();

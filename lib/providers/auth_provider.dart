@@ -2,10 +2,19 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/auth_service.dart';
 import '../services/google_oauth_flow.dart';
+import '../services/otp_service.dart';
 import '../services/realtime_service.dart';
 
 class AuthProvider with ChangeNotifier {
-  final AuthService _authService = AuthService();
+  /// Injectables pour les tests (clients HTTP simulés).
+  AuthProvider({AuthService? authService, OtpService? otpService})
+      : _authService = authService ?? AuthService(),
+        _otpService = otpService ?? OtpService() {
+    _checkLoginStatus();
+  }
+
+  final AuthService _authService;
+  final OtpService _otpService;
 
   UserModel? _currentUser;
   bool _isLoggedIn = false;
@@ -13,25 +22,62 @@ class AuthProvider with ChangeNotifier {
   bool _isGoogleSignInInProgress = false;
   String? _error;
 
+  /// Vérification de numéro exigée par le serveur, en cours.
+  ///
+  /// Non nul ⇒ la session est FERMÉE : aucun écran principal n'est accessible
+  /// et aucun jeton d'accès n'est stocké. La valeur provient toujours d'une
+  /// réponse du serveur (`requiresOtp` / `phoneVerified: false`).
+  PendingVerification? _pendingVerification;
+
+  bool _isVerifyingOtp = false;
+  bool _isResendingOtp = false;
+  String? _otpError;
+  OtpFailure? _otpFailure;
+  int _otpResendCooldown = 0;
+
   UserModel? get currentUser => _currentUser;
   bool get isLoggedIn => _isLoggedIn;
   bool get isLoading => _isLoading;
   bool get isGoogleSignInInProgress => _isGoogleSignInInProgress;
 
+  /// `true` tant que le serveur n'a pas confirmé la vérification du numéro.
+  bool get needsPhoneVerification => _pendingVerification != null;
+
+  /// Vérification en attente (numéro, UID, origine du parcours).
+  PendingVerification? get pendingVerification => _pendingVerification;
+
+  bool get isVerifyingOtp => _isVerifyingOtp;
+  bool get isResendingOtp => _isResendingOtp;
+
+  /// Dernier message d'erreur de la vérification (code faux, expiré…).
+  String? get otpError => _otpError;
+
+  /// Nature du dernier échec — permet à l'écran de proposer un renvoi.
+  OtpFailure? get otpFailure => _otpFailure;
+
+  /// Secondes restantes avant de pouvoir redemander un code.
+  int get otpResendCooldown => _otpResendCooldown;
+
   /// Bloque les doubles clics sur le bouton Google.
   bool get isBusy => _isLoading || _isGoogleSignInInProgress;
   String? get error => _error;
 
-  AuthProvider() {
-    _checkLoginStatus();
+  @override
+  void dispose() {
+    _otpService.dispose();
+    super.dispose();
   }
 
   Future<void> _checkLoginStatus() async {
     _isLoading = true;
     notifyListeners();
 
+    // Vérification OTP laissée en suspens (application tuée, perte réseau) :
+    // on la restaure AVANT de décider de l'écran à afficher.
+    _pendingVerification = await _authService.getPendingVerification();
+
     _isLoggedIn = await _authService.isLoggedIn();
-    if (_isLoggedIn) {
+    if (_isLoggedIn && _pendingVerification == null) {
       _currentUser = await _authService.getCurrentUser();
       // Jeton explicitement refusé par /api/auth/me → session expirée.
       // (Un backend endormi ou un timeout ne déconnecte pas l'utilisateur.)
@@ -43,7 +89,13 @@ class AuthProvider with ChangeNotifier {
 
     // Écoute des deep links Google démarrée dès le lancement : indispensable
     // pour capter le lien initial quand l'app est relancée par Google.
-    await GoogleOAuthFlow.instance.start();
+    // Jamais bloquant : l'absence de plugin de liens profonds (tests,
+    // certaines plateformes) ne doit pas empêcher la vérification OTP.
+    try {
+      await GoogleOAuthFlow.instance.start();
+    } catch (e) {
+      debugPrint('[AuthProvider] écoute des deep links indisponible: $e');
+    }
 
     // Retour Google « à froid » : l'app a été relancée par le deep link
     // omnisms://auth/google/callback. On finalise la session sans redemander
@@ -109,6 +161,17 @@ class AuthProvider with ChangeNotifier {
       );
 
       if (result['success']) {
+        // Le serveur exige la vérification du numéro : la session reste
+        // FERMÉE et le jeton éventuel n'est qu'un jeton d'attente.
+        if (result['requiresOtp'] == true) {
+          _pendingVerification = result['verification'] as PendingVerification?;
+          _currentUser = result['user'];
+          _isLoggedIn = false;
+          _isLoading = false;
+          notifyListeners();
+          return true;
+        }
+
         _currentUser = result['user'];
         _isLoggedIn = true;
         _isLoading = false;
@@ -147,6 +210,17 @@ class AuthProvider with ChangeNotifier {
       );
 
       if (result['success']) {
+        // Compte existant non vérifié : on reprend le parcours OTP sans
+        // ouvrir la session.
+        if (result['requiresOtp'] == true) {
+          _pendingVerification = result['verification'] as PendingVerification?;
+          _currentUser = result['user'];
+          _isLoggedIn = false;
+          _isLoading = false;
+          notifyListeners();
+          return true;
+        }
+
         _currentUser = result['user'];
         _isLoggedIn = true;
         _isLoading = false;
@@ -187,6 +261,17 @@ class AuthProvider with ChangeNotifier {
       final result = await _authService.loginWithGoogle();
 
       if (result['success'] == true) {
+        // Compte Google neuf ou compte existant non vérifié : le serveur
+        // décide. Aucune session ni temps réel avant confirmation.
+        if (result['requiresOtp'] == true) {
+          _pendingVerification = result['verification'] as PendingVerification?;
+          _currentUser = result['user'];
+          _isLoggedIn = false;
+          _isGoogleSignInInProgress = false;
+          notifyListeners();
+          return true;
+        }
+
         _currentUser = result['user'];
         _isLoggedIn = true;
         _isGoogleSignInInProgress = false;
@@ -207,6 +292,149 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  // ── Vérification du numéro par OTP ───────────────────────────────
+
+  /// Redemande l'envoi d'un code.
+  ///
+  /// Retourne le résultat brut : l'écran s'en sert pour démarrer le compte à
+  /// rebours (même en cas de refus pour cause de délai trop court).
+  Future<OtpSendResult> resendOtp() async {
+    final pending = _pendingVerification;
+    if (pending == null) {
+      return const OtpSendResult.failure(
+        OtpFailure.unknown,
+        'Aucune vérification en cours.',
+      );
+    }
+    if (_isResendingOtp) {
+      return const OtpSendResult.failure(
+        OtpFailure.unknown,
+        'Une demande est déjà en cours.',
+      );
+    }
+
+    _isResendingOtp = true;
+    _otpError = null;
+    _otpFailure = null;
+    notifyListeners();
+
+    try {
+      final result = await _otpService.sendCode(
+        phone: pending.phone,
+        userId: pending.userId,
+        pendingToken: pending.pendingToken,
+      );
+
+      if (result.ok) {
+        _otpResendCooldown = result.cooldownSeconds;
+      } else {
+        // Même un échec de type « délai » porte la durée à respecter.
+        _otpResendCooldown = result.cooldownSeconds;
+        _otpError = result.message;
+        _otpFailure = result.failure;
+      }
+      _isResendingOtp = false;
+      notifyListeners();
+      return result;
+    } catch (e) {
+      _isResendingOtp = false;
+      _otpError = 'Impossible de renvoyer le code. Réessayez.';
+      _otpFailure = OtpFailure.network;
+      notifyListeners();
+      return const OtpSendResult.failure(
+        OtpFailure.network,
+        'Impossible de renvoyer le code. Réessayez.',
+      );
+    }
+  }
+
+  /// Transmet le code saisi au serveur.
+  ///
+  /// La session n'est ouverte QUE si le serveur confirme et renvoie un
+  /// jeton d'accès. Aucun contrôle local du code n'est effectué : le
+  /// frontend ne sait pas si un code est valide.
+  Future<bool> verifyOtp(String code) async {
+    final pending = _pendingVerification;
+    if (pending == null) {
+      _otpError = 'Aucune vérification en cours.';
+      _otpFailure = OtpFailure.unknown;
+      notifyListeners();
+      return false;
+    }
+    if (_isVerifyingOtp) return false; // anti double soumission
+
+    _isVerifyingOtp = true;
+    _otpError = null;
+    _otpFailure = null;
+    notifyListeners();
+
+    try {
+      final result = await _otpService.verifyCode(
+        phone: pending.phone,
+        code: code,
+        userId: pending.userId,
+        pendingToken: pending.pendingToken,
+      );
+
+      if (result.ok && result.token != null && result.token!.isNotEmpty) {
+        // ── Seule porte d'entrée de la session ──
+        // Le jeton d'attente est remplacé par le jeton d'accès renvoyé
+        // après vérification confirmée par le serveur.
+        await _authService.completeVerification(
+          token: result.token!,
+          userId: result.user?.id ?? pending.userId,
+        );
+
+        _pendingVerification = null;
+        _currentUser = result.user ?? _currentUser;
+        _isLoggedIn = true;
+        _isVerifyingOtp = false;
+        _otpResendCooldown = 0;
+        notifyListeners();
+
+        await _startRealtime();
+        return true;
+      }
+
+      _otpError = result.message;
+      _otpFailure = result.failure;
+      _isVerifyingOtp = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _isVerifyingOtp = false;
+      _otpError = 'Impossible de vérifier le code. Réessayez.';
+      _otpFailure = OtpFailure.network;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Décrémente le compte à rebours de renvoi (appelé par l'écran).
+  void tickOtpCooldown() {
+    if (_otpResendCooldown <= 0) return;
+    _otpResendCooldown--;
+    notifyListeners();
+  }
+
+  void clearOtpError() {
+    _otpError = null;
+    _otpFailure = null;
+    notifyListeners();
+  }
+
+  /// Abandonne la vérification en cours (retour à l'écran de connexion).
+  /// Le compte, s'il a été créé, reste en attente côté serveur : aucune
+  /// session n'est ouverte.
+  Future<void> cancelVerification() async {
+    await _authService.clearPendingVerification();
+    _pendingVerification = null;
+    _otpError = null;
+    _otpFailure = null;
+    _otpResendCooldown = 0;
+    notifyListeners();
   }
 
   /// Mise à jour du profil — PUT /api/me/profile (name, username, phone,

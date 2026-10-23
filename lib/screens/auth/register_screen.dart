@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/otp_service.dart';
 import '../dashboard_screen.dart';
+import 'otp_verification_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -22,6 +24,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword        = true;
   bool _obscureConfirmPassword = true;
   bool _isWakingUp             = false;
+
+  /// Numéro normalisé (E.164) affiché sous le champ avant envoi : c'est
+  /// exactement celui que le serveur utilisera pour le SMS.
+  String _normalizedPhone = '';
+
+  void _onPhoneChanged(String value) {
+    final normalized = PhoneFormatter.normalize(value);
+    if (normalized != _normalizedPhone) {
+      setState(() {
+        _normalizedPhone = PhoneFormatter.isValid(value) ? normalized : '';
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -69,6 +84,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!mounted) return;
 
     if (success) {
+      // Le serveur exige la vérification du numéro : on ouvre l'écran OTP.
+      // La session reste FERMÉE tant que le serveur n'a pas confirmé —
+      // le tableau de bord n'est donc pas atteignable ici.
+      if (auth.needsPhoneVerification) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const OtpVerificationScreen()),
+        );
+        return;
+      }
+
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const DashboardScreen()),
       );
@@ -254,10 +279,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           controller: _phoneController,
                           keyboardType: TextInputType.phone,
                           autofillHints: const [AutofillHints.telephoneNumber],
+                          onChanged: _onPhoneChanged,
                           decoration: InputDecoration(
                             labelText: 'Téléphone',
                             hintText: '+22670000000',
                             prefixIcon: const Icon(Icons.phone_outlined),
+                            helperText: _normalizedPhone.isEmpty
+                                ? 'Avec l\'indicatif international (ex: +226…)'
+                                : 'Sera enregistré comme : $_normalizedPhone',
+                            helperStyle: TextStyle(
+                              color: _normalizedPhone.isEmpty
+                                  ? null
+                                  : const Color(0xFF00D4FF),
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),

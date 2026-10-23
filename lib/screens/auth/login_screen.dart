@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/messaging_provider.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/auth/google_sign_in_button.dart';
+import 'otp_verification_screen.dart';
 import 'register_screen.dart';
 import '../dashboard_screen.dart';
 
@@ -48,7 +49,12 @@ class _LoginScreenState extends State<LoginScreen> {
             if (!auth.isLoading) {
               auth.removeListener(onAuthChanged);
               if (!mounted) return;
-              if (auth.isLoggedIn) {
+              if (auth.needsPhoneVerification) {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                      builder: (_) => const OtpVerificationScreen()),
+                );
+              } else if (auth.isLoggedIn) {
                 try {
                   context.read<MessagingProvider>().reinitialize();
                 } catch (_) {}
@@ -59,6 +65,12 @@ class _LoginScreenState extends State<LoginScreen> {
             }
           }
           auth.addListener(onAuthChanged);
+        } else if (auth.needsPhoneVerification) {
+          // Vérification laissée en suspens (application fermée pendant le
+          // parcours) : on la reprend avant tout.
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const OtpVerificationScreen()),
+          );
         } else if (auth.isLoggedIn) {
           try {
             context.read<MessagingProvider>().reinitialize();
@@ -99,6 +111,15 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (success) {
+      // Compte existant dont le numéro n'est pas vérifié : le serveur le
+      // signale, on reprend le parcours de vérification.
+      if (auth.needsPhoneVerification) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const OtpVerificationScreen()),
+        );
+        return;
+      }
+
       // CORRECTION race condition (Session 9) :
       // Déclencher reinitialize() sur MessagingProvider maintenant que le token
       // est confirmé dans SharedPreferences. Évite le 401 sur /conversations.
@@ -158,6 +179,15 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (success) {
+      // Nouveau compte Google (ou compte existant non vérifié) : le serveur
+      // décide si la vérification du numéro est requise.
+      if (auth.needsPhoneVerification) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const OtpVerificationScreen()),
+        );
+        return;
+      }
+
       try {
         context.read<MessagingProvider>().reinitialize();
       } catch (_) {}

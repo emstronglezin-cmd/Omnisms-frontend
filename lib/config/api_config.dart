@@ -1,3 +1,30 @@
+/// Comment le frontend décide qu'une vérification OTP est exigée.
+///
+/// Le backend reste la SEULE source de vérité sur l'état de vérification
+/// d'un compte : aucun de ces modes ne permet à l'application de déclarer
+/// un numéro vérifié d'elle-même.
+enum OtpPolicy {
+  /// Suit la réponse du serveur : vérification exigée si et seulement si le
+  /// backend le demande (`requiresOtp: true` ou `phoneVerified: false`).
+  ///
+  /// Mode par défaut : il n'impose jamais l'OTP à un compte que le serveur
+  /// considère déjà vérifié, et ne bloque donc pas l'inscription si le
+  /// backend n'a pas encore été mis à jour.
+  followServer,
+
+  /// Exige la vérification après chaque création de compte (inscription
+  /// classique ou premier compte Google), même si le serveur a renvoyé un
+  /// jeton. Le jeton renvoyé est alors traité comme un jeton D'ATTENTE :
+  /// il n'ouvre aucune session et n'est jamais stocké comme jeton d'accès.
+  ///
+  /// ⚠️ À n'activer qu'APRÈS montage de `routes/otp.js` côté serveur,
+  /// sinon l'inscription devient impossible (l'envoi de code échoue).
+  alwaysAfterSignup,
+
+  /// N'exige jamais la vérification (secours / incident serveur).
+  disabled,
+}
+
 /// ApiConfig — Configuration centralisée du backend OmniSMS
 ///
 /// Backend : https://omnisms-backend.onrender.com (Render free tier)
@@ -29,6 +56,50 @@ class ApiConfig {
   static const String authRegisterEndpoint = '/api/auth/register';
   static const String authLoginEndpoint = '/api/auth/login';
   static const String authMeEndpoint = '/api/auth/me';
+
+  // ── Vérification du numéro de téléphone par OTP ────────────────
+  //
+  // Contrat RÉEL, relevé dans le backend (`routes/otp.js` +
+  // `services/otpService.js`) — aucun champ inventé ici :
+  //
+  //   POST /api/auth/send-otp    body { phone, userId? }
+  //      200 → { success: true,  message, phone, devCode? }
+  //      429 → { success: false, code: 'OTP_COOLDOWN', cooldown (secondes) }
+  //      400 → { success: false, code: 'VALIDATION_ERROR' | 'OTP_SEND_FAILED' }
+  //
+  //   POST /api/auth/verify-otp  body { phone, code, userId? }
+  //      200 → { success: true, token, phoneVerified: true, user }
+  //      400 → { code: 'OTP_INVALID',    triesRemaining }
+  //      410 → { code: 'OTP_EXPIRED' }
+  //      429 → { code: 'OTP_MAX_TRIES' }
+  //      404 → { code: 'OTP_NOT_FOUND' }
+  //
+  // ⚠️ ÉTAT RÉEL DU BACKEND (vérifié le 21/10/2026) : `routes/otp.js`
+  // n'est monté NULLE PART (`server.js` : « OTP routes supprimées —
+  // inscription directe sans OTP ») et `POST /api/auth/register` crée
+  // l'utilisateur avec `phoneVerified: true` en dur.
+  // Tant que le backend n'a pas évolué, ces deux endpoints répondent donc
+  // 404 : le frontend ÉCHOUE FERMÉ (message « service indisponible ») et ne
+  // valide jamais un numéro de sa propre initiative.
+  static const String authSendOtpEndpoint = '/api/auth/send-otp';
+  static const String authVerifyOtpEndpoint = '/api/auth/verify-otp';
+
+  /// Longueur du code : le backend génère 6 chiffres
+  /// (`services/otpService.js`, `OTP_LENGTH = 6`) et accepte 4 à 8.
+  static const int otpCodeLength = 6;
+
+  /// Délai minimum entre deux envois (`OTP_COOLDOWN_MS` = 60 s).
+  static const int otpResendCooldownSeconds = 60;
+
+  /// Durée de validité d'un code (`OTP_TTL_MS` = 10 minutes).
+  static const int otpValiditySeconds = 600;
+
+  /// Politique d'exigence de la vérification OTP côté client.
+  ///
+  /// Voir [OtpPolicy] pour le détail. La valeur par défaut suit le serveur :
+  /// c'est le backend qui reste seul juge de l'état de vérification d'un
+  /// compte — jamais l'écran affiché par l'application.
+  static const OtpPolicy otpPolicy = OtpPolicy.followServer;
 
   // ── Profil (mêmes routes que la PWA — public/app.js) ────────
   // GET    /api/me           → profil courant

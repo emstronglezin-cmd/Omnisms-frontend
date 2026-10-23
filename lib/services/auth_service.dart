@@ -5,10 +5,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../models/models.dart';
 import 'google_oauth_flow.dart';
+import 'otp_service.dart';
 
 class AuthService {
   static const String _tokenKey  = 'auth_token';
   static const String _userIdKey = 'user_id';
+
+  /// Vérification OTP en attente — contient le numéro, l'UID et un éventuel
+  /// jeton d'attente. NE CONTIENT JAMAIS le code OTP : celui-ci reste dans
+  /// le champ de saisie, en mémoire vive, et n'est jamais persisté.
+  static const String _pendingVerificationKey = 'pending_phone_verification';
 
   /// `true` quand `/api/me` a explicitement rejeté le jeton (401).
   /// Sert à distinguer une session expirée d'un backend simplement endormi.
@@ -52,6 +58,76 @@ class AuthService {
   static String usernameHint() =>
       "Le nom d'utilisateur ne peut contenir que des lettres, chiffres, _ . - (2-50 caractères).";
 
+  // ── Vérification OTP : décision, lecture, écriture ───────────────
+
+  /// Numéro de téléphone associé à une réponse d'authentification.
+  static String _phoneFromAuthResponse(Map<String, dynamic> data) {
+    final direct = data['phone']?.toString().trim() ?? '';
+    if (direct.isNotEmpty) return direct;
+    final user = data['user'];
+    if (user is Map) {
+      return (user['phone'] ?? '').toString().trim();
+    }
+    return '';
+  }
+
+  /// `true` si le SERVEUR exige la vérification du numéro avant d'ouvrir
+  /// une session.
+  ///
+  /// Sources exclusives : `requiresOtp: true` (contrat `routes/otp.js`) ou
+  /// `user.phoneVerified === false` (renvoyé par `/login` et l'échange
+  /// Google). Jamais un état local, jamais l'écran affiché.
+  static bool serverRequiresVerification(
+    Map<String, dynamic> data, {
+    required bool isSignup,
+  }) {
+    if (ApiConfig.otpPolicy == OtpPolicy.disabled) return false;
+
+    final explicitFlag = data['requiresOtp'] == true;
+    final user = data['user'];
+    final serverSaysUnverified = user is Map && user['phoneVerified'] == false;
+
+    if (ApiConfig.otpPolicy == OtpPolicy.alwaysAfterSignup && isSignup) {
+      // On ne peut vérifier que ce qui existe : sans numéro, pas d'OTP.
+      return _phoneFromAuthResponse(data).isNotEmpty;
+    }
+    return explicitFlag || serverSaysUnverified;
+  }
+
+  /// Enregistre la vérification en attente. Aucun jeton d'accès n'est écrit :
+  /// la session reste fermée tant que le serveur n'a pas confirmé.
+  Future<PendingVerification> _savePendingVerification(
+    Map<String, dynamic> data, {
+    required VerificationOrigin origin,
+  }) async {
+    final pending = PendingVerification(
+      phone: PhoneFormatter.normalize(_phoneFromAuthResponse(data)),
+      userId: (data['userId'] ?? (data['user'] is Map ? data['user']['id'] : null))
+          ?.toString(),
+      // Jeton D'ATTENTE éventuel : stocké ici, jamais comme jeton d'accès.
+      pendingToken: data['token']?.toString(),
+      origin: origin,
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_pendingVerificationKey, pending.toJsonString());
+    return pending;
+  }
+
+  /// Vérification en attente restée d'une session précédente
+  /// (application tuée, perte de réseau, retour arrière).
+  Future<PendingVerification?> getPendingVerification() async {
+    final prefs = await SharedPreferences.getInstance();
+    return PendingVerification.fromJsonString(
+      prefs.getString(_pendingVerificationKey),
+    );
+  }
+
+  Future<void> clearPendingVerification() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_pendingVerificationKey);
+  }
+
   // ── Register ─────────────────────────────────────────────────
   /// `username` est OBLIGATOIRE côté backend (validation renvoyée en 400 :
   /// « Le nom d'utilisateur est requis. »). La PWA l'envoie toujours —
@@ -89,12 +165,32 @@ class AuthService {
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // Le serveur exige-t-il la vérification du numéro ?
+        // Si oui : AUCUNE session n'est ouverte. Le jeton éventuellement
+        // renvoyé est un jeton d'attente, conservé à part et jamais utilisé
+        // comme jeton d'accès.
+        if (serverRequiresVerification(data, isSignup: true)) {
+          final pending = await _savePendingVerification(
+            data,
+            origin: VerificationOrigin.signup,
+          );
+          return {
+            'success': true,
+            'requiresOtp': true,
+            'verification': pending,
+            'message': data['message'] ?? 'Vérifiez votre numéro de téléphone.',
+            'user': data['user'] != null ? UserModel.fromJson(data['user']) : null,
+            'token': null,
+          };
+        }
+
         if (data['token'] != null) await _saveToken(data['token']);
         if (data['userId'] != null || data['user']?['id'] != null) {
           await _saveUserId(data['userId'] ?? data['user']['id']);
         }
         return {
           'success': true,
+          'requiresOtp': false,
           'message': data['message'] ?? 'Inscription réussie',
           'user': data['user'] != null ? UserModel.fromJson(data['user']) : null,
           'token': data['token'],
@@ -145,12 +241,31 @@ class AuthService {
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        // Compte existant dont le numéro n'a jamais été vérifié : le serveur
+        // le signale (`phoneVerified: false`). On reprend le parcours de
+        // vérification sans ouvrir la session.
+        if (serverRequiresVerification(data, isSignup: false)) {
+          final pending = await _savePendingVerification(
+            data,
+            origin: VerificationOrigin.login,
+          );
+          return {
+            'success': true,
+            'requiresOtp': true,
+            'verification': pending,
+            'message': 'Vérifiez votre numéro de téléphone.',
+            'user': data['user'] != null ? UserModel.fromJson(data['user']) : null,
+            'token': null,
+          };
+        }
+
         if (data['token'] != null) await _saveToken(data['token']);
         if (data['userId'] != null || data['user']?['id'] != null) {
           await _saveUserId(data['userId'] ?? data['user']['id']);
         }
         return {
           'success': true,
+          'requiresOtp': false,
           'message': data['message'] ?? 'Connexion réussie',
           'user': data['user'] != null ? UserModel.fromJson(data['user']) : null,
           'token': data['token'],
@@ -247,6 +362,27 @@ class AuthService {
       await GoogleOAuthFlow.instance.clearFlow();
 
       if (response.statusCode == 200 && data['token'] != null) {
+        // Compte Google neuf (ou ancien compte non vérifié) : le serveur
+        // décide (`requiresOtp` / `phoneVerified: false`). Aucune session
+        // ouverte tant qu'il ne confirme pas.
+        if (serverRequiresVerification(data, isSignup: true)) {
+          final pending = await _savePendingVerification(
+            data,
+            origin: VerificationOrigin.google,
+          );
+          return {
+            'success': true,
+            'requiresOtp': true,
+            'verification': pending,
+            'message': 'Vérifiez votre numéro de téléphone.',
+            'user': data['user'] != null
+                ? UserModel.fromJson(
+                    Map<String, dynamic>.from(data['user'] as Map))
+                : null,
+            'token': null,
+          };
+        }
+
         await _saveToken(data['token'] as String);
         _sessionExpired = false;
 
@@ -285,6 +421,20 @@ class AuthService {
     } catch (e) {
       return {'success': false, 'message': _friendlyError(e)};
     }
+  }
+
+  /// Ouvre la session APRÈS confirmation de la vérification par le serveur.
+  ///
+  /// C'est le seul point où le jeton renvoyé par `verify-otp` devient un
+  /// jeton d'accès. Le jeton d'attente éventuel est effacé dans la foulée.
+  Future<void> completeVerification({
+    required String token,
+    String? userId,
+  }) async {
+    await _saveToken(token);
+    _sessionExpired = false;
+    if (userId != null && userId.isNotEmpty) await _saveUserId(userId);
+    await clearPendingVerification();
   }
 
   /// Retour Google « à froid » : l'application a été relancée par le deep link.

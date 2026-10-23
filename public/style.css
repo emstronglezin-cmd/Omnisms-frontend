@@ -2610,3 +2610,28 @@ input:-webkit-autofill:focus {
 @media (prefers-reduced-motion: reduce) {
   .g-spinner { animation-duration: 2.4s; }
 }
+
+/* ─── Vérification OTP (public/otp.js) ─────────────────────────── */
+.otp-input {
+  text-align: center;
+  font-size: 1.5rem;
+  letter-spacing: 0.5rem;
+  font-weight: 600;
+  padding: 0.85rem 0.5rem;
+}
+.otp-phone-line {
+  margin: 0.6rem 0 0;
+  font-size: 0.85rem;
+  opacity: 0.75;
+  text-align: center;
+}
+.otp-note {
+  margin-top: 1rem;
+  font-size: 0.78rem;
+  opacity: 0.6;
+  text-align: center;
+  line-height: 1.4;
+}
+@media (max-width: 360px) {
+  .otp-input { letter-spacing: 0.3rem; font-size: 1.3rem; }
+}

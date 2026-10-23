@@ -146,6 +146,45 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
+     OTP VERIFICATION SCREEN — vérification du numéro à l'inscription
+     ═══════════════════════════════════════════════════════════ -->
+<div id="screen-otp" class="screen">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-logo">📲</div>
+      <h1 class="auth-title">Vérification</h1>
+      <p class="auth-subtitle">Saisissez le code reçu par SMS</p>
+    </div>
+
+    <form onsubmit="event.preventDefault(); otpSubmitCode()">
+      <div class="form-group">
+        <label class="form-label" for="otp-code">Code à 6 chiffres</label>
+        <input id="otp-code" type="text" class="form-input otp-input"
+               inputmode="numeric" pattern="[0-9]*" maxlength="6"
+               placeholder="——————" autocomplete="one-time-code"
+               aria-label="Code de vérification à six chiffres">
+        <p class="otp-phone-line">Envoyé au <strong id="otp-phone">…</strong></p>
+      </div>
+      <div id="otp-error" class="form-error" role="alert" style="display:none"></div>
+      <button id="otp-submit-btn" type="submit" class="btn-primary" style="margin-top:6px">
+        Vérifier mon numéro
+      </button>
+    </form>
+
+    <div class="auth-switch">
+      <button class="btn-text" id="otp-resend-btn" onclick="otpResendCode()">Renvoyer un code</button>
+    </div>
+    <div class="auth-switch">
+      <button class="btn-text" onclick="otpCancelVerification()">Modifier le numéro</button>
+    </div>
+
+    <p class="otp-note">
+      Le code est valable 10 minutes. Ne le communiquez à personne.
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
      DASHBOARD SCREEN
      ═══════════════════════════════════════════════════════════ -->
 <div id="screen-dashboard" class="screen">
@@ -734,6 +773,7 @@
      SCRIPTS
      ═══════════════════════════════════════════════════════════ -->
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="otp.js"></script>
 <script src="app.js"></script>
 
 <script>
