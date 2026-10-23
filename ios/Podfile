@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Podfile — OmniSMS iOS
+#
+# Ce fichier était ABSENT du dépôt : sans lui, `pod install` est impossible et
+# aucun build iOS ne peut aboutir. Il suit le gabarit officiel Flutter 3.47.7.
+#
+# Cible minimale : iOS 13.0
+#   • flutter_contacts 2.6.0   → iOS 13.0 (le plus exigeant)
+#   • image_picker_ios         → iOS 13.0
+#   • app_links / audio_session / url_launcher_ios → iOS 12.0
+#   • just_audio, record_darwin, permission_handler_apple, startapp_sdk
+#     n'imposent rien et suivent la cible du projet.
+#
+# Aucune clé, aucun certificat, aucun mot de passe Apple et aucun secret
+# backend n'est écrit ici : la signature reste « Automatic » et l'équipe de
+# développement est renseignée dans Xcode, sur le Mac de build.
+# ─────────────────────────────────────────────────────────────────────────────
+platform :ios, '13.0'
+
+# Les statistiques CocoaPods allongent sensiblement les builds Flutter.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure \"flutter pub get\" is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run \"flutter pub get\""
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+
+    # Uniformise la cible iOS : sans cela, certains pods (StartAppSDK, plugins
+    # sans version explicite) héritent d'une cible plus ancienne et le build
+    # échoue avec « The pod X requires a higher minimum deployment target ».
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      # Flutter ne prend pas en charge Bitcode (supprimé depuis Xcode 14).
+      config.build_settings['ENABLE_BITCODE'] = 'NO'
+    end
+  end
+end

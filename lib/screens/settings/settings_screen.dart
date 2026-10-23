@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../config/api_config.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../providers/auth_provider.dart';
 import '../auth/profile_screen.dart';
@@ -192,6 +195,25 @@ class SettingsScreen extends StatelessWidget {
             },
           ),
           
+          // ── Confidentialité ─────────────────────────────────
+          // Affichée uniquement si ApiConfig.privacyPolicyUrl est renseigné :
+          // mieux vaut aucune entrée qu'une entrée qui n'ouvre rien.
+          if (ApiConfig.hasPrivacyPolicy)
+            ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined),
+              title: const Text('Politique de confidentialité'),
+              subtitle: const Text(
+                'Comment vos données sont collectées et conservées',
+              ),
+              trailing: const Icon(Icons.open_in_new),
+              onTap: () async {
+                final uri = Uri.parse(ApiConfig.privacyPolicyUrl);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+            ),
+
           const Divider(),
 
           // ── Compte (PWA : renderSettings()) ─────────────────

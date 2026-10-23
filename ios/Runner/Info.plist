@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Omni Smsnew</string>
+	<string>OmniSMS</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -28,27 +28,41 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<!-- Portrait uniquement : aligné sur main.dart qui verrouille
+	     SystemChrome.setPreferredOrientations([portraitUp, portraitDown]). -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Carnet d'adresses : lecture SEULEMENT après l'autorisation de
+	     l'utilisateur, au moment où la fonctionnalité est utilisée
+	     (écran Contacts). Les numéros sont transmis au serveur OmniSMS
+	     uniquement pour identifier les contacts déjà inscrits ; rien n'est
+	     importé ni envoyé sans l'accord de l'utilisateur. -->
 	<key>NSContactsUsageDescription</key>
-	<string>OmniSMS a besoin d'accéder à vos contacts pour vous permettre d'envoyer des messages à vos amis et trouver qui utilise OmniSMS.</string>
+	<string>OmniSMS accède à vos contacts, avec votre accord, pour retrouver les personnes de votre carnet qui utilisent déjà OmniSMS. Les numéros sont transmis au serveur OmniSMS uniquement pour cet appariement, et uniquement lorsque vous lancez l'import.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>OmniSMS a besoin d'accéder à votre microphone pour enregistrer des messages vocaux.</string>
+	<string>OmniSMS utilise votre microphone pour enregistrer des messages vocaux et pour la transcription, lorsque vous maintenez le bouton d'enregistrement.</string>
+	<!-- Photothèque : obligatoire pour image_picker (photo de profil et photo
+	     de groupe). Sans cette clé, l'application se ferme lors de la
+	     sélection d'une image. Aucune clé « Appareil photo » n'est déclarée :
+	     l'application n'utilise que la photothèque. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>OmniSMS accède à vos photos pour vous permettre de choisir une photo de profil ou une photo de groupe. Aucune autre photo n'est lue ni envoyée.</string>
+	<!-- Déclaration de chiffrement exigée par App Store Connect :
+	     « false » = l'application n'utilise que le chiffrement standard de
+	     la plateforme (HTTPS/TLS). À repasser à « true » si une couche de
+	     chiffrement propriétaire est ajoutée. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<!-- Deep linking Flutter natif désactivé : les liens sont livrés par app_links -->
 	<key>FlutterDeepLinkingEnabled</key>
 	<false/>

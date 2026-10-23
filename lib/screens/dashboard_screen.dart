@@ -59,15 +59,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildMobileLayout() {
-    // CORRECTION safe-area (Session 9) :
-    // Sur Safari iPhone, la barre de navigation du navigateur peut chevaucher
-    // le bas de l'interface. Flutter web ne gère pas automatiquement
-    // env(safe-area-inset-bottom). On utilise MediaQuery.viewPadding.bottom
-    // pour ajouter le padding nécessaire uniquement quand c'est non-nul.
-    // Sur PWA installée, viewPadding.bottom = 0 → aucun changement.
-    final bottomPadding = kIsWeb
-        ? MediaQuery.of(context).viewPadding.bottom
-        : 0.0;
+    // CORRECTION safe-area (Session 9) — étendue à iOS natif :
+    // - Safari iPhone (PWA) : la barre du navigateur chevauche le bas de
+    //   l'interface ; Flutter web ne gère pas env(safe-area-inset-bottom).
+    // - iOS natif : l'indicateur d'accueil (barre horizontale en bas des
+    //   iPhone sans bouton) recouvre la barre de navigation et capte une
+    //   partie des appuis. MediaQuery.viewPadding.bottom vaut alors ~34 pt.
+    // - Android : cette valeur est nulle en navigation 3 boutons comme en
+    //   navigation gestuelle → aucun changement visuel.
+    // La valeur est appliquée uniquement si elle est non nulle, donc sans
+    // effet sur les appareils qui n'en ont pas besoin.
+    final bottomPadding = MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
       body: IndexedStack(

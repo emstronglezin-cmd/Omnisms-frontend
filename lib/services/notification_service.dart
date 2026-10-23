@@ -1,9 +1,30 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, debugPrint, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
-
 // Android runtime permission (permission_handler — déjà dans pubspec.yaml)
 import 'package:permission_handler/permission_handler.dart';
+
+/// Vrai si l'application peut solliciter d'elle-même la permission de
+/// notification au démarrage.
+///
+/// - **iOS : non.** Le système n'affiche l'alerte qu'une seule fois ; Apple
+///   attend une demande faite en contexte, depuis un écran dédié. La demander
+///   au premier lancement gaspille l'unique présentation et nuit à l'expérience
+///   (et à la revue App Store). Elle est donc réservée à
+///   « Paramètres → Notifications » ([NotificationService.requestPermission]).
+/// - **Android 13+ : oui.** Le dialogue système est ré-affichable et l'absence
+///   de permission ne bloque pas l'usage de l'application.
+/// - **Web/PWA : non.** Le navigateur exige un geste explicite de
+///   l'utilisateur ; la permission est demandée depuis l'écran dédié.
+///
+/// Fonction pure : testable sans plugin et sans émulateur.
+bool shouldRequestNotificationPermissionAtStartup({
+  required bool isAndroid,
+  required bool isWeb,
+}) =>
+    !isWeb && isAndroid;
+
 
 /// OmniSMS — NotificationService
 ///
@@ -12,7 +33,14 @@ import 'package:permission_handler/permission_handler.dart';
 ///
 /// Architecture :
 ///   Android + app au premier plan → bannière in-app (InAppNotificationWrapper)
+///   iOS + app au premier plan     → bannière in-app (idem Android)
 ///   PWA / Web avec page ouverte   → Browser Notification API via JS interop
+///
+/// iOS — permission :
+///   Aucune demande au démarrage (voir
+///   [shouldRequestNotificationPermissionAtStartup]). L'alerte système n'est
+///   présentée qu'une seule fois : elle est réservée à l'écran
+///   « Paramètres → Notifications ».
 ///
 /// Points clés :
 ///   • Déduplication par messageId (Set<String> _notifiedIds)
@@ -21,8 +49,14 @@ import 'package:permission_handler/permission_handler.dart';
 ///   • Gratuit — aucun FCM, aucun push server
 ///
 /// Limitations documentées :
+///   AUCUNE notification push : ni FCM, ni APNs. Les messages reçus alors que
+///   l'application est en arrière-plan ou fermée ne sont pas signalés ; ils
+///   sont récupérés à la réouverture, et le backend bascule alors l'envoi
+///   vers les SMS. Ce choix est assumé et doit être annoncé honnêtement à
+///   l'utilisateur (aucun faux statut « connecté en permanence »).
 ///   Android app en arrière-plan : flutter_local_notifications non installé
 ///   → notifications perdues quand l'app est minimisée (limitation sans FCM).
+///   iOS app en arrière-plan    : idem — sans APNs, rien n'est délivré.
 ///   Android app au premier plan  : bannière in-app via overlay.
 ///   Web/PWA page ouverte         : Browser Notification API.
 ///   Web/PWA page fermée          : nécessite Push API + infra VAPID (non implémenté).
@@ -39,30 +73,48 @@ class NotificationService {
   void Function(String conversationId)? onNotificationTap;
 
   // ── Initialisation ───────────────────────────────────────────
+  /// Vrai sur Android uniquement (jamais sur iOS, jamais sur le Web).
+  bool get _isAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
   /// Initialise le service de notifications.
   ///
-  /// Sur Android 13+, demande silencieusement la permission si pas encore accordée.
-  /// Aucune UI bloquante — l'utilisateur peut activer manuellement depuis les Paramètres.
+  /// Ne déclenche **aucune** alerte système au démarrage :
+  /// - Android 13+ : demande la permission si elle n'a pas encore été
+  ///   accordée (dialogue ré-affichable, sans blocage de l'application) ;
+  /// - iOS : ne demande rien — la permission est demandée depuis
+  ///   « Paramètres → Notifications », conformément aux attentes d'Apple ;
+  /// - Web/PWA : ne demande rien (un geste de l'utilisateur est requis).
   Future<void> initialize() async {
-    debugPrint('[NOTIFICATION] NotificationService initialisé (${kIsWeb ? "Web/PWA" : "Android"})');
+    final plateforme = kIsWeb ? 'Web/PWA' : defaultTargetPlatform.name;
+    debugPrint('[NOTIFICATION] NotificationService initialisé ($plateforme)');
 
-    if (!kIsWeb) {
-      // Vérifier la permission actuelle sans interrompre le démarrage de l'app.
-      // Sur Android 13+ (API 33+), POST_NOTIFICATIONS nécessite une demande explicite.
-      try {
-        final status = await Permission.notification.status;
-        debugPrint('[NOTIFICATION] Permission initiale: $status');
+    if (!shouldRequestNotificationPermissionAtStartup(
+      isAndroid: _isAndroid,
+      isWeb: kIsWeb,
+    )) {
+      debugPrint(
+        '[NOTIFICATION] Aucune demande automatique sur cette plateforme '
+        '- l\'utilisateur active les notifications depuis les Paramètres.',
+      );
+      return;
+    }
 
-        if (status.isDenied) {
-          // Première demande — Android affiche le dialogue système.
-          final result = await Permission.notification.request();
-          debugPrint('[NOTIFICATION] Permission demandée au démarrage: $result');
-        } else if (status.isPermanentlyDenied) {
-          debugPrint('[NOTIFICATION] Permission permanentement refusée — l\'utilisateur doit activer manuellement.');
-        }
-      } catch (e) {
-        debugPrint('[NOTIFICATION] Erreur vérification permission: $e');
+    // Vérifier la permission actuelle sans interrompre le démarrage de l'app.
+    // Sur Android 13+ (API 33+), POST_NOTIFICATIONS nécessite une demande explicite.
+    try {
+      final status = await Permission.notification.status;
+      debugPrint('[NOTIFICATION] Permission initiale: $status');
+
+      if (status.isDenied) {
+        // Première demande — Android affiche le dialogue système.
+        final result = await Permission.notification.request();
+        debugPrint('[NOTIFICATION] Permission demandée au démarrage: $result');
+      } else if (status.isPermanentlyDenied) {
+        debugPrint('[NOTIFICATION] Permission permanentement refusée — l\'utilisateur doit activer manuellement.');
       }
+    } catch (e) {
+      debugPrint('[NOTIFICATION] Erreur vérification permission: $e');
     }
   }
 

@@ -107,6 +107,23 @@ class ApiConfig {
   // POST   /api/me/avatar    → upload photo (multipart, champ « avatar »)
   // DELETE /api/me           → suppression du compte
   static const String meEndpoint = '/api/me';
+  // ── Conformité App Store / confidentialité ──────────────────
+  /// URL publique de la politique de confidentialité.
+  ///
+  /// ⚠️ À RENSEIGNER AVANT TOUTE SOUMISSION APP STORE : Apple exige une
+  /// politique de confidentialité accessible depuis l'application (règle
+  /// 5.1.1) et depuis App Store Connect.
+  ///
+  /// Volontairement VIDE : aucune URL n'est inventée. Tant que la valeur est
+  /// vide, l'entrée correspondante n'est PAS affichée dans les Paramètres —
+  /// ainsi aucune fonction annoncée n'est cassée. Renseignez l'adresse
+  /// (en `https://`) et l'entrée apparaîtra automatiquement.
+  static const String privacyPolicyUrl = '';
+
+  /// Vrai si une politique de confidentialité est publiée.
+  static bool get hasPrivacyPolicy =>
+      privacyPolicyUrl.startsWith('https://');
+
   static const String meProfileEndpoint = '/api/me/profile';
   static const String meAvatarEndpoint = '/api/me/avatar';
 

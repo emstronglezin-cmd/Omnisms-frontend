@@ -1,6 +1,13 @@
 /// OmniSMS — Ads Service (Start.io)
 /// Phase 4 : Intégration publicitaire Android
 ///
+/// iOS : le SDK est compilé dans le binaire (le paquet `startapp_sdk` déclare
+/// une implémentation iOS) mais il n'est **jamais initialisé** sur iPhone : la
+/// garde `_isSupported` limite le service à Android. Aucune publicité, aucune
+/// collecte publicitaire et aucun identifiant publicitaire (IDFA) ne sont donc
+/// utilisés sur iOS — ce qui est déclaré tel quel dans
+/// `ios/Runner/PrivacyInfo.xcprivacy` (NSPrivacyTracking = false).
+///
 /// RÈGLE ABSOLUE :
 ///   - Utilisateurs GRATUITS  → publicités activées
 ///   - Utilisateurs PREMIUM   → publicités désactivées

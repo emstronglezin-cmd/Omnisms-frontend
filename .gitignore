@@ -51,3 +51,33 @@ app.*.map.json
 # SÉCURITÉ : keystore release jamais commité (déjà exposé dans l'historique — à régénérer)
 omnisms-keystore.jks
 *.jks
+
+# â”€â”€â”€ iOS / Xcode (build, dependances, reglages personnels) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ces fichiers sont regeneres : ils ne doivent jamais etre versionnes.
+# Attention : aucune cle de signature, aucun certificat, aucun profil
+# d'approvisionnement (.p12, .mobileprovision, .cer) ne doit etre depose
+# dans ce depot.
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/ios/Flutter/App.framework/
+**/ios/Flutter/Flutter.framework/
+**/ios/Flutter/flutter_assets/
+**/ios/ServiceDefinitions.json
+**/DerivedData/
+**/xcuserdata/
+**/*.moved-aside
+**/*.pbxuser
+**/*.mode1v3
+**/*.mode2v3
+**/*.perspectivev3
+**/*sync/
+**/.generated/
+*.xcuserstate
+# Archives et exportations locales
+**/build/ios/
+**/*.ipa
+**/*.xcarchive
