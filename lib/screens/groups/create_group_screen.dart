@@ -20,7 +20,16 @@ class CreateGroupScreen extends StatefulWidget {
 class _CreateGroupScreenState extends State<CreateGroupScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
-  final Set<String> _selectedContactIds = {};
+  /// Membres sélectionnés : clé d'identification du contact → identifiant
+  /// de membre (UID) transmis au backend.
+  ///
+  /// Pourquoi une Map et plus un `Set<String>` d'`id` : `GET /api/contacts`
+  /// ne renvoie PAS de champ `id` (uniquement `phone`, `name`, `avatar`,
+  /// `isOnOmniSms`, `userId`, `registeredUserId`). `ContactModel.id` valait
+  /// donc `''` pour tous les contacts synchronisés → le Set ne contenait
+  /// qu'un seul élément partagé par toutes les lignes : un appui cochait
+  /// visuellement toute la liste (bug signalé).
+  final Map<String, String> _selectedMembers = {};
   bool _isCreating = false;
 
   @override
@@ -58,7 +67,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       description: _descController.text.trim().isEmpty
           ? null
           : _descController.text.trim(),
-      memberIds: _selectedContactIds.toList(),
+      // Uniquement les contacts réellement sélectionnés, dédupliqués.
+      memberIds: _selectedMembers.values.toSet().toList(),
     );
 
     if (!mounted) return;
@@ -179,7 +189,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             child: Row(
               children: [
                 Text(
-                  'Membres sélectionnés: ${_selectedContactIds.length}',
+                  'Membres sélectionnés: ${_selectedMembers.length}',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const Spacer(),
@@ -222,32 +232,50 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   );
                 }
 
+                // Une ligne = une clé distincte (`selectionKey` : UID, sinon
+                // numéro, sinon nom). Les doublons sont retirés ici pour
+                // qu'une même personne ne soit ni affichée ni comptée deux
+                // fois, même si le backend la renvoie plusieurs fois.
+                final contacts = _deduplicate(provider.contacts);
+
                 return ListView.builder(
-                  itemCount: provider.contacts.length,
+                  itemCount: contacts.length,
                   itemBuilder: (context, index) {
-                    final contact = provider.contacts[index];
-                    final isSelected =
-                        _selectedContactIds.contains(contact.id);
+                    final contact = contacts[index];
+                    final key = contact.selectionKey;
+                    final isSelected = _selectedMembers.containsKey(key);
+                    // Sans compte OmniSMS il n'y a pas d'UID à transmettre :
+                    // la ligne reste affichée mais n'est pas sélectionnable
+                    // (plutôt que de créer un membre fantôme côté serveur).
+                    final canBeMember = contact.memberId != null;
+                    final phoneLabel = contact.phone ?? 'Pas de numéro';
 
                     return CheckboxListTile(
                       value: isSelected,
-                      onChanged: (value) {
-                        setState(() {
-                          if (value == true) {
-                            _selectedContactIds.add(contact.id);
-                          } else {
-                            _selectedContactIds.remove(contact.id);
-                          }
-                        });
-                      },
+                      onChanged: canBeMember
+                          ? (value) {
+                              setState(() {
+                                if (value == true) {
+                                  final memberId = contact.memberId;
+                                  if (memberId != null) {
+                                    _selectedMembers[key] = memberId;
+                                  }
+                                } else {
+                                  _selectedMembers.remove(key);
+                                }
+                              });
+                            }
+                          : null,
                       title: Text(contact.name),
-                      subtitle: Text(contact.phone ?? 'Pas de numéro'),
+                      subtitle: Text(
+                        canBeMember
+                            ? phoneLabel
+                            : '$phoneLabel - sans compte OmniSMS',
+                      ),
                       secondary: CircleAvatar(
                         backgroundColor: isSelected
                             ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context)
-                                .colorScheme
-                                .primaryContainer,
+                            : Theme.of(context).colorScheme.primaryContainer,
                         child: UserAvatar(
                           imageUrl: contact.photoUrl,
                           name: contact.name,
@@ -275,5 +303,19 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         ],
       ),
     );
+  }
+
+  /// Retire les contacts en doublon (même `selectionKey`).
+  /// Un même contact peut arriver à la fois du carnet et de Google : sans ce
+  /// filtre, la liste afficherait et compterait deux fois la même personne.
+  List<ContactModel> _deduplicate(List<ContactModel> contacts) {
+    final seen = <String>{};
+    final unique = <ContactModel>[];
+    for (final contact in contacts) {
+      if (seen.add(contact.selectionKey)) {
+        unique.add(contact);
+      }
+    }
+    return unique;
   }
 }

@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
 import '../auth/login_screen.dart';
 import '../../widgets/common/avatar_image.dart';
+import '../../utils/user_messages.dart';
 
 /// Écran « Profil » — aligné sur l'onglet Paramètres de la PWA
 /// (`renderSettings()` / `saveProfile()` / `uploadAvatar()` dans public/app.js).
@@ -132,7 +133,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isUploadingAvatar = false);
-      _snack("Impossible d'accéder à la galerie : $e", isError: true);
+      _snack(
+        userMessage(e, fallback: "Impossible d'accéder à la galerie."),
+        isError: true,
+      );
     }
   }
 

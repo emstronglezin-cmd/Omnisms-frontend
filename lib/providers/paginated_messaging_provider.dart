@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../utils/user_messages.dart';
 import '../models/models.dart';
 import '../services/messaging_service.dart';
 
@@ -83,7 +84,7 @@ class PaginatedMessagingProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     } catch (e) {
-      _error = 'Erreur lors du chargement des messages: $e';
+      _error = 'Erreur lors du chargement des messages: : ${userMessage(e)}';
       _isLoading = false;
       notifyListeners();
     }
@@ -119,7 +120,7 @@ class PaginatedMessagingProvider with ChangeNotifier {
       _isLoadingMore[contactId] = false;
       notifyListeners();
     } catch (e) {
-      _error = 'Erreur lors du chargement de plus de messages: $e';
+      _error = 'Erreur lors du chargement de plus de messages: : ${userMessage(e)}';
       _isLoadingMore[contactId] = false;
       notifyListeners();
     }
@@ -143,7 +144,7 @@ class PaginatedMessagingProvider with ChangeNotifier {
       }
       return false;
     } catch (e) {
-      _error = 'Erreur lors de l\'envoi du message: $e';
+      _error = 'Erreur lors de l\'envoi du message: : ${userMessage(e)}';
       notifyListeners();
       return false;
     }
@@ -174,7 +175,7 @@ class PaginatedMessagingProvider with ChangeNotifier {
       }
       return false;
     } catch (e) {
-      _error = 'Erreur lors de l\'envoi du message vocal: $e';
+      _error = 'Erreur lors de l\'envoi du message vocal: : ${userMessage(e)}';
       notifyListeners();
       return false;
     }
@@ -198,7 +199,7 @@ class PaginatedMessagingProvider with ChangeNotifier {
       
       return success;
     } catch (e) {
-      _error = 'Erreur lors de la réaction: $e';
+      _error = 'Erreur lors de la réaction: : ${userMessage(e)}';
       notifyListeners();
       return false;
     }
@@ -213,7 +214,7 @@ class PaginatedMessagingProvider with ChangeNotifier {
       }
       return success;
     } catch (e) {
-      _error = 'Erreur lors de la suppression: $e';
+      _error = 'Erreur lors de la suppression: : ${userMessage(e)}';
       notifyListeners();
       return false;
     }
@@ -223,7 +224,7 @@ class PaginatedMessagingProvider with ChangeNotifier {
     try {
       return await _messagingService.transcribeVoiceMessage(messageId);
     } catch (e) {
-      _error = 'Erreur lors de la transcription: $e';
+      _error = 'Erreur lors de la transcription: : ${userMessage(e)}';
       notifyListeners();
       return null;
     }

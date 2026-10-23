@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
+import '../../utils/user_messages.dart';
 import 'package:provider/provider.dart';
 import '../../providers/messaging_provider.dart';
 import '../../models/models.dart';
@@ -168,7 +169,10 @@ class _ConversationScreenState extends State<ConversationScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur envoi: $e'),
+            content: Text(userMessage(
+              e,
+              fallback: 'Envoi impossible. Vérifiez votre connexion.',
+            )),
             backgroundColor: Colors.red,
           ),
         );
@@ -220,7 +224,10 @@ class _ConversationScreenState extends State<ConversationScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur: $e'),
+            content: Text(userMessage(
+              e,
+              fallback: 'Envoi du message vocal impossible.',
+            )),
             backgroundColor: Colors.red,
           ),
         );

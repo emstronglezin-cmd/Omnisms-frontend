@@ -2,6 +2,7 @@
 import 'dart:async' show Timer;
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
+import '../../utils/user_messages.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
@@ -225,7 +226,10 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur démarrage enregistrement: $e'),
+            content: Text(userMessage(
+              e,
+              fallback: "Impossible de démarrer l'enregistrement.",
+            )),
             backgroundColor: Colors.red,
           ),
         );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/groups_provider.dart';
+import '../../widgets/common/avatar_image.dart';
 import 'create_group_screen.dart';
 import 'group_conversation_screen.dart';
 
@@ -114,9 +115,13 @@ class _GroupsScreenState extends State<GroupsScreen> {
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    child: Icon(
+                  // Photo du groupe quand elle existe (stockée côté serveur
+                  // sous `avatar`), icône de groupe sinon.
+                  leading: UserAvatar(
+                    imageUrl: group.photoUrl,
+                    name: group.name,
+                    size: 40,
+                    fallback: Icon(
                       Icons.group,
                       color: Theme.of(context).colorScheme.onPrimaryContainer,
                     ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/user_messages.dart';
 import '../models/models.dart';
 import '../services/auth_service.dart';
 import '../services/google_oauth_flow.dart';
@@ -189,7 +190,8 @@ class AuthProvider with ChangeNotifier {
         await _startRealtime();
         return true;
       } else {
-        _error = result['message'];
+        _error = userMessage(result['message'],
+          fallback: 'Une erreur est survenue. Réessayez.');
         _isLoading = false;
         notifyListeners();
         return false;
@@ -238,7 +240,8 @@ class AuthProvider with ChangeNotifier {
         await _startRealtime();
         return true;
       } else {
-        _error = result['message'];
+        _error = userMessage(result['message'],
+          fallback: 'Une erreur est survenue. Réessayez.');
         _isLoading = false;
         notifyListeners();
         return false;
@@ -291,7 +294,8 @@ class AuthProvider with ChangeNotifier {
         return true;
       }
 
-      _error = result['message'] ?? 'Impossible de se connecter avec Google.';
+      _error = userMessage(result['message'],
+          fallback: 'Impossible de se connecter avec Google.');
       _isGoogleSignInInProgress = false;
       notifyListeners();
       return false;
@@ -483,7 +487,8 @@ class AuthProvider with ChangeNotifier {
         notifyListeners();
         return true;
       } else {
-        _error = result['message'];
+        _error = userMessage(result['message'],
+          fallback: 'Une erreur est survenue. Réessayez.');
         _isLoading = false;
         notifyListeners();
         return false;
@@ -534,7 +539,7 @@ class AuthProvider with ChangeNotifier {
         return true;
       }
 
-      _error = result['message'] ?? "Échec de l'upload";
+      _error = userMessage(result['message'], fallback: "Échec de l'upload");
       _isLoading = false;
       notifyListeners();
       return false;
@@ -564,7 +569,8 @@ class AuthProvider with ChangeNotifier {
         return true;
       }
 
-      _error = result['message'];
+      _error = userMessage(result['message'],
+          fallback: 'Une erreur est survenue. Réessayez.');
       _isLoading = false;
       notifyListeners();
       return false;

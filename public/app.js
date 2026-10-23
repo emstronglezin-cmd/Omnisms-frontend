@@ -2423,6 +2423,33 @@ async function transferAdmin(gid, uid, name) {
 }
 
 // ─── PARAMÈTRES ───────────────────────────────────────────────────────────────
+// ── PAGE PUBLIQUE « POLITIQUE DE CONFIDENTIALITÉ » (/privacy) ───────────────
+// Accessible sans compte et sans session, depuis la PWA comme depuis
+// l'application. Le routage : l'URL /privacy est servie par la réécriture
+// Vercel (voir vercel.json) puis détectée au démarrage (voir plus bas).
+function openPrivacy() {
+  const el = document.getElementById('privacy-content');
+  if (window.OmniSmsPrivacy) window.OmniSmsPrivacy.render(el, 'fr');
+  showScreen('screen-privacy');
+  // Ouverte depuis l'app : on reflète la route dans l'URL (sans recharger).
+  if (window.OmniSmsPrivacy && !window.OmniSmsPrivacy.isRoute()) {
+    try { history.pushState({}, '', '/privacy'); } catch (_) {}
+  }
+  window.scrollTo(0, 0);
+  const scroller = document.querySelector('.privacy-scroll');
+  if (scroller) scroller.scrollTop = 0;
+}
+
+function closePrivacy() {
+  // Arrivé directement sur /privacy : retour à l'accueil de la PWA plutôt
+  // qu'à un historique inexistant.
+  if (window.OmniSmsPrivacy && window.OmniSmsPrivacy.isRoute() && history.length <= 1) {
+    location.assign('/');
+    return;
+  }
+  history.back();
+}
+
 function renderSettings() {
   const name     = State.user?.name     || '';
   const email    = State.user?.email    || '';
@@ -2497,6 +2524,12 @@ function renderSettings() {
       </button>
       <button class="btn-ghost" style="width:100%;color:var(--error);border-color:rgba(255,69,101,0.3);justify-content:flex-start;gap:10px" onclick="deleteAccount()">
         \uD83D\uDDD1\uFE0F Supprimer mon compte
+      </button>
+    </div>
+    <div class="settings-section">
+      <h4>Informations légales</h4>
+      <button class="btn-ghost" style="width:100%;justify-content:flex-start;gap:10px" onclick="openPrivacy()">
+        &#x1F512; Politique de confidentialité
       </button>
     </div>
     <div class="settings-section">
@@ -3019,6 +3052,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Aucun retour Google dans l'URL, mais un flux avait été lancé dans cet
   // onglet → le signaler explicitement au lieu d'un écran muet / d'un spinner.
   checkPendingGoogleFlow();
+
+  // Route publique /privacy : traitée avant toute logique d'authentification,
+  // pour rester accessible sans compte (exigence : page publique).
+  if (window.OmniSmsPrivacy && window.OmniSmsPrivacy.isRoute()) {
+    openPrivacy();
+    return;
+  }
 
   // Vérification OTP laissée en suspens (onglet fermé, rechargement,
   // perte réseau) : on la reprend AVANT d'ouvrir le tableau de bord.

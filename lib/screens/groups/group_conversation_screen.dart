@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../utils/user_messages.dart';
+import '../../widgets/common/avatar_image.dart';
 import '../../models/models.dart';
 import '../../services/auth_service.dart';
 import '../../services/groups_service.dart';
@@ -26,6 +28,9 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
 
   final List<MessageModel> _messages = [];
   final Map<String, String> _memberNames = {};
+  /// Photos des membres, telles que renvoyées par le serveur (même contrat
+  /// que les utilisateurs : `avatar`, souvent une URI de données).
+  final Map<String, String> _memberPhotos = {};
   Timer? _pollTimer;
   String? _currentUserId;
   bool _isLoading = true;
@@ -56,6 +61,12 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
         final name = m['name']?.toString();
         if (uid != null && name != null && name.isNotEmpty) {
           _memberNames[uid] = name;
+        }
+        // Le backend renvoie l'avatar du membre (groups.js) : on le garde
+        // pour l'afficher, sans jamais fabriquer d'URL.
+        final avatar = m['avatar']?.toString();
+        if (uid != null && avatar != null && avatar.isNotEmpty) {
+          _memberPhotos[uid] = avatar;
         }
       }
     });
@@ -214,7 +225,7 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
           children: [
             const Icon(Icons.error_outline, size: 64, color: Colors.grey),
             const SizedBox(height: 16),
-            Text(_error!),
+            Text(userMessage(_error)),
             const SizedBox(height: 8),
             ElevatedButton(
               onPressed: () {
@@ -412,8 +423,11 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
               else
                 ...entries.map(
                   (e) => ListTile(
-                    leading: CircleAvatar(
-                      child: Text(e.value.isNotEmpty
+                    leading: UserAvatar(
+                      imageUrl: _memberPhotos[e.key],
+                      name: e.value,
+                      size: 36,
+                      fallback: Text(e.value.isNotEmpty
                           ? e.value[0].toUpperCase()
                           : '?'),
                     ),

@@ -1,5 +1,8 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:ui' show PlatformDispatcher;
+
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
+import 'widgets/common/app_error_widget.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -22,12 +25,21 @@ import 'screens/auth/register_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/contacts/contacts_screen_v2.dart';
 import 'screens/groups/groups_screen.dart';
+import 'screens/legal/privacy_policy_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/settings/statistics_screen.dart';
 import 'screens/subscription_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ── Gestion globale des erreurs ──────────────────────────────────────────
+  // Avant cette correction, AUCUN gestionnaire n'était installé : toute
+  // exception de build ou d'exécution affichait l'écran rouge de Flutter,
+  // avec l'exception brute et parfois une pile d'appels (cf. vidéo de test).
+  // On journalise tout (rien n'est supprimé ni masqué) et on affiche une vue
+  // propre à la place.
+  _installErrorHandlers();
 
   if (!kIsWeb) {
     try {
@@ -58,6 +70,32 @@ void main() async {
       child: const OmniSMSApp(),
     ),
   );
+}
+
+/// Installe les gestionnaires d'erreurs globaux.
+///
+/// Aucun journal utile n'est supprimé : les exceptions restent intégralement
+/// tracées dans la console (`debugPrint`) et, en debug, via
+/// `FlutterError.presentError`. Seul l'affichage change : plus jamais de
+/// texte technique dans l'interface.
+void _installErrorHandlers() {
+  // 1) Erreurs du framework (build, layout, paint, gestes).
+  FlutterError.onError = (details) {
+    // Dump complet conservé pour le développement.
+    FlutterError.presentError(details);
+    debugPrint('[OmniSMS][UI] ${details.exception}');
+  };
+
+  // 2) Erreurs asynchrones non capturées (Future, isolate).
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('[OmniSMS][async] $error');
+    debugPrint('[OmniSMS][async][stack] $stack');
+    // true = erreur traitée : on ne propage pas le crash à l'écran rouge.
+    return true;
+  };
+
+  // 3) Remplacement de l'écran rouge par une vue claire et sans trace.
+  ErrorWidget.builder = buildErrorWidget;
 }
 
 class OmniSMSApp extends StatelessWidget {
@@ -95,7 +133,14 @@ class OmniSMSApp extends StatelessWidget {
               child: child ?? const SizedBox.shrink(),
             );
           },
-          home: const SplashScreen(),
+          // Route web publique `/privacy` : quand l'application est ouverte
+          // directement sur cette URL (partage de lien, moteur de recherche),
+          // la page s'affiche sans passer par le splash. En Android, la page
+          // reste accessible par la route nommée '/privacy'.
+          home: (kIsWeb &&
+                  Uri.base.path.replaceAll(RegExp(r'/+$'), '') == '/privacy')
+              ? const PrivacyPolicyScreen()
+              : const SplashScreen(),
             routes: {
               '/login': (_) => const LoginScreen(),
               '/register': (_) => const RegisterScreen(),
@@ -105,6 +150,10 @@ class OmniSMSApp extends StatelessWidget {
               '/statistics': (_) => const StatisticsScreen(),
               '/subscription': (_) => const SubscriptionScreen(),
               '/settings': (_) => const SettingsScreen(),
+              // Page publique : accessible sans connexion, y compris depuis
+              // le navigateur (`/privacy`) et depuis Connexion / Inscription
+              // / Paramètres.
+              '/privacy': (_) => const PrivacyPolicyScreen(),
             },
           );
       },

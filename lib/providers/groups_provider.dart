@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/user_messages.dart';
 import '../models/models.dart';
 import '../services/groups_service.dart';
 
@@ -23,7 +24,7 @@ class GroupsProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     } catch (e) {
-      _error = 'Erreur lors du chargement des groupes: $e';
+      _error = 'Erreur lors du chargement des groupes : ${userMessage(e)}';
       _isLoading = false;
       notifyListeners();
     }
@@ -62,7 +63,7 @@ class GroupsProvider with ChangeNotifier {
       }
       return null;
     } catch (e) {
-      _error = 'Erreur lors de la création du groupe: $e';
+      _error = 'Création du groupe impossible : ${userMessage(e)}';
       notifyListeners();
       return null;
     }
@@ -76,7 +77,7 @@ class GroupsProvider with ChangeNotifier {
       }
       return success;
     } catch (e) {
-      _error = 'Erreur lors de l\'ajout du membre: $e';
+      _error = 'Erreur lors de l\'ajout du membre : ${userMessage(e)}';
       notifyListeners();
       return false;
     }
@@ -93,7 +94,7 @@ class GroupsProvider with ChangeNotifier {
       }
       return success;
     } catch (e) {
-      _error = "Erreur lors de l'ajout du membre: $e";
+      _error = "Erreur lors de l'ajout du membre : ${userMessage(e)}";
       notifyListeners();
       return false;
     }
@@ -108,7 +109,7 @@ class GroupsProvider with ChangeNotifier {
       }
       return success;
     } catch (e) {
-      _error = 'Erreur lors du transfert: $e';
+      _error = 'Erreur lors du transfert : ${userMessage(e)}';
       notifyListeners();
       return false;
     }
@@ -134,7 +135,7 @@ class GroupsProvider with ChangeNotifier {
       }
       return false;
     } catch (e) {
-      _error = "Erreur lors de l'upload de la photo: $e";
+      _error = "Erreur lors de l'upload de la photo : ${userMessage(e)}";
       notifyListeners();
       return false;
     }
@@ -148,7 +149,7 @@ class GroupsProvider with ChangeNotifier {
       }
       return success;
     } catch (e) {
-      _error = 'Erreur lors de la suppression du membre: $e';
+      _error = 'Erreur lors de la suppression du membre : ${userMessage(e)}';
       notifyListeners();
       return false;
     }
@@ -172,7 +173,7 @@ class GroupsProvider with ChangeNotifier {
       }
       return false;
     } catch (e) {
-      _error = 'Erreur lors de la mise à jour du groupe: $e';
+      _error = 'Erreur lors de la mise à jour du groupe : ${userMessage(e)}';
       notifyListeners();
       return false;
     }
@@ -187,7 +188,7 @@ class GroupsProvider with ChangeNotifier {
       }
       return success;
     } catch (e) {
-      _error = 'Erreur lors de la suppression du groupe: $e';
+      _error = 'Erreur lors de la suppression du groupe : ${userMessage(e)}';
       notifyListeners();
       return false;
     }

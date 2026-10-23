@@ -4,6 +4,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/otp_service.dart';
 import '../dashboard_screen.dart';
+import '../../widgets/auth/google_sign_in_button.dart';
 import 'otp_verification_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -107,6 +108,57 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
     }
+  }
+
+
+  /// Connexion / inscription Google.
+  ///
+  /// Le flux OAuth est STRICTEMENT le même que sur l'écran de connexion :
+  /// `AuthProvider.loginWithGoogle()` ouvre le navigateur, le backend échange
+  /// le code et crée le compte si besoin. Aucune simulation, aucune donnée
+  /// fictive — seul le point d'entrée change.
+  Future<void> _handleGoogleRegister() async {
+    final auth = context.read<AuthProvider>();
+    // Anti double-clic (le bouton est également désactivé pendant le flux).
+    if (auth.isBusy) return;
+
+    auth.clearError();
+
+    final wakeupTimer = Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _isWakingUp = true);
+    });
+
+    final success = await auth.loginWithGoogle();
+
+    await wakeupTimer.catchError((_) {});
+    if (mounted) setState(() => _isWakingUp = false);
+    if (!mounted) return;
+
+    if (success) {
+      // Compte Google nouveau : le serveur impose la vérification du numéro.
+      if (auth.needsPhoneVerification) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const OtpVerificationScreen()),
+        );
+        return;
+      }
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          auth.error ?? 'Impossible de continuer avec Google. Réessayez.',
+        ),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 6),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -391,10 +443,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 12),
 
+                        // ── Google (même flux OAuth que la connexion) ──
+                        GoogleSignInButton(
+                          isLoading: auth.isGoogleSignInInProgress,
+                          enabled: !auth.isLoading,
+                          onPressed: _handleGoogleRegister,
+                        ),
+                        const SizedBox(height: 12),
+
                         // ── Back to login ─────────────────────────
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(),
                           child: const Text('Déjà un compte ? Se connecter'),
+                        ),
+
+                        // ── Politique de confidentialité ───────────
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(context).pushNamed('/privacy'),
+                          child: const Text(
+                            'Politique de confidentialité',
+                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                          ),
                         ),
                       ],
                     ),

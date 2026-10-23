@@ -92,6 +92,9 @@
       Pas encore de compte ?
       <button class="btn-text" onclick="showScreen('screen-register')">Créer un compte</button>
     </div>
+    <div class="auth-legal">
+      <a href="/privacy" onclick="event.preventDefault(); openPrivacy();">Politique de confidentialité</a>
+    </div>
   </div>
 </div>
 
@@ -141,6 +144,9 @@
     <div class="auth-switch">
       Déjà inscrit ?
       <button class="btn-text" onclick="showScreen('screen-login')">Se connecter</button>
+    </div>
+    <div class="auth-legal">
+      <a href="/privacy" onclick="event.preventDefault(); openPrivacy();">Politique de confidentialité</a>
     </div>
   </div>
 </div>
@@ -774,6 +780,7 @@
      ═══════════════════════════════════════════════════════════ -->
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script src="otp.js"></script>
+<script src="privacy.js"></script>
 <script src="app.js"></script>
 
 <script>
@@ -788,6 +795,19 @@
     }
   });
 </script>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     PRIVACY SCREEN — route publique /privacy
+     Accessible sans compte : depuis Connexion, Inscription, les
+     paramètres, ou directement par l'URL.
+     ═══════════════════════════════════════════════════════════ -->
+<div id="screen-privacy" class="screen">
+  <div class="privacy-topbar">
+    <button class="privacy-back" onclick="closePrivacy()" aria-label="Retour">&#8592; Retour</button>
+  </div>
+  <div id="privacy-content" class="privacy-scroll"></div>
+</div>
 
 </body>
 </html>

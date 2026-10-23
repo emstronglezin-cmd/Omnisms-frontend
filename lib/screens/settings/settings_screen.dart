@@ -184,15 +184,28 @@ class SettingsScreen extends StatelessWidget {
             },
           ),
           
-          // ── Confidentialité ─────────────────────────────────
+          // ── Informations légales ───────────────────────────
+          // Page intégrée à l'application : disponible immédiatement, sans
+          // dépendre d'une URL externe encore non renseignée.
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('Politique de confidentialité'),
+            subtitle: const Text(
+              'Données traitées, finalités, destinataires et vos droits',
+            ),
+            onTap: () => Navigator.of(context).pushNamed('/privacy'),
+          ),
+
+          // ── Version web publiée ─────────────────────────────
           // Affichée uniquement si ApiConfig.privacyPolicyUrl est renseigné :
           // mieux vaut aucune entrée qu'une entrée qui n'ouvre rien.
+          // (Utile pour la revue App Store, qui exige une URL publique.)
           if (ApiConfig.hasPrivacyPolicy)
             ListTile(
-              leading: const Icon(Icons.privacy_tip_outlined),
-              title: const Text('Politique de confidentialité'),
+              leading: const Icon(Icons.open_in_new),
+              title: const Text('Politique de confidentialité (en ligne)'),
               subtitle: const Text(
-                'Comment vos données sont collectées et conservées',
+                'Ouvrir la version publiée dans le navigateur',
               ),
               trailing: const Icon(Icons.open_in_new),
               onTap: () async {
