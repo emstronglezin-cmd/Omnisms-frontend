@@ -15,8 +15,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 // Faux client HTTP : reproduit les réponses RÉELLES du backend
 // (routes/otp.js + services/otpService.js).
 // ─────────────────────────────────────────────────────────────────────────
-typedef _Handler = Future<http.Response> Function(http.BaseRequest request);
-
 http.Response _json(int status, Map<String, dynamic> body) => http.Response(
       jsonEncode(body),
       status,
