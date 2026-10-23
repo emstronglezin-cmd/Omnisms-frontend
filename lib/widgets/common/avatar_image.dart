@@ -222,8 +222,14 @@ class UserAvatar extends StatelessWidget {
               height: size,
               fit: BoxFit.cover,
               gaplessPlayback: true,
-              // Une image corrompue n'affiche jamais d'icône « cassée ».
-              errorBuilder: (_, __, ___) => fallback,
+              // Une image corrompue n'affiche jamais d'icône « cassée »…
+              errorBuilder: (_, error, ___) {
+                // …mais l'échec n'est JAMAIS masqué : on le journalise
+                // (l'interface, elle, reste propre).
+                // Règle : pas d'URL inventée, pas d'échec silencieux.
+                debugPrint('[Avatar] image mémoire illisible ($name): $error');
+                return fallback;
+              },
             );
     } else if (value.kind == AvatarKind.remoteUrl ||
         value.kind == AvatarKind.relativePath) {
@@ -239,7 +245,12 @@ class UserAvatar extends StatelessWidget {
         // Aucune clé partagée : impossible d'afficher la photo d'un autre.
         cacheKey: cacheVersion == null ? '$url#${url.hashCode}' : '$url#v$cacheVersion',
         placeholder: (context, _) => _buildPlaceholder(fallback),
-        errorWidget: (_, __, ___) => fallback,
+        errorWidget: (_, url, error) {
+          // Échec de chargement d'une photo distante : journalisé, jamais
+          // masqué (l'UI affiche le repli, le journal garde la cause).
+          debugPrint('[Avatar] échec de chargement $url : $error');
+          return fallback;
+        },
         fadeInDuration: const Duration(milliseconds: 150),
       );
     } else {
@@ -373,7 +384,10 @@ class SmartImage extends StatelessWidget {
               height: height,
               fit: fit,
               gaplessPlayback: true,
-              errorBuilder: (_, __, ___) => errorWidget ?? _defaultError(),
+              errorBuilder: (_, error, ___) {
+                debugPrint('[Avatar] image mémoire illisible: $error');
+                return errorWidget ?? _defaultError();
+              },
             );
     } else {
       final url = value.httpUrl;
@@ -390,7 +404,10 @@ class SmartImage extends StatelessWidget {
               color: Colors.grey[300],
               child: const Center(child: CircularProgressIndicator()),
             ),
-        errorWidget: (_, __, ___) => errorWidget ?? _defaultError(),
+        errorWidget: (_, url, error) {
+          debugPrint('[Avatar] échec de chargement $url : $error');
+          return errorWidget ?? _defaultError();
+        },
         fadeInDuration: const Duration(milliseconds: 150),
       );
     }
