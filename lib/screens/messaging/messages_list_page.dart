@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/messaging_provider.dart';
 import '../../models/models.dart';
 import 'conversation_screen.dart';
+import '../../widgets/common/avatar_image.dart';
 
 /// MessagesListPage — WhatsApp-style conversations list.
 ///
@@ -418,11 +419,29 @@ class _ConversationAvatar extends StatelessWidget {
         : '?';
 
     if (imageUrl != null && imageUrl!.isNotEmpty) {
-      return CircleAvatar(
-        radius: 28,
-        backgroundImage: NetworkImage(imageUrl!),
-        onBackgroundImageError: (_, __) {},
-        child: null,
+      return UserAvatar(
+        imageUrl: imageUrl,
+        name: name,
+        size: 56,
+        isGroup: isGroup,
+        fallback: CircleAvatar(
+          radius: 28,
+          backgroundColor: Colors.transparent,
+          child: isGroup
+              ? Icon(
+                  Icons.group,
+                  size: 26,
+                  color: isDark ? const Color(0xFF00D4FF) : Colors.blue,
+                )
+              : Text(
+                  initials,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? const Color(0xFF00D4FF) : Colors.green[700],
+                  ),
+                ),
+        ),
       );
     }
 

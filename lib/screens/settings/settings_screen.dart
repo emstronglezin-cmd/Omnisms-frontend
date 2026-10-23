@@ -10,6 +10,7 @@ import 'notifications_settings_screen.dart';
 import 'theme_settings_screen.dart';
 import 'statistics_screen.dart';
 import '../../screens/subscription_screen.dart';
+import '../../widgets/common/avatar_image.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -30,28 +31,16 @@ class SettingsScreen extends StatelessWidget {
             padding: const EdgeInsets.all(24.0),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 35,
+                UserAvatar(
+                  imageUrl: user?.photoUrl,
+                  name: user?.name ?? 'Utilisateur',
+                  size: 70,
                   backgroundColor: Theme.of(context).colorScheme.primary,
-                  child: user?.photoUrl != null
-                      ? ClipOval(
-                          child: Image.network(
-                            user!.photoUrl!,
-                            width: 70,
-                            height: 70,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(
-                              Icons.person,
-                              size: 35,
-                              color: Colors.white,
-                            ),
-                          ),
-                        )
-                      : const Icon(
-                          Icons.person,
-                          size: 35,
-                          color: Colors.white,
-                        ),
+                  fallback: const Icon(
+                    Icons.person,
+                    size: 35,
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(

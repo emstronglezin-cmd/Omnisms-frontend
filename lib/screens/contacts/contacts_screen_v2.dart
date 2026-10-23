@@ -5,6 +5,7 @@ import '../../providers/messaging_provider.dart';
 import '../../models/models.dart';
 import '../messaging/conversation_screen.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/common/avatar_image.dart';
 
 /// ContactsScreenV2 — Écran des contacts avec import et ajout
 ///
@@ -951,13 +952,17 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
 
   Widget _buildContactTile(ContactModel contact) {
     return ListTile(
-      leading: CircleAvatar(
-        backgroundColor:
-            Theme.of(context).primaryColor.withOpacity(0.1),
-        child: Text(
-          contact.name.isNotEmpty
-              ? contact.name[0].toUpperCase()
-              : '?',
+      // La liste de contacts n'affichait QUE les initiales : la photo
+      // renvoyée par /api/contacts (champ `avatar`, data URI) n'était jamais
+      // utilisée. UserAvatar affiche le data URI, ou retombe sur
+      // l'initiale si le contact n'a pas de photo.
+      leading: UserAvatar(
+        imageUrl: contact.photoUrl,
+        name: contact.name,
+        size: 44,
+        backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+        fallback: Text(
+          contact.name.isNotEmpty ? contact.name[0].toUpperCase() : '?',
           style: TextStyle(
             color: Theme.of(context).primaryColor,
             fontWeight: FontWeight.bold,

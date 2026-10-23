@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/presence_service.dart';
+import '../common/avatar_image.dart';
 
 /// Widget pour afficher le statut en ligne d'un utilisateur
 class OnlineStatusIndicator extends StatelessWidget {
@@ -131,17 +132,12 @@ class AvatarWithStatus extends StatelessWidget {
                 end: Alignment.bottomRight,
               ),
             ),
-            child: imageUrl != null && imageUrl!.isNotEmpty
-                ? ClipOval(
-                    child: Image.network(
-                      imageUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return _buildInitialsAvatar();
-                      },
-                    ),
-                  )
-                : _buildInitialsAvatar(),
+            child: UserAvatar(
+              imageUrl: imageUrl,
+              name: name,
+              size: size,
+              fallback: _buildInitialsAvatar(),
+            ),
           ),
           
           // Online status indicator

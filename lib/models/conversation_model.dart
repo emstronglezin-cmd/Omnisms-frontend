@@ -45,8 +45,12 @@ class ConversationModel {
   factory ConversationModel.fromJson(Map<String, dynamic> json) {
     // Parse lastMessageTime — backend may send 'lastMessageTime' or 'updatedAt' or 'createdAt'
     DateTime? lastTime;
+    // `lastMessage` peut être un objet ({content, createdAt}) ou une simple
+    // chaîne selon l'endpoint : indexer une chaîne levait une exception et
+    // faisait échouer l'analyse de TOUTE la liste de conversations.
+    final rawLastMessage = json['lastMessage'];
     final rawTime = json['lastMessageTime'] ??
-        json['lastMessage']?['createdAt'] ??
+        (rawLastMessage is Map ? rawLastMessage['createdAt'] : null) ??
         json['updatedAt'] ??
         json['createdAt'];
     if (rawTime != null) {
@@ -73,8 +77,14 @@ class ConversationModel {
           json['contactName'] ??
           json['name'] ??
           'Utilisateur',
-      otherUserPhotoUrl:
-          json['otherUserPhotoUrl'] ?? json['photoUrl'] ?? json['photo_url'],
+      // Contrat réel (routes/messages.v2.js) : `conv.otherUserAvatar`, issu
+      // du contact local ou du profil. Les variantes historiques sont
+      // conservées en repli, jamais l'inverse.
+      otherUserPhotoUrl: (json['otherUserAvatar'] ??
+          json['avatar'] ??
+          json['otherUserPhotoUrl'] ??
+          json['photoUrl'] ??
+          json['photo_url']),
       lastMessage: lastMsgContent,
       lastMessageTime: lastTime,
       unreadCount: (json['unreadCount'] ?? json['unread_count'] ?? 0) as int,

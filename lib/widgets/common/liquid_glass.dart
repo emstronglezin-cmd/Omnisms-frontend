@@ -14,6 +14,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../providers/theme_provider.dart';
+import 'avatar_image.dart';
 
 // ─── LiquidGlassCard ──────────────────────────────────────────────────────────
 /// Carte avec effet Liquid Glass (frosted glass + reflet)
@@ -208,15 +209,12 @@ class OmniAvatarWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final child = ClipRRect(
       borderRadius: BorderRadius.circular(size / 2),
-      child: imageUrl != null && imageUrl!.isNotEmpty
-          ? Image.network(
-              imageUrl!,
-              width: size,
-              height: size,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _buildInitialsAvatar(),
-            )
-          : _buildInitialsAvatar(),
+      child: UserAvatar(
+        imageUrl: imageUrl,
+        name: initials ?? '',
+        size: size,
+        fallback: _buildInitialsAvatar(),
+      ),
     );
 
     if (showOnlineDot) {

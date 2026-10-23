@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../common/avatar_image.dart';
+import '../../models/message_model.dart' show MessageStatus;
 
 enum MessageType { text, audio, image }
 
@@ -9,9 +11,18 @@ class ModernMessageBubble extends StatelessWidget {
   final DateTime timestamp;
   final MessageType type;
   final bool isRead;
+
+  /// Statut réellement renvoyé par le backend (`status` du message).
+  ///
+  /// Il prime sur [isRead] : un message en cours d'envoi ou en échec ne doit
+  /// jamais arborer la coche de « remis ».
+  final MessageStatus? status;
   final VoidCallback? onLongPress;
   final Widget? audioWidget;
   final String? imageUrl;
+
+  /// Renvoi d'un message dont l'envoi a échoué (bouton de l'écran).
+  final VoidCallback? onRetry;
 
   const ModernMessageBubble({
     super.key,
@@ -20,9 +31,11 @@ class ModernMessageBubble extends StatelessWidget {
     required this.timestamp,
     this.type = MessageType.text,
     this.isRead = false,
+    this.status,
     this.onLongPress,
     this.audioWidget,
     this.imageUrl,
+    this.onRetry,
   });
 
   @override
@@ -122,17 +135,14 @@ class ModernMessageBubble extends StatelessWidget {
         topLeft: Radius.circular(20),
         topRight: Radius.circular(20),
       ),
-      child: Image.network(
-        imageUrl!,
+      child: SmartImage(
+        imageUrl: imageUrl,
         fit: BoxFit.cover,
-        loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
-          return Container(
-            height: 200,
-            color: Colors.grey[300],
-            child: const Center(child: CircularProgressIndicator()),
-          );
-        },
+        placeholder: Container(
+          height: 200,
+          color: Colors.grey[300],
+          child: const Center(child: CircularProgressIndicator()),
+        ),
       ),
     );
   }
@@ -157,7 +167,31 @@ class ModernMessageBubble extends StatelessWidget {
     );
   }
 
+  /// Indicateur d'état, strictement calé sur le statut serveur :
+  ///   envoi en cours → horloge ; échec → point d'exclamation rouge ;
+  ///   remis → double coche grise ; lu → double coche bleue.
+  ///
+  /// Aucun message n'est présenté comme remis sans confirmation du serveur.
   Widget _buildSeenStatus() {
+    final etat = status;
+    if (etat != null) {
+      switch (etat) {
+        case MessageStatus.sending:
+          return const Icon(Icons.schedule, size: 15, color: Colors.white70);
+        case MessageStatus.failed:
+          return GestureDetector(
+            onTap: onRetry,
+            child: const Icon(Icons.error_outline, size: 16, color: Colors.redAccent),
+          );
+        case MessageStatus.read:
+          return const Icon(Icons.done_all, size: 16, color: Color(0xFF0084FF));
+        case MessageStatus.delivered:
+          return const Icon(Icons.done_all, size: 16, color: Colors.grey);
+        case MessageStatus.sent:
+          return const Icon(Icons.done, size: 16, color: Colors.grey);
+      }
+    }
+    // Repli (statut absent) : comportement historique.
     return Icon(
       isRead ? Icons.done_all : Icons.done,
       size: 16,

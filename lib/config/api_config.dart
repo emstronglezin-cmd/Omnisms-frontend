@@ -187,10 +187,23 @@ class ApiConfig {
   // Ces hôtes servent UNIQUEMENT à reconnaître un callback, et seulement
   // pendant un flux Google ouvert par l'application : aucun autre lien
   // (même porteur d'un paramètre `code`) n'est détourné.
+  // Hôtes HTTPS autorisés à porter un retour OAuth.
+  //
+  // ⚠️ Constat de production (23/10/2026) : `GET /api/auth/google` (endpoint
+  // utilisé par l'APK, sans `?target=web`) renvoie aujourd'hui
+  //   redirect_uri = https://omnisms-backend.onrender.com/api/auth/google/callback
+  // c'est-à-dire le callback WEB : la variable GOOGLE_FLUTTER_REDIRECT_URI
+  // n'est pas renseignée côté serveur. Le navigateur reste donc sur le
+  // domaine du backend et l'APK ne reçoit jamais le code.
+  // L'hôte du backend est ajouté par mesure défensive : si le serveur y
+  // renvoyait un code, le lien serait reconnu. La correction réelle est côté
+  // serveur (GOOGLE_FLUTTER_REDIRECT_URI=omnisms://auth/google/callback).
   static const List<String> googleCallbackHosts = <String>[
     'omnisms-frontend-drab.vercel.app',
     'omnisms.vercel.app',
     'omnisms.onrender.com',
+    // Hôte réel de l'API : voir le commentaire ci-dessus.
+    'omnisms-backend.onrender.com',
   ];
 
   /// `true` si [host] est autorisé à porter un retour OAuth Google.

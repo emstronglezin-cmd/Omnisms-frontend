@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'common/avatar_image.dart';
 
 /// Widget pour charger paresseusement du contenu
 class LazyLoadWidget extends StatefulWidget {
@@ -259,41 +260,25 @@ class LazyImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.network(
-      imageUrl,
+    // SmartImage comprend le contrat réel du backend : data URI (pièces
+    // jointes récentes) comme URL distante.
+    return SmartImage(
+      imageUrl: imageUrl,
       width: width,
       height: height,
-      fit: fit,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        
-        return placeholder ??
-            SizedBox(
-              width: width,
-              height: height,
-              child: Center(
-                child: CircularProgressIndicator(
-                  value: loadingProgress.expectedTotalBytes != null
-                      ? loadingProgress.cumulativeBytesLoaded /
-                          loadingProgress.expectedTotalBytes!
-                      : null,
-                ),
-              ),
-            );
-      },
-      errorBuilder: (context, error, stackTrace) {
-        return errorWidget ??
-            Container(
-              width: width,
-              height: height,
-              color: Colors.grey[300],
-              child: const Icon(
-                Icons.broken_image,
-                color: Colors.grey,
-                size: 48,
-              ),
-            );
-      },
+      fit: fit ?? BoxFit.cover,
+      placeholder: placeholder,
+      errorWidget: errorWidget ??
+          Container(
+            width: width,
+            height: height,
+            color: Colors.grey[300],
+            child: const Icon(
+              Icons.broken_image,
+              color: Colors.grey,
+              size: 48,
+            ),
+          ),
     );
   }
 }

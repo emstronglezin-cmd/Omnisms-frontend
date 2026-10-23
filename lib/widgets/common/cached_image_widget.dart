@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../services/cache_service.dart';
+
+import 'avatar_image.dart';
 
 /// Widget optimisé pour afficher des images avec cache automatique
 class CachedImageWidget extends StatelessWidget {
@@ -25,32 +26,14 @@ class CachedImageWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageWidget = CachedNetworkImage(
+    // Délègue à SmartImage : data URI du backend ou URL distante, avec cache.
+    final imageWidget = SmartImage(
       imageUrl: imageUrl,
       width: width,
       height: height,
       fit: fit,
-      cacheManager: CacheService.imageCache,
-      placeholder: (context, url) =>
-          placeholder ??
-          Container(
-            color: Colors.grey[300],
-            child: const Center(
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
-      errorWidget: (context, url, error) =>
-          errorWidget ??
-          Container(
-            color: Colors.grey[200],
-            child: const Icon(
-              Icons.broken_image,
-              color: Colors.grey,
-              size: 32,
-            ),
-          ),
-      fadeInDuration: const Duration(milliseconds: 200),
-      fadeOutDuration: const Duration(milliseconds: 100),
+      placeholder: placeholder,
+      errorWidget: errorWidget,
     );
 
     if (borderRadius != null) {
@@ -85,27 +68,13 @@ class CachedAvatarWidget extends StatelessWidget {
     final bgColor = backgroundColor ??
         _generateColorFromName(name);
 
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: bgColor,
-      ),
-      child: imageUrl != null && imageUrl!.isNotEmpty
-          ? ClipOval(
-              child: CachedNetworkImage(
-                imageUrl: imageUrl!,
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-                cacheManager: CacheService.imageCache,
-                placeholder: (context, url) => _buildInitialsAvatar(initials, size),
-                errorWidget: (context, url, error) => _buildInitialsAvatar(initials, size),
-                fadeInDuration: const Duration(milliseconds: 200),
-              ),
-            )
-          : _buildInitialsAvatar(initials, size),
+    // Délègue à UserAvatar : c'est lui qui sait afficher un data URI.
+    return UserAvatar(
+      imageUrl: imageUrl,
+      name: name,
+      size: size,
+      backgroundColor: bgColor,
+      fallback: _buildInitialsAvatar(initials, size),
     );
   }
 

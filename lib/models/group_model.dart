@@ -24,7 +24,9 @@ class GroupModel {
       id: json['id'] ?? json['_id'] ?? '',
       name: json['name'] ?? 'Groupe',
       description: json['description'],
-      photoUrl: json['photoUrl'] ?? json['photo_url'],
+      // Même contrat que les utilisateurs : l'avatar de groupe est stocké
+      // sous `avatar` (base64) côté serveur.
+      photoUrl: json['avatar'] ?? json['avatarUrl'] ?? json['photoUrl'] ?? json['photo_url'],
       memberIds: List<String>.from(json['memberIds'] ?? json['member_ids'] ?? []),
       creatorId: json['creatorId'] ?? json['creator_id'] ?? '',
       createdAt: json['createdAt'] != null

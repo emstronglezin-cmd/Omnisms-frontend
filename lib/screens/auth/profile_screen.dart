@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
 import '../auth/login_screen.dart';
+import '../../widgets/common/avatar_image.dart';
 
 /// Écran « Profil » — aligné sur l'onglet Paramètres de la PWA
 /// (`renderSettings()` / `saveProfile()` / `uploadAvatar()` dans public/app.js).
@@ -402,22 +403,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// Photo de profil.
+  ///
+  /// `UserAvatar` affiche aussi bien un data URI (contrat actuel du backend)
+  /// qu'une URL distante. `avatarVersion` est incrémenté à chaque upload
+  /// réussi : si le serveur renvoyait la même URL avec un contenu différent,
+  /// le cache disque serait bien invalidé.
   Widget _avatarContent(String? photoUrl) {
-    if (photoUrl == null || photoUrl.isEmpty) {
-      return const Icon(Icons.person, size: 60, color: Colors.white);
-    }
-    return ClipOval(
-      child: Image.network(
-        photoUrl,
-        width: 120,
-        height: 120,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Icon(
-          Icons.person,
-          size: 60,
-          color: Colors.white,
-        ),
-      ),
+    final auth = context.watch<AuthProvider>();
+    return UserAvatar(
+      imageUrl: photoUrl,
+      name: auth.currentUser?.name ?? 'Utilisateur',
+      size: 120,
+      cacheVersion: auth.avatarVersion,
+      fallback: const Icon(Icons.person, size: 60, color: Colors.white),
     );
   }
 

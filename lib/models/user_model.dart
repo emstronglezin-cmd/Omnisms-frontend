@@ -75,7 +75,13 @@ class UserModel {
       name: json['name']?.toString(),
       email: json['email']?.toString(),
       phone: json['phone']?.toString(),
-      photoUrl: (json['photoUrl'] ?? json['photo_url'] ?? json['avatar'])
+      // Contrat réel : `avatar` (GET /api/me) et `avatarUrl`
+      // (POST /api/me/avatar). La valeur est un data URI base64 — jamais une
+      // URL : l'affichage est géré par UserAvatar (widgets/common/avatar_image.dart).
+      photoUrl: (json['photoUrl'] ??
+          json['photo_url'] ??
+          json['avatar'] ??
+          json['avatarUrl'])
           ?.toString(),
       username: json['username']?.toString(),
       isSubscribed: json['isSubscribed'] == true || json['subscribed'] == true,

@@ -17,6 +17,13 @@ class AuthProvider with ChangeNotifier {
   final OtpService _otpService;
 
   UserModel? _currentUser;
+
+  /// Incrémenté à chaque photo de profil réellement mise à jour.
+  ///
+  /// Sert à invalider le cache disque lorsque le serveur renvoie une URL
+  /// IDENTIQUE dont le contenu a changé : `UserAvatar` s'en sert pour
+  /// composer sa clé de cache, sans jamais modifier l'URL demandée.
+  int _avatarVersion = 0;
   bool _isLoggedIn = false;
   bool _isLoading = false;
   bool _isGoogleSignInInProgress = false;
@@ -36,6 +43,9 @@ class AuthProvider with ChangeNotifier {
   int _otpResendCooldown = 0;
 
   UserModel? get currentUser => _currentUser;
+
+  /// Version de la photo de profil (voir [_avatarVersion]).
+  int get avatarVersion => _avatarVersion;
   bool get isLoggedIn => _isLoggedIn;
   bool get isLoading => _isLoading;
   bool get isGoogleSignInInProgress => _isGoogleSignInInProgress;
@@ -509,11 +519,15 @@ class AuthProvider with ChangeNotifier {
             await _authService.getCurrentUser();
         if (refreshed != null) {
           _currentUser = refreshed;
+          // L'avatar a changé : toute image mise en cache sous l'ancienne
+          // version ne doit plus être servie.
+          _avatarVersion++;
         } else if (result['avatarUrl'] != null) {
           _currentUser = _currentUser?.copyWith(
                 photoUrl: result['avatarUrl'].toString(),
               ) ??
               UserModel(id: '', photoUrl: result['avatarUrl'].toString());
+          _avatarVersion++;
         }
         _isLoading = false;
         notifyListeners();

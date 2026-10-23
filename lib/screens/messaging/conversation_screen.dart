@@ -631,6 +631,13 @@ class _ConversationScreenState extends State<ConversationScreen>
                           type: _getModernMessageType(message.type),
                           isRead:
                               message.status == MessageStatus.read,
+                          // Statut serveur : jamais « remis » sans confirmation.
+                          status: message.status,
+                          onRetry: canRetry
+                              ? () => context
+                                  .read<MessagingProvider>()
+                                  .retryMessage(message.id)
+                              : null,
                           onLongPress: () =>
                               _showMessageOptions(message),
                           audioWidget:

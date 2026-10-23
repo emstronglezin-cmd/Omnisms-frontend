@@ -5,6 +5,7 @@ import '../../providers/groups_provider.dart';
 import '../../providers/messaging_provider.dart';
 import '../../models/models.dart';
 import 'group_conversation_screen.dart';
+import '../../widgets/common/avatar_image.dart';
 
 /// CreateGroupScreen — create a new group and immediately open its conversation.
 ///
@@ -247,43 +248,23 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                             : Theme.of(context)
                                 .colorScheme
                                 .primaryContainer,
-                        child: contact.photoUrl != null
-                            ? ClipOval(
-                                child: Image.network(
-                                  contact.photoUrl!,
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Text(
-                                    contact.name.isNotEmpty
-                                        ? contact.name[0].toUpperCase()
-                                        : '?',
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? Theme.of(context)
-                                              .colorScheme
-                                              .onPrimary
-                                          : Theme.of(context)
-                                              .colorScheme
-                                              .onPrimaryContainer,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            : Text(
-                                contact.name.isNotEmpty
-                                    ? contact.name[0].toUpperCase()
-                                    : '?',
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? Theme.of(context)
-                                          .colorScheme
-                                          .onPrimary
-                                      : Theme.of(context)
-                                          .colorScheme
-                                          .onPrimaryContainer,
-                                ),
-                              ),
+                        child: UserAvatar(
+                          imageUrl: contact.photoUrl,
+                          name: contact.name,
+                          size: 40,
+                          fallback: Text(
+                            contact.name.isNotEmpty
+                                ? contact.name[0].toUpperCase()
+                                : '?',
+                            style: TextStyle(
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.onPrimary
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .onPrimaryContainer,
+                            ),
+                          ),
+                        ),
                       ),
                     );
                   },
