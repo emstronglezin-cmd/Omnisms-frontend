@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.omni_smsnew"
+    namespace = "com.omnisms.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -22,14 +22,20 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.omni_smsnew"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = 33
-        versionCode = 1
-        versionName = "1.0"
+        // IMPORTANT — identifiant définitif (choix validé par l'éditeur).
+        // Il est IMPOSSIBLE de le changer après la première publication sur
+        // Google Play : toute modification créerait une fiche distincte.
+        // Aligné sur l'identifiant iOS (PRODUCT_BUNDLE_IDENTIFIER).
+        applicationId = "com.omnisms.app"
+        minSdk = flutter.minSdkVersion  // 24 (Android 7.0) — défaut Flutter 3.47
+        // Google Play exige Android 16 (API 36) depuis le 31/08/2026 pour
+        // toute nouvelle application et toute mise à jour. On suit donc la
+        // valeur du SDK Flutter (36) au lieu d'une valeur figée.
+        targetSdk = flutter.targetSdkVersion
+        // Version lue depuis pubspec.yaml (2.5.0+1) : une seule source de
+        // vérité, plus de désynchronisation Gradle/pubspec.
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
         
         // NDK abi filters removed to allow split-per-abi builds
         // ndk {

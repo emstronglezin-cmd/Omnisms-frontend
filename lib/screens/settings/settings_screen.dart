@@ -234,6 +234,15 @@ class SettingsScreen extends StatelessWidget {
             subtitle: const Text('Action irréversible'),
             onTap: () => _confirmDeleteAccount(context),
           ),
+          // Parcours web public : exigé par Google Play et par l'App Store
+          // pour les comptes créés depuis l'application. Il fonctionne même
+          // si l'utilisateur n'a plus accès à l'app ou a perdu son compte.
+          ListTile(
+            leading: const Icon(Icons.open_in_new),
+            title: const Text('Supprimer mon compte depuis le web'),
+            subtitle: const Text('Page publique de suppression de compte'),
+            onTap: () => _openAccountDeletionWebPage(context),
+          ),
 
           const Divider(),
           
@@ -330,14 +339,39 @@ class SettingsScreen extends StatelessWidget {
   }
 
   // ── Suppression du compte (DELETE /api/me) ──────────────────
+  /// Ouvre la page publique de suppression de compte (parcours web exigé
+  /// par Google Play et l'App Store). Le lien n'est jamais fabriqué : il
+  /// provient de la configuration d'API.
+  Future<void> _openAccountDeletionWebPage(BuildContext context) async {
+    final uri = Uri.parse(ApiConfig.accountWebUrl);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    } catch (e) {
+      debugPrint('[Settings] ouverture page de suppression impossible: $e');
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Impossible d’ouvrir la page de suppression.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Future<void> _confirmDeleteAccount(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Supprimer mon compte'),
         content: const Text(
-          '⚠️ Cette action est irréversible. Votre compte sera désactivé et '
-          'vos données anonymisées.',
+          '⚠️ Cette action est irréversible.\n\n'
+          '• Votre profil (nom, e-mail, photo, numéro) est effacé ou anonymisé.\n'
+          '• Vos contacts et vos conversations sont supprimés.\n'
+          '• Vos crédits restants sont perdus : ils ne sont pas remboursables.\n'
+          '• Les données résiduelles sont purgées définitivement sous 30 jours.',
         ),
         actions: [
           TextButton(

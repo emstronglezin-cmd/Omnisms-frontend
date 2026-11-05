@@ -6,6 +6,7 @@ import '../config/api_config.dart';
 import '../models/models.dart';
 import 'google_oauth_flow.dart';
 import 'otp_service.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 class AuthService {
   static const String _tokenKey  = 'auth_token';
@@ -635,16 +636,35 @@ class AuthService {
   }
 
   // ── Delete account ────────────────────────────────────────────
-  /// DELETE /api/me — idem PWA (`deleteAccount()`).
+  /// Suppression du compte — `POST /api/account/delete` (conformité Play).
+  ///
+  /// Pourquoi ce endpoint plutôt que `DELETE /api/me` : les deux anonymisent
+  /// le compte, mais seul `/api/account/delete` écrit le journal d'audit
+  /// (`account_deletions`), vide les jetons d'envoi (`fcmTokens`), fixe la
+  /// date de purge (`purgeDueAt`, 30 jours) et révoque les jetons — c'est le
+  /// parcours exigé par Google Play et décrit dans la politique de
+  /// confidentialité. Vérifié dans le backend : `routes/accountDeletion.js`.
+  ///
+  /// Repli : si le serveur ne connaît pas encore cette route (404/405), on
+  /// retombe sur `DELETE /api/me`, qui reste fonctionnel.
   Future<Map<String, dynamic>> deleteAccount() async {
     try {
       final token = await getToken();
       if (token == null) return {'success': false, 'message': 'Non authentifié'};
 
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.meEndpoint}'),
+      var response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.accountDeleteEndpoint}'),
         headers: {...ApiConfig.headers, 'Authorization': 'Bearer $token'},
       ).timeout(ApiConfig.requestTimeout);
+
+      // Ancien déploiement sans /api/account : on garde le parcours vivant.
+      if (response.statusCode == 404 || response.statusCode == 405) {
+        debugPrint('[AuthService] /api/account/delete absent — repli DELETE /api/me');
+        response = await http.delete(
+          Uri.parse('${ApiConfig.baseUrl}${ApiConfig.meEndpoint}'),
+          headers: {...ApiConfig.headers, 'Authorization': 'Bearer $token'},
+        ).timeout(ApiConfig.requestTimeout);
+      }
 
       final data = jsonDecode(response.body);
 

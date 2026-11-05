@@ -1,4 +1,4 @@
-package com.example.omni_smsnew
+package com.omnisms.app
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -124,6 +124,24 @@ class ApiConfig {
   static bool get hasPrivacyPolicy =>
       privacyPolicyUrl.startsWith('https://');
 
+  // ── Suppression du compte (conformité Google Play / App Store) ──
+  // Le backend expose un parcours complet dans `routes/accountDeletion.js`,
+  // monté sur /api/account :
+  //   POST /api/account/delete      → suppression depuis l'application
+  //                                   (jeton requis) : anonymisation des
+  //                                   données personnelles, journal d'audit,
+  //                                   révocation des jetons et purge
+  //                                   définitive après 30 jours.
+  //   GET  /api/account/web         → page publique de suppression, utilisable
+  //                                   même sans accès à l'application.
+  // Ces deux chemins sont exigés par Google Play pour les comptes créés
+  // depuis l'application ; ils existent réellement côté serveur.
+  static const String accountDeleteEndpoint = '/api/account/delete';
+  static const String accountWebEndpoint = '/api/account/web';
+
+  /// URL publique de la page web de suppression de compte.
+  static String get accountWebUrl => '$baseUrl$accountWebEndpoint';
+
   static const String meProfileEndpoint = '/api/me/profile';
   static const String meAvatarEndpoint = '/api/me/avatar';
 
