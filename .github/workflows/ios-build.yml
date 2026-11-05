@@ -84,7 +84,15 @@ jobs:
       - name: Dépendances CocoaPods
         run: |
           cd ios
-          pod install --repo-update
+          if ! pod install --repo-update; then
+            echo "::group::Diagnostic — cible iOS minimale exigée"
+            find "$FLUTTER_ROOT" -name "Flutter.podspec" 2>/dev/null | while read -r f; do
+              echo "--- $f"
+              grep -iE "deployment_target|platform" "$f" | head -5
+            done
+            echo "::endgroup::"
+            exit 1
+          fi
 
       - name: Vérifications statiques
         run: flutter analyze --no-fatal-infos --no-fatal-warnings lib/ test/
