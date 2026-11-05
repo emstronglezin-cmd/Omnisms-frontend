@@ -1,0 +1,217 @@
+# Build iOS — OmniSMS
+#
+# Deux étapes, volontairement séparées :
+#
+#   1. « compiler-ios » : compile l'application sans la signer. Aucun secret
+#      n'est nécessaire. Elle produit Runner.app, ce qui prouve que le projet
+#      iOS compile réellement avec la chaîne d'outils Apple — c'est ce que
+#      l'environnement de développement ne peut pas vérifier (pas de macOS).
+#
+#   2. « archive-signee » : produit l'archive .ipa installable. Elle ne peut
+#      fonctionner qu'avec un certificat et un profil de provisionnement
+#      fournis dans les secrets du dépôt. Tant qu'ils sont absents, la tâche
+#      est ignorée et une troisième tâche l'explique clairement — plutôt que
+#      d'échouer en silhouette.
+#
+# Secrets attendus (paramètres du dépôt → Secrets and variables → Actions) :
+#   IOS_BUILD_CERTIFICATE_BASE64       certificat .p12 encodé en base64
+#   IOS_P12_PASSWORD                   mot de passe du .p12
+#   IOS_BUILD_PROVISION_PROFILE_BASE64 profil .mobileprovision en base64
+#   IOS_APPLE_TEAM_ID                  identifiant d'équipe Apple (ex. A1B2C3D4E5)
+#   IOS_KEYCHAIN_PASSWORD              mot de passe du trousseau temporaire
+# Variables (non sensibles) :
+#   IOS_PROFILE_NAME                   nom exact du profil de provisionnement
+#   IOS_EXPORT_METHOD                  app-store | ad-hoc | development | enterprise
+
+name: Build iOS
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+jobs:
+  compiler-ios:
+    name: Compiler iOS sans signature
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+
+      - name: Versions des outils
+        run: |
+          flutter --version
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Dépendances Dart
+        run: flutter pub get
+
+      - name: Dépendances CocoaPods
+        run: |
+          cd ios
+          pod install --repo-update
+
+      - name: Vérifications statiques
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib/ test/
+
+      - name: Tests Flutter
+        run: flutter test
+
+      # --no-codesign : on compile sans certificat. C'est la seule façon
+      # d'obtenir une compilation honnête du projet iOS sans les secrets de
+      # signature ; le résultat n'est pas installable tel quel.
+      - name: Compiler Runner.app
+        run: flutter build ios --release --no-codesign
+
+      - name: Empaqueter le bundle
+        run: |
+          cd build/ios/iphoneos
+          zip -q -r -y Runner-app.zip Runner.app
+          ls -lh Runner-app.zip
+
+      - name: Publier le bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Runner-app-non-signe-${{ github.run_number }}
+          path: build/ios/iphoneos/Runner-app.zip
+          retention-days: 14
+
+  archive-signee:
+    name: Produire l'archive .ipa signée
+    needs: compiler-ios
+    runs-on: macos-latest
+    timeout-minutes: 60
+    # Ne s'exécute que si les secrets de signature existent. Comparer un
+    # secret à la chaîne vide est autorisé par GitHub Actions.
+    if: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 != '' && secrets.IOS_BUILD_PROVISION_PROFILE_BASE64 != '' }}
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+
+      - name: Importer le certificat et le profil
+        env:
+          CERTIFICAT: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
+          MOT_DE_PASSE_P12: ${{ secrets.IOS_P12_PASSWORD }}
+          PROFIL: ${{ secrets.IOS_BUILD_PROVISION_PROFILE_BASE64 }}
+          MOT_DE_PASSE_TROUSSEAU: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/certificat.p12"
+          PROFIL_PATH="$RUNNER_TEMP/profil.mobileprovision"
+          TROUSSEAU="$RUNNER_TEMP/signature.keychain-db"
+
+          echo -n "$CERTIFICAT" | base64 --decode --output "$CERT_PATH"
+          echo -n "$PROFIL" | base64 --decode --output "$PROFIL_PATH"
+
+          security create-keychain -p "$MOT_DE_PASSE_TROUSSEAU" "$TROUSSEAU"
+          security set-keychain-settings -lut 21600 "$TROUSSEAU"
+          security unlock-keychain -p "$MOT_DE_PASSE_TROUSSEAU" "$TROUSSEAU"
+          security import "$CERT_PATH" -P "$MOT_DE_PASSE_P12" -A -t cert -f pkcs12 -k "$TROUSSEAU"
+          security set-key-partition-list -S apple-tool:,apple: -k "$MOT_DE_PASSE_TROUSSEAU" "$TROUSSEAU"
+          security list-keychain -d user -s "$TROUSSEAU"
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$PROFIL_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/"
+          rm -f "$CERT_PATH"
+
+      - name: Configurer la signature du projet
+        env:
+          EQUIPE: ${{ secrets.IOS_APPLE_TEAM_ID }}
+          PROFIL_NOM: ${{ vars.IOS_PROFILE_NAME }}
+        run: |
+          # Injecté uniquement pendant la tâche CI : le dépôt n'est pas
+          # modifié, ces valeurs ne sont jamais versionnées.
+          cat >> ios/Flutter/Release.xcconfig <<XCCONFIG
+          DEVELOPMENT_TEAM = $EQUIPE
+          CODE_SIGN_STYLE = Manual
+          PROVISIONING_PROFILE_SPECIFIER = $PROFIL_NOM
+          XCCONFIG
+
+      - name: Générer ExportOptions.plist
+        env:
+          EQUIPE: ${{ secrets.IOS_APPLE_TEAM_ID }}
+          PROFIL_NOM: ${{ vars.IOS_PROFILE_NAME }}
+          METHODE: ${{ vars.IOS_EXPORT_METHOD }}
+        run: |
+          METHODE_EXPORT="${METHODE:-app-store}"
+          cat > ios/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>$METHODE_EXPORT</string>
+            <key>teamID</key>
+            <string>$EQUIPE</string>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.omnisms.app</key>
+              <string>$PROFIL_NOM</string>
+            </dict>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Dépendances
+        run: |
+          flutter pub get
+          cd ios && pod install && cd ..
+
+      - name: Produire l'archive .ipa
+        run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+
+      - name: Publier l'archive .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniSMS-iOS-${{ github.run_number }}
+          path: build/ios/ipa/*.ipa
+          retention-days: 30
+
+  signature-absente:
+    name: Signature non configurée
+    needs: compiler-ios
+    runs-on: ubuntu-latest
+    if: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 == '' || secrets.IOS_BUILD_PROVISION_PROFILE_BASE64 == '' }}
+
+    steps:
+      - name: Expliquer ce qu'il manque
+        run: |
+          echo "✅ Le projet iOS compile (voir la tâche « Compiler iOS sans signature »)."
+          echo ""
+          echo "⏸️  Aucune archive .ipa produite : la signature n'est pas configurée."
+          echo ""
+          echo "Pour obtenir une .ipa installable, renseignez dans"
+          echo "Paramètres → Secrets and variables → Actions :"
+          echo "  · IOS_BUILD_CERTIFICATE_BASE64       (certificat .p12 en base64)"
+          echo "  · IOS_P12_PASSWORD"
+          echo "  · IOS_BUILD_PROVISION_PROFILE_BASE64 (profil .mobileprovision en base64)"
+          echo "  · IOS_APPLE_TEAM_ID"
+          echo "  · IOS_KEYCHAIN_PASSWORD"
+          echo "et en variables : IOS_PROFILE_NAME, IOS_EXPORT_METHOD."
+          echo ""
+          echo "Cette tâche disparaîtra d'elle-même dès que les secrets seront présents."
