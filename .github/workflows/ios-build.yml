@@ -22,6 +22,15 @@
 # Variables (non sensibles) :
 #   IOS_PROFILE_NAME                   nom exact du profil de provisionnement
 #   IOS_EXPORT_METHOD                  app-store | ad-hoc | development | enterprise
+#   IOS_RUNNER                         self-hosted | macos-15 | macos-14 (défaut macos-latest)
+#
+# ⚠️ Compte GitHub Free + dépôt privé : sans moyen de paiement validé, GitHub
+# n'attribue aucune machine macOS — la tâche reste en file d'attente puis est
+# annulée au bout d'un quart d'heure sans exécuter la moindre étape (les
+# tâches Ubuntu, elles, démarrent normalement). Trois issues : ajouter un
+# moyen de paiement (les minutes macOS consomment 10× le quota, soit ~200
+# minutes réelles par mois en forfait Free), exécuter la compilation sur votre
+# propre Mac avec un runner auto-hébergé, ou rendre le dépôt public.
 
 name: Build iOS
 
@@ -58,7 +67,11 @@ jobs:
 
   compiler-ios:
     name: Compiler iOS sans signature
-    runs-on: macos-latest
+    # Runner modifiable sans toucher au code : renseigner la variable de dépôt
+    # IOS_RUNNER = self-hosted pour exécuter la compilation sur votre propre
+    # Mac (aucune minute facturée), ou = macos-15 / macos-14 pour cibler une
+    # image précise. Défaut : macos-latest.
+    runs-on: ${{ vars.IOS_RUNNER || 'macos-latest' }}
     timeout-minutes: 45
 
     steps:
@@ -114,7 +127,7 @@ jobs:
   archive-signee:
     name: Produire l'archive .ipa signée
     needs: [preparation, compiler-ios]
-    runs-on: macos-latest
+    runs-on: ${{ vars.IOS_RUNNER || 'macos-latest' }}
     timeout-minutes: 60
     if: needs.preparation.outputs.signature == 'true'
 
