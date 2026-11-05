@@ -64,9 +64,14 @@ void main() {
               'aucun build iOS ne peut aboutir.');
 
       final contenu = podfile.readAsStringSync();
-      expect(contenu.contains("platform :ios, '13.0'"), isTrue,
-          reason: 'La cible minimale doit couvrir flutter_contacts 2.6.0 et '
-              'image_picker_ios, qui exigent iOS 13.0.');
+      // 15.0 est imposé par le moteur : Flutter 3.47.7 génère, pendant
+      // `pod install`, un podspec « Flutter » qui déclare
+      // s.ios.deployment_target = '15.0'. Une cible inférieure fait échouer
+      // la résolution CocoaPods.
+      expect(contenu.contains("platform :ios, '15.0'"), isTrue,
+          reason: 'La cible minimale est imposée par le moteur Flutter 3.47.7 '
+              '(podspec du moteur : s.ios.deployment_target = 15.0). Une '
+              'valeur inférieure fait échouer pod install.');
       expect(contenu.contains("target 'Runner' do"), isTrue);
       expect(contenu.contains('flutter_install_all_ios_pods'), isTrue,
           reason: 'Le Podfile doit installer les pods des plugins Flutter.');
@@ -177,10 +182,18 @@ void main() {
     });
 
     test('la cible est l\'iPhone (application de téléphonie)', () {
-      expect(projet.contains('TARGETED_DEVICE_FAMILY = "1";'), isTrue);
-      expect(projet.contains('TARGETED_DEVICE_FAMILY = "1,2";'), isFalse,
-          reason: 'L\'iPad n\'est pas visé : le déclarer expose l\'application '
-              'à une revue sur tablette.');
+      // `pod install` réécrit project.pbxproj avant que les tests ne tournent :
+      // CocoaPods re-sérialise le fichier et peut retirer les guillemets
+      // (TARGETED_DEVICE_FAMILY = 1 au lieu de = "1"). On compare donc la
+      // valeur, pas sa mise en forme.
+      final familles = RegExp(r'TARGETED_DEVICE_FAMILY\s*=\s*"?([^;"]+)"?\s*;')
+          .allMatches(projet)
+          .map((m) => m.group(1)!.trim())
+          .toSet();
+      expect(familles, equals({'1'}),
+          reason: 'Familles d\'appareils déclarées : $familles. Seul '
+              'l\'iPhone doit être visé : déclarer l\'iPad (\'1,2\') expose '
+              'l\'application à une revue sur tablette.');
     });
 
     test('la version suit pubspec.yaml (2.5.0)', () {

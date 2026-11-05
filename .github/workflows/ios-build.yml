@@ -99,6 +99,11 @@ jobs:
           cd ios
           pod install --repo-update
 
+      - name: État du projet Xcode après pod install
+        # CocoaPods réécrit project.pbxproj : cette trace permet de voir ce
+        # qu'il a réellement modifié si un test de configuration échoue.
+        run: grep -nE "TARGETED_DEVICE_FAMILY|IPHONEOS_DEPLOYMENT_TARGET" ios/Runner.xcodeproj/project.pbxproj | sort -u
+
       - name: Vérifications statiques
         run: flutter analyze --no-fatal-infos --no-fatal-warnings lib/ test/
 
