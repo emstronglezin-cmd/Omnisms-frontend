@@ -4,18 +4,22 @@
 # Ce fichier était ABSENT du dépôt : sans lui, `pod install` est impossible et
 # aucun build iOS ne peut aboutir. Il suit le gabarit officiel Flutter 3.47.7.
 #
-# Cible minimale : iOS 13.0
-#   • flutter_contacts 2.6.0   → iOS 13.0 (le plus exigeant)
-#   • image_picker_ios         → iOS 13.0
-#   • app_links / audio_session / url_launcher_ios → iOS 12.0
-#   • just_audio, record_darwin, permission_handler_apple, startapp_sdk
-#     n'imposent rien et suivent la cible du projet.
+# Cible minimale : iOS 15.0 — imposée par le moteur, pas par un choix.
+#   Flutter 3.47.7 génère, à l'exécution de `pod install`, un podspec
+#   « Flutter » qui déclare s.ios.deployment_target = '15.0'
+#   (flutter_tools/bin/podhelper.rb). Avec '13.0' dans ce fichier, CocoaPods
+#   échoue : « Specs satisfying the `Flutter` dependency were found, but they
+#   required a higher minimum deployment target ».
+#   Conséquence assumée : iOS 13 et 14 ne sont plus pris en charge. En
+#   pratique seuls les iPhone 5s, 6/6 Plus et l'iPod touch 6e génération,
+#   bloqués à iOS 12, sortent du périmètre ; les iPhone 6s et suivants
+#   peuvent monter vers iOS 15.
 #
 # Aucune clé, aucun certificat, aucun mot de passe Apple et aucun secret
 # backend n'est écrit ici : la signature reste « Automatic » et l'équipe de
 # développement est renseignée dans Xcode, sur le Mac de build.
 # ─────────────────────────────────────────────────────────────────────────────
-platform :ios, '13.0'
+platform :ios, '15.0'
 
 # Les statistiques CocoaPods allongent sensiblement les builds Flutter.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -62,7 +66,7 @@ post_install do |installer|
     # sans version explicite) héritent d'une cible plus ancienne et le build
     # échoue avec « The pod X requires a higher minimum deployment target ».
     target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
       # Flutter ne prend pas en charge Bitcode (supprimé depuis Xcode 14).
       config.build_settings['ENABLE_BITCODE'] = 'NO'
     end
