@@ -1,4 +1,4 @@
-package com.omnisms.app
+package omnisms.app
 
 import io.flutter.embedding.android.FlutterActivity
 

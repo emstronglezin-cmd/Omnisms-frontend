@@ -1,3 +1,4 @@
+import 'dart:convert' show jsonDecode;
 import 'dart:io' as io;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -21,15 +22,45 @@ void main() {
     test('l’identifiant n’est plus le gabarit Flutter', () {
       final gradle = _read('android/app/build.gradle.kts');
       expect(gradle, isNot(contains('com.example.')));
-      expect(gradle, contains('applicationId = "com.omnisms.app"'));
-      expect(gradle, contains('namespace = "com.omnisms.app"'));
+      expect(gradle, contains('applicationId = "omnisms.app"'));
+      expect(gradle, contains('namespace = "omnisms.app"'));
     });
 
-    test('l’identifiant Android est aligné sur celui d’iOS', () {
+    test('l’identifiant Android correspond au client Firebase déclaré', () {
+      // Condition indispensable pour utiliser Firebase (Crashlytics, FCM) :
+      // si les deux diffèrent, le greffon Gradle échoue avec
+      // « No matching client found for package name ».
+      final gradle = _read('android/app/build.gradle.kts');
+      final id = RegExp(r'applicationId\s*=\s*"([^"]+)"').firstMatch(gradle)!.group(1)!;
+      final services = _read('android/app/google-services.json');
+      final json = jsonDecode(services) as Map<String, dynamic>;
+      // Le paquet est imbriqué dans client_info.android_client_info.
+      final clients = (json['client'] as List)
+          .map((c) => (c as Map)['client_info'] as Map)
+          .where((info) => info['android_client_info'] != null)
+          .map((info) => (info['android_client_info'] as Map)['package_name'])
+          .whereType<String>()
+          .toList();
+      expect(clients, contains(id),
+          reason: 'Aucun client Firebase pour « $id » — paquets déclarés : $clients');
+    });
+
+    test('les deux plateformes appartiennent bien au domaine OmniSMS', () {
       final gradle = _read('android/app/build.gradle.kts');
       final pbxproj = _read('ios/Runner.xcodeproj/project.pbxproj');
-      expect(gradle, contains('com.omnisms.app'));
-      expect(pbxproj, contains('PRODUCT_BUNDLE_IDENTIFIER = com.omnisms.app;'));
+      final androidId =
+          RegExp(r'applicationId\s*=\s*"([^"]+)"').firstMatch(gradle)!.group(1)!;
+      final iosId = RegExp(r'PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);')
+          .firstMatch(pbxproj)!
+          .group(1)!
+          .trim();
+      // Les identifiants peuvent différer d'une plateforme à l'autre ; ils
+      // doivent simplement sortir du domaine du projet et ne plus être ceux
+      // du gabarit.
+      expect(androidId, endsWith('omnisms.app'));
+      expect(iosId, endsWith('omnisms.app'));
+      expect(androidId, isNot(contains('com.example')));
+      expect(iosId, isNot(contains('com.example')));
     });
 
     test('le nom affiché est OmniSMS', () {
@@ -39,14 +70,14 @@ void main() {
     });
 
     test('le package Kotlin suit l’identifiant', () {
-      final activity = _read(
-          'android/app/src/main/kotlin/com/omnisms/app/MainActivity.kt');
-      expect(activity, contains('package com.omnisms.app'));
+      final activity =
+          _read('android/app/src/main/kotlin/omnisms/app/MainActivity.kt');
+      expect(activity, contains('package omnisms.app'));
     });
 
     test('assetlinks.json annonce le même package', () {
       final links = _read('android/assetlinks.json');
-      expect(links, contains('"package_name": "com.omnisms.app"'));
+      expect(links, contains('"package_name": "omnisms.app"'));
       // Les empreintes doivent être remplacées avant déploiement : ce test
       // DOIT échouer tant que c'est le cas (elles sont volontairement
       // laissées visibles).
