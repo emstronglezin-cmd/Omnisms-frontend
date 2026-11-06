@@ -1,0 +1,83 @@
+# Build Android — OmniSMS
+#
+# Cette compilation était impossible dans l'environnement de développement :
+# 1,98 Go de RAM seulement, et le daemon Gradle y était systématiquement tué
+# par le gestionnaire de mémoire (5 tentatives, 5 « Out of memory »). Les
+# machines Ubuntu de GitHub disposent de 7 Go : le blocage disparaît.
+#
+# Tant qu'aucun magasin de clés n'est configuré, l'APK est signée avec la clé
+# de débogage : elle sert à tester sur un téléphone et NE PEUT PAS être
+# publiée sur Google Play. Dès que android/key.properties existe (ou que les
+# variables OMNISMS_* sont définies dans les secrets), la même commande
+# produit une APK signée pour la publication.
+
+name: Build Android
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+jobs:
+  compiler-android:
+    name: Compiler l'APK Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Installer Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+
+      - name: Versions des outils
+        run: |
+          flutter --version
+          java -version 2>&1 | head -1
+
+      - name: Dépendances Dart
+        run: flutter pub get
+
+      - name: Vérifications statiques
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib/ test/
+
+      - name: Tests Flutter
+        run: flutter test
+
+      - name: Tests PWA
+        run: node --test public/test/
+
+      - name: Compiler les APK de publication
+        # --split-per-abi : une APK par architecture, nettement plus légère
+        # qu'une APK universelle. Sans magasin de clés, Gradle retombe sur la
+        # signature de débogage : utilisable pour tester, pas pour publier.
+        run: flutter build apk --release --split-per-abi
+
+      - name: Vérifier l'identité des APK produites
+        run: |
+          AAPT=$(ls "$ANDROID_HOME/build-tools"/*/aapt2 | head -1)
+          for apk in build/app/outputs/flutter-apk/*.apk; do
+            echo "── $apk ($(du -h "$apk" | cut -f1))"
+            "$AAPT" dump badging "$apk" 2>/dev/null | grep -E "^package:|targetSdkVersion|application-label:" | head -3
+          done
+
+      - name: Publier les APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniSMS-Android-${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 30
