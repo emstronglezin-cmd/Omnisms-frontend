@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "omnisms.app"
+    namespace = "com.omnisms.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -25,12 +25,13 @@ android {
         // IMPORTANT — identifiant définitif (choix validé par l'éditeur).
         // Il est IMPOSSIBLE de le changer après la première publication sur
         // Google Play : toute modification créerait une fiche distincte.
-        // Identique au paquet Android déclaré dans google-services.json
-        // (projet Firebase omnisms-b98c5) : c'est la condition pour que
-        // Firebase — Crashlytics, FCM — fonctionne sans régénérer le
-        // fichier de configuration. L'identifiant iOS, lui, reste
-        // com.omnisms.app ; les deux plateformes peuvent différer.
-        applicationId = "omnisms.app"
+        // DÉCISION OBLIGATOIRE : identique à l'identifiant iOS.
+        // ATTENTION — android/app/google-services.json est encore enregistré
+        // pour l'ancien paquet « omnisms.app ». Il DOIT être régénéré dans la
+        // console Firebase pour « com.omnisms.app » avant d'activer FCM ou
+        // Crashlytics ; sans cela, le greffon Gradle échouera (« No matching
+        // client found for package name »). Un test le rappelle.
+        applicationId = "com.omnisms.app"
         minSdk = flutter.minSdkVersion  // 24 (Android 7.0) — défaut Flutter 3.47
         // Google Play exige Android 16 (API 36) depuis le 31/08/2026 pour
         // toute nouvelle application et toute mise à jour. On suit donc la
