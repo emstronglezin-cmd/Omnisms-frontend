@@ -59,7 +59,10 @@ jobs:
         run: flutter test
 
       - name: Tests PWA
-        run: node --test public/test/
+        # « node --test <dossier> » n'est plus accepté à partir de Node 22 :
+        # l'argument y est traité comme un module. On passe donc les fichiers
+        # explicitement, ce qui fonctionne sur toutes les versions.
+        run: node --test public/test/*.test.js
 
       - name: Compiler les APK de publication
         # --split-per-abi : une APK par architecture, nettement plus légère
