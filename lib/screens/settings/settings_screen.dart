@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/api_config.dart';
+import 'gateway_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../providers/auth_provider.dart';
 import '../auth/profile_screen.dart';
@@ -233,6 +234,16 @@ class SettingsScreen extends StatelessWidget {
             ),
             subtitle: const Text('Action irréversible'),
             onTap: () => _confirmDeleteAccount(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.router_outlined),
+            title: const Text('Passerelle SMS'),
+            subtitle: const Text('État du service d’envoi des SMS'),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const GatewayScreen(),
+              ),
+            ),
           ),
           // Parcours web public : exigé par Google Play et par l'App Store
           // pour les comptes créés depuis l'application. Il fonctionne même

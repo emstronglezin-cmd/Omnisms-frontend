@@ -156,6 +156,12 @@ class ApiConfig {
   // constante suffit à activer la transmission, sans autre modification.
   static const String? pushTokenEndpoint = null;
 
+  // ── Passerelle SMS ─────────────────────────────────────────────────────
+  // État public du service de passerelle (transport INfiniReach).
+  // Route montée côté serveur sur /api/webhooks (sms.gateway.inbound.js).
+  static const String gatewayStatusEndpoint =
+      '/api/webhooks/sms-gateway/status';
+
   static const String meProfileEndpoint = '/api/me/profile';
   static const String meAvatarEndpoint = '/api/me/avatar';
 
