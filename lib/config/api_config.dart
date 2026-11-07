@@ -142,6 +142,20 @@ class ApiConfig {
   /// URL publique de la page web de suppression de compte.
   static String get accountWebUrl => '$baseUrl$accountWebEndpoint';
 
+  // ── Notifications push ──────────────────────────────────────────────────
+  // Endpoint attendu côté serveur pour enregistrer le jeton d'appareil d'un
+  // utilisateur connecté.
+  //
+  // Contrat souhaité :
+  //   PUT    /api/me/push-token   { token, platform: 'android' | 'ios' }
+  //   DELETE /api/me/push-token   (au moment de la déconnexion)
+  //
+  // À CE JOUR CETTE ROUTE N'EXISTE PAS. Le service push (PushService) garde
+  // donc la valeur `null`, conserve le jeton localement et signale
+  // l'attente au lieu de faire croire à un enregistrement. Renseigner cette
+  // constante suffit à activer la transmission, sans autre modification.
+  static const String? pushTokenEndpoint = null;
+
   static const String meProfileEndpoint = '/api/me/profile';
   static const String meAvatarEndpoint = '/api/me/avatar';
 

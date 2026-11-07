@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../services/settings_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/push_service.dart';
 
 class NotificationsSettingsScreen extends StatefulWidget {
   const NotificationsSettingsScreen({super.key});
@@ -123,6 +124,67 @@ class _NotificationsSettingsScreenState
   }
 
   /// Affiche le widget d'état de permission système.
+  /// Encart d'état des notifications à distance.
+  ///
+  /// Volontairement explicite : plutôt que d'afficher un interrupteur qui ne
+  /// commanderait rien, on indique où en est réellement le push et ce qu'il
+  /// reste à faire.
+  Widget _buildPushStatus() {
+    final push = PushService.instance;
+    final operationnel = push.operationnel && !push.enAttenteServeur;
+
+    final (couleur, icone) = switch (push.etat) {
+      EtatPush.jetonObtenu => push.enAttenteServeur
+          ? (Colors.orange, Icons.hourglass_empty)
+          : (Colors.green, Icons.cloud_done),
+      EtatPush.configurationAbsente => (Colors.orange, Icons.cloud_off),
+      EtatPush.permissionRefusee => (Colors.orange, Icons.notifications_off),
+      EtatPush.erreur => (Colors.red, Icons.error_outline),
+      EtatPush.nonTente => (Colors.grey, Icons.help_outline),
+    };
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(icone, color: couleur, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Notifications à distance',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                push.resume(),
+                style: TextStyle(color: Colors.grey[700]),
+              ),
+              if (!operationnel) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Vous recevez les notifications pendant que '
+                  'l’application est ouverte. Pour être prévenu lorsqu’elle '
+                  'est fermée, la configuration Firebase et l’enregistrement '
+                  'du jeton côté serveur sont nécessaires.',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPermissionStatus() {
     if (_hasSystemPermission) {
       return Container(
@@ -236,6 +298,13 @@ class _NotificationsSettingsScreenState
 
                 // ── État de la permission système ─────────────────
                 _buildPermissionStatus(),
+                const SizedBox(height: 16),
+
+                // ── État des notifications à distance (FCM / APNs) ──
+                // Cet encart ne ment jamais sur l'état réel : tant que
+                // Firebase n'est pas configuré ou que le serveur ne sait pas
+                // enregistrer le jeton, c'est écrit ici noir sur blanc.
+                _buildPushStatus(),
                 const SizedBox(height: 16),
 
                 // ── Notifications (toggle principal) ──────────────

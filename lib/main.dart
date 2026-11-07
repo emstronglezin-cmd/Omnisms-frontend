@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
@@ -16,6 +17,7 @@ import 'providers/groups_provider.dart';
 
 // Notifications
 import 'services/notification_service.dart';
+import 'services/push_service.dart';
 import 'services/presence_service.dart';
 
 // Screens — use canonical paths only
@@ -54,6 +56,15 @@ void main() async {
 
   // Initialiser le service de notifications
   await NotificationService.instance.initialize();
+
+  // Notifications à distance (FCM / APNs). L'appel est volontairement non
+  // bloquant et sans `await` : si Firebase n'est pas configuré — c'est le cas
+  // tant que google-services.json et GoogleService-Info.plist n'ont pas été
+  // fournis — l'application doit démarrer normalement, sans push. L'état
+  // exact est exposé par PushService.instance et affiché dans les réglages.
+  if (!kIsWeb) {
+    unawaited(PushService.instance.initialiser());
+  }
 
   runApp(
     MultiProvider(
