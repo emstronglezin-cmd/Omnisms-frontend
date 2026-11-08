@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/models.dart';
 import '../../providers/messaging_provider.dart';
+import '../../services/presence_service.dart';
 import '../../theme/omni_design.dart';
 import '../../widgets/common/avatar_image.dart';
 import 'conversation_screen.dart';
@@ -30,6 +31,19 @@ class _MessagesListPageState extends State<MessagesListPage> {
   final TextEditingController _rechercheController = TextEditingController();
   String _filtre = '';
 
+  /// Contacts dont la présence est suivie (jamais les groupes : la présence
+  /// d'un groupe n'a pas de sens). La source est le backend, via Socket.IO.
+  final Set<String> _uidsSuivis = <String>{};
+
+  /// Référence capturée : on ne doit pas utiliser `context` dans `dispose()`.
+  PresenceService? _presence;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _presence ??= context.read<PresenceService>();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -43,7 +57,35 @@ class _MessagesListPageState extends State<MessagesListPage> {
   @override
   void dispose() {
     _rechercheController.dispose();
+    // Libération du suivi : sans cela, le minuteur de rafraîchissement
+    // continuerait de tourner après la fermeture de l'écran.
+    for (final uid in _uidsSuivis) {
+      _presence?.unwatch(uid);
+    }
+    _uidsSuivis.clear();
     super.dispose();
+  }
+
+  /// Demande au backend le suivi de présence des contacts réellement affichés.
+  ///
+  /// Sûr pendant le build : `watch()`/`unwatch()` n'appellent jamais
+  /// `notifyListeners()` de façon synchrone (la réponse arrive en asynchrone).
+  void _suivrePresences(List<ConversationModel> conversations) {
+    final presence = _presence ?? context.read<PresenceService>();
+    final voulus = <String>{
+      for (final conv in conversations)
+        if (!conv.isGroup && conv.otherUserId.isNotEmpty) conv.otherUserId,
+    };
+
+    for (final uid in voulus.difference(_uidsSuivis)) {
+      presence.watch(uid);
+    }
+    for (final uid in _uidsSuivis.difference(voulus)) {
+      presence.unwatch(uid);
+    }
+    _uidsSuivis
+      ..clear()
+      ..addAll(voulus);
   }
 
   @override
@@ -89,6 +131,9 @@ class _MessagesListPageState extends State<MessagesListPage> {
                   if (conversations.isEmpty) {
                     return _AucunResultat(filtre: _filtre);
                   }
+
+                  // Présence réelle : suit les contacts affichés, pas plus.
+                  _suivrePresences(conversations);
 
                   return RefreshIndicator(
                     color: c.accent,
@@ -288,6 +333,68 @@ class _EnTete extends StatelessWidget {
 }
 
 // ─── Ligne de conversation ─────────────────────────────────────────────────
+/// Avatar d'une conversation, avec pastille de présence **réelle**.
+///
+/// La pastille n'apparaît QUE si le backend a confirmé une session active
+/// (`PresenceState.online`). Trois états, jamais devinés :
+///   • en ligne   → pastille verte ;
+///   • hors ligne → aucune pastille (l'absence n'est pas un indicateur) ;
+///   • inconnu    → aucune pastille (ce n'est surtout pas « hors ligne »).
+/// Un jeton FCM/APNs ne prouve rien : il n'est jamais utilisé ici.
+class _AvatarAvecPresence extends StatelessWidget {
+  const _AvatarAvecPresence({
+    required this.imageUrl,
+    required this.nom,
+    required this.uid,
+    required this.estGroupe,
+  });
+
+  final String? imageUrl;
+  final String nom;
+  final String uid;
+  final bool estGroupe;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = UserAvatar(
+      imageUrl: imageUrl,
+      name: nom,
+      size: 56,
+      isGroup: estGroupe,
+    );
+
+    if (estGroupe || uid.isEmpty) return avatar;
+
+    // `select` : seule la pastille se reconstruit quand la présence change.
+    final enLigne = context.select<PresenceService, bool>(
+      (presence) => presence.stateOf(uid).isOnline,
+    );
+
+    if (!enLigne) return avatar;
+
+    final c = OmniCouleurs.of(context);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        avatar,
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Container(
+            width: 15,
+            height: 15,
+            decoration: BoxDecoration(
+              color: OmniPalette.succes,
+              shape: BoxShape.circle,
+              border: Border.all(color: c.fond, width: 2.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _LigneConversation extends StatelessWidget {
   const _LigneConversation({required this.conversation, required this.onTap});
 
@@ -316,11 +423,11 @@ class _LigneConversation extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              UserAvatar(
+              _AvatarAvecPresence(
                 imageUrl: conversation.otherUserPhotoUrl,
-                name: conversation.displayName,
-                size: 56,
-                isGroup: conversation.isGroup,
+                nom: conversation.displayName,
+                uid: conversation.otherUserId,
+                estGroupe: conversation.isGroup,
               ),
               const SizedBox(width: OmniEspace.m),
               Expanded(
@@ -408,7 +515,8 @@ class _LigneConversation extends StatelessWidget {
     );
   }
 
-  /// Icône du canal d'origine du dernier message (donnée réelle du backend).
+  
+/// Icône du canal d'origine du dernier message (donnée réelle du backend).
   IconData _iconeCanal(String canal) {
     switch (canal.toLowerCase()) {
       case 'sms':

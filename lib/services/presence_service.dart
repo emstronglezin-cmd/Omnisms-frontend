@@ -55,7 +55,9 @@ class PresenceService extends ChangeNotifier {
   void watch(String uid) {
     if (uid.isEmpty) return;
     final isNew = _watched.add(uid);
-    _startTimer();
+    // En arrière-plan, on se contente d'enregistrer l'utilisateur : le
+    // rafraîchissement reprendra au retour au premier plan.
+    if (!_enPause) _startTimer();
     if (isNew || _states[uid] == null) {
       unawaitedRefresh(uid);
     }
@@ -100,6 +102,29 @@ class PresenceService extends ChangeNotifier {
       await refresh(uid);
     }
   }
+
+  /// L'application passe en arrière-plan : on coupe le rafraîchissement
+  /// périodique (économie de batterie). Cela ne change RIEN à l'état affiché :
+  /// aucune conclusion n'est tirée d'une application en arrière-plan, la
+  /// présence reste celle que le backend a confirmée.
+  void mettreEnPause() {
+    _enPause = true;
+    _stopTimer();
+  }
+
+  /// L'application revient au premier plan : on relance le suivi et on
+  /// resynchronise immédiatement, sans attendre le prochain tour de timer
+  /// (jusqu'à 45 s d'affichage périmé sinon).
+  Future<void> reprendre() async {
+    _enPause = false;
+    _startTimer();
+    await refreshAll();
+  }
+
+  /// Vrai quand le suivi périodique est suspendu (application en arrière-plan).
+  bool get enPause => _enPause;
+
+  bool _enPause = false;
 
   void _apply(PresenceInfo info) {
     if (_disposed) return;

@@ -281,13 +281,39 @@ class PresenceStatusText extends StatelessWidget {
     return '$h:$m';
   }
 
+  /// « Dernière activité connue », formulée comme on le dirait à l'oral :
+  /// « Vu aujourd'hui à 18:32 », « Vu hier à 09:05 », « Vu le 12/03 à 14:20 ».
+  ///
+  /// La date provient du `lastSeen` confirmé par le backend — jamais d'une
+  /// estimation locale.
+  static String derniereActivite(DateTime value) {
+    final maintenant = DateTime.now();
+    final aujourdhui =
+        DateTime(maintenant.year, maintenant.month, maintenant.day);
+    final jour = DateTime(value.year, value.month, value.day);
+    final ecart = aujourdhui.difference(jour).inDays;
+    final heure = _time(value);
+
+    if (ecart <= 0) return "Vu aujourd'hui à $heure";
+    if (ecart == 1) return 'Vu hier à $heure';
+    if (ecart < 7) {
+      const jours = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+      return 'Vu ${jours[value.weekday - 1]} à $heure';
+    }
+    final j = value.day.toString().padLeft(2, '0');
+    final m = value.month.toString().padLeft(2, '0');
+    final a = value.year.toString().substring(2);
+    return 'Vu le $j/$m/$a à $heure';
+  }
+
   String get label {
     final lastSeen = presence.lastSeen;
     return switch (presence.state) {
       PresenceState.online => 'En ligne',
-      PresenceState.offline => lastSeen == null
-          ? 'Hors ligne'
-          : 'Hors ligne · vu à ${_time(lastSeen)}',
+      PresenceState.offline =>
+        lastSeen == null ? 'Hors ligne' : derniereActivite(lastSeen),
+      // « Inconnu » reste explicite : ce n'est PAS « hors ligne ». Afficher
+      // « hors ligne » laisserait croire qu'un SMS va partir, ce qui est faux.
       PresenceState.unknown => 'Présence inconnue',
     };
   }

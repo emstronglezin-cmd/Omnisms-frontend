@@ -23,6 +23,7 @@ import 'services/photo_picker_natif_stub.dart'
 import 'services/notification_service.dart';
 import 'services/push_service.dart';
 import 'services/presence_service.dart';
+import 'widgets/common/presence_cycle_de_vie.dart';
 
 // Screens — use canonical paths only
 import 'screens/splash_screen.dart';
@@ -91,7 +92,7 @@ void main() async {
         // Présence des destinataires (source : le backend, via Socket.IO).
         ChangeNotifierProvider(create: (_) => PresenceService()),
       ],
-      child: const OmniSMSApp(),
+      child: const PresenceCycleDeVie(child: OmniSMSApp()),
     ),
   );
 }
