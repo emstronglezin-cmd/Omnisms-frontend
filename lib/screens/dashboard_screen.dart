@@ -82,7 +82,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           NavigationBar(
             selectedIndex: _selectedIndex,
             onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-            elevation: 8,
+            // L'élévation et les couleurs viennent du thème (design system) :
+            // plus d'ombre portée héritée de l'ancien thème Material 2.
+            elevation: 0,
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            surfaceTintColor: Colors.transparent,
             destinations: _navItems.map((item) => NavigationDestination(
               icon: Icon(item.icon),
               selectedIcon: Icon(item.activeIcon),

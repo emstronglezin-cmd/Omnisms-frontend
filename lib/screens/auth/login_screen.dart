@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/omni_design.dart';
 
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
@@ -140,7 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
             content: Text(
               "⚠️ Merci d'ajouter votre numéro de téléphone dans Paramètres.",
             ),
-            backgroundColor: Colors.orange,
+            backgroundColor: OmniPalette.avertissement,
             duration: Duration(seconds: 8),
             behavior: SnackBarBehavior.floating,
           ),
@@ -150,7 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(auth.error ?? 'Erreur de connexion'),
-          backgroundColor: Colors.red,
+          backgroundColor: OmniPalette.erreur,
           duration: const Duration(seconds: 6),
           behavior: SnackBarBehavior.floating,
         ),
@@ -201,7 +202,7 @@ class _LoginScreenState extends State<LoginScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(auth.error ?? 'Impossible de se connecter avec Google.'),
-        backgroundColor: Colors.red,
+        backgroundColor: OmniPalette.erreur,
         duration: const Duration(seconds: 6),
         behavior: SnackBarBehavior.floating,
       ),
@@ -228,32 +229,42 @@ class _LoginScreenState extends State<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         // ── Logo ──────────────────────────────────
+                        // Logo : dégradé de marque, halo discret.
                         Container(
-                          width: 80, height: 80,
-                          margin: const EdgeInsets.only(bottom: 16),
+                          width: 84, height: 84,
+                          margin: const EdgeInsets.only(bottom: 18),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF00D4FF), Color(0xFF0066FF)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(20),
+                            gradient: OmniCouleurs.of(context).degradeAccent,
+                            borderRadius: BorderRadius.circular(26),
+                            boxShadow: [
+                              BoxShadow(
+                                color: OmniCouleurs.of(context)
+                                    .accent
+                                    .withValues(alpha: 0.32),
+                                blurRadius: 28,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
                           ),
-                          child: const Icon(Icons.sms_rounded, color: Colors.white, size: 40),
+                          child: Icon(
+                            Icons.sms_rounded,
+                            color: OmniCouleurs.of(context).surAccent,
+                            size: 40,
+                          ),
                         ),
                         Text(
                           'OmniSMS',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
+                          style: OmniTypo.display.copyWith(
+                            color: OmniCouleurs.of(context).texte,
                           ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'Messagerie Sécurisée',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey,
+                          style: OmniTypo.corps.copyWith(
+                            color: OmniCouleurs.of(context).texteSecondaire,
                           ),
                         ),
                         const SizedBox(height: 40),
@@ -263,13 +274,17 @@ class _LoginScreenState extends State<LoginScreen> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.red.withOpacity(0.3)),
+                              color: OmniPalette.erreur.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(OmniRayon.m),
+                              border: Border.all(
+                                color: OmniPalette.erreur.withValues(alpha: 0.3),
+                              ),
                             ),
                             child: Text(
                               auth.error!,
-                              style: const TextStyle(color: Colors.red, fontSize: 13),
+                              style: OmniTypo.secondaire.copyWith(
+                                color: OmniPalette.erreur,
+                              ),
                               textAlign: TextAlign.center,
                             ),
                           ),
@@ -281,7 +296,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(0.1),
+                              color: OmniPalette.avertissement.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Row(
@@ -290,7 +305,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   width: 16, height: 16,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: Colors.orange,
+                                    color: OmniPalette.avertissement,
                                   ),
                                 ),
                                 const SizedBox(width: 10),
@@ -379,8 +394,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: ElevatedButton(
                             onPressed: auth.isBusy ? null : _handleLogin,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0066FF),
-                              foregroundColor: Colors.white,
+                              backgroundColor: OmniCouleurs.of(context).accent,
+                              foregroundColor: OmniCouleurs.of(context).surAccent,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -427,9 +442,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: () => Navigator.of(context).pushReplacement(
                             MaterialPageRoute(builder: (_) => const DashboardScreen()),
                           ),
-                          child: const Text(
+                          child: Text(
                             'Continuer sans compte',
-                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                            style: OmniTypo.secondaire.copyWith(
+                              color: OmniCouleurs.of(context).texteSecondaire,
+                            ),
                           ),
                         ),
 
@@ -438,9 +455,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         TextButton(
                           onPressed: () =>
                               Navigator.of(context).pushNamed('/privacy'),
-                          child: const Text(
+                          child: Text(
                             'Politique de confidentialité',
-                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                            style: OmniTypo.secondaire.copyWith(
+                              color: OmniCouleurs.of(context).texteSecondaire,
+                            ),
                           ),
                         ),
                       ],

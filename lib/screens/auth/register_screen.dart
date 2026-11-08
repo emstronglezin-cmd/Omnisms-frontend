@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/omni_design.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
@@ -57,7 +58,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Les mots de passe ne correspondent pas'),
-          backgroundColor: Colors.red,
+          backgroundColor: OmniPalette.erreur,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -102,7 +103,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(auth.error ?? 'Erreur d\'inscription'),
-          backgroundColor: Colors.red,
+          backgroundColor: OmniPalette.erreur,
           duration: const Duration(seconds: 6),
           behavior: SnackBarBehavior.floating,
         ),
@@ -154,7 +155,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         content: Text(
           auth.error ?? 'Impossible de continuer avec Google. Réessayez.',
         ),
-        backgroundColor: Colors.red,
+        backgroundColor: OmniPalette.erreur,
         duration: const Duration(seconds: 6),
         behavior: SnackBarBehavior.floating,
       ),
@@ -188,12 +189,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           width: 64, height: 64,
                           margin: const EdgeInsets.only(bottom: 12),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF00D4FF), Color(0xFF0066FF)],
+                            gradient: LinearGradient(
+                              colors: [OmniCouleurs.of(context).accent, OmniCouleurs.of(context).accentSecondaire],
                             ),
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          child: const Icon(Icons.person_add_rounded, color: Colors.white, size: 32),
+                          child: Icon(Icons.person_add_rounded,
+                              color: OmniCouleurs.of(context).surAccent, size: 32),
                         ),
                         Text(
                           'Créer un compte',
@@ -215,13 +217,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(0.1),
+                              color: OmniPalette.erreur.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.red.withOpacity(0.3)),
+                              border: Border.all(color: OmniPalette.erreur.withOpacity(0.3)),
                             ),
                             child: Text(
                               auth.error!,
-                              style: const TextStyle(color: Colors.red, fontSize: 13),
+                              style: const TextStyle(color: OmniPalette.erreur, fontSize: 13),
                               textAlign: TextAlign.center,
                             ),
                           ),
@@ -233,7 +235,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(0.1),
+                              color: OmniPalette.avertissement.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Row(
@@ -241,7 +243,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 const SizedBox(
                                   width: 16, height: 16,
                                   child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.orange,
+                                    strokeWidth: 2, color: OmniPalette.avertissement,
                                   ),
                                 ),
                                 const SizedBox(width: 10),
@@ -249,7 +251,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   child: Text(
                                     'Démarrage du serveur…\nCela peut prendre jusqu\'à 60 secondes.',
                                     style: TextStyle(
-                                      color: Colors.orange.shade700, fontSize: 12,
+                                      color: OmniPalette.avertissement, fontSize: 12,
                                     ),
                                   ),
                                 ),
@@ -342,7 +344,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             helperStyle: TextStyle(
                               color: _normalizedPhone.isEmpty
                                   ? null
-                                  : const Color(0xFF00D4FF),
+                                  : OmniCouleurs.of(context).accent,
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -420,17 +422,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           child: ElevatedButton(
                             onPressed: auth.isLoading ? null : _handleRegister,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0066FF),
+                              backgroundColor: OmniCouleurs.of(context).accentSecondaire,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
                             child: auth.isLoading
-                                ? const SizedBox(
+                                ? SizedBox(
                                     height: 22, width: 22,
                                     child: CircularProgressIndicator(
-                                      strokeWidth: 2.5, color: Colors.white,
+                                      strokeWidth: 2.5, color: OmniCouleurs.of(context).surAccent,
                                     ),
                                   )
                                 : const Text(
@@ -461,9 +463,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         TextButton(
                           onPressed: () =>
                               Navigator.of(context).pushNamed('/privacy'),
-                          child: const Text(
+                          child: Text(
                             'Politique de confidentialité',
-                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                            style: OmniTypo.secondaire.copyWith(
+                              color: OmniCouleurs.of(context).texteSecondaire,
+                            ),
                           ),
                         ),
                       ],

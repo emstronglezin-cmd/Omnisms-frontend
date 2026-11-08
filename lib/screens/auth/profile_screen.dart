@@ -9,6 +9,7 @@ import '../auth/login_screen.dart';
 import '../../widgets/common/avatar_image.dart';
 import '../../utils/user_messages.dart';
 import '../../services/avatar_photo_service.dart';
+import '../../theme/omni_design.dart';
 
 /// Écran « Profil » — aligné sur l'onglet Paramètres de la PWA
 /// (`renderSettings()` / `saveProfile()` / `uploadAvatar()` dans public/app.js).
@@ -58,8 +59,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
+        content: Text(
+          message,
+          style: OmniTypo.corps.copyWith(color: Colors.white),
+        ),
+        backgroundColor: isError ? OmniPalette.erreur : OmniPalette.succes,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 6),
       ),
@@ -273,27 +277,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         right: 0,
                         bottom: 0,
                         child: Material(
-                          color: const Color(0xFF00D4FF),
+                          color: OmniCouleurs.of(context).accent,
                           shape: const CircleBorder(),
+                          // Fin liseré : la pastille se détache de la photo,
+                          // y compris quand l'avatar est clair.
+                          clipBehavior: Clip.antiAlias,
                           child: InkWell(
                             onTap:
                                 _isUploadingAvatar ? null : _handleChangePhoto,
                             customBorder: const CircleBorder(),
                             child: Padding(
-                              padding: const EdgeInsets.all(8),
+                              padding: const EdgeInsets.all(9),
                               child: _isUploadingAvatar
-                                  ? const SizedBox(
+                                  ? SizedBox(
                                       width: 18,
                                       height: 18,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: Colors.white,
+                                        color: OmniCouleurs.of(context).surAccent,
                                       ),
                                     )
-                                  : const Icon(
-                                      Icons.photo_camera,
-                                      size: 18,
-                                      color: Colors.white,
+                                  : Icon(
+                                      Icons.photo_camera_rounded,
+                                      size: 19,
+                                      color: OmniCouleurs.of(context).surAccent,
                                     ),
                             ),
                           ),
@@ -414,18 +421,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
+                                  Text(
                                     'Membre depuis',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
+                                    style: OmniTypo.micro.copyWith(
+                                      color: OmniCouleurs.of(context)
+                                          .texteSecondaire,
                                     ),
                                   ),
                                   Text(
                                     _formatDate(user!.createdAt!),
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
+                                    style: OmniTypo.corpsGras.copyWith(
+                                      color: OmniCouleurs.of(context).texte,
                                     ),
                                   ),
                                 ],
@@ -446,19 +452,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: const Icon(Icons.logout),
                       label: const Text('Déconnexion'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(color: Colors.red),
+                        foregroundColor: OmniPalette.erreur,
+                        side: const BorderSide(color: OmniPalette.erreur),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(OmniRayon.m),
                         ),
                       ),
                     ),
                   ),
 
                   if (authProvider.isLoading)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 16.0),
-                      child: CircularProgressIndicator(),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16.0),
+                      child: CircularProgressIndicator(
+                        color: OmniCouleurs.of(context).accent,
+                      ),
                     ),
                 ],
               ),
