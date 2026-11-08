@@ -1,11 +1,14 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
 import '../auth/login_screen.dart';
 import '../../widgets/common/avatar_image.dart';
 import '../../utils/user_messages.dart';
+import '../../services/avatar_photo_service.dart';
 
 /// Écran « Profil » — aligné sur l'onglet Paramètres de la PWA
 /// (`renderSettings()` / `saveProfile()` / `uploadAvatar()` dans public/app.js).
@@ -96,30 +99,90 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// Accès à la galerie : permission **réelle**, demandée avant l'ouverture
+  /// du sélecteur. Sans cette étape, `image_picker` échoue sur Android ≤ 12
+  /// (`READ_EXTERNAL_STORAGE`) et sur Android 13+ lorsque le sélecteur photo
+  /// système n'est pas disponible (`READ_MEDIA_IMAGES`).
+  ///
+  /// `permission_handler` traduit automatiquement `Permission.photos` selon la
+  /// version d'Android. Sur iOS, la clé `NSPhotoLibraryUsageDescription` de
+  /// Info.plist suffit : le système affiche sa propre alerte.
+  Future<bool> _autoriserAccesGalerie() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return true;
+
+    var statut = await Permission.photos.status;
+    if (statut.isGranted || statut.isLimited) return true;
+
+    statut = await Permission.photos.request();
+    if (statut.isGranted || statut.isLimited) return true;
+
+    if (!mounted) return false;
+    if (statut.isPermanentlyDenied) {
+      _snack(
+        "Accès à la galerie refusé définitivement. Ouvrez les réglages pour l'autoriser.",
+        isError: true,
+      );
+      await openAppSettings();
+    } else {
+      _snack(
+        "Autorisez l'accès à vos photos pour changer votre photo de profil.",
+        isError: true,
+      );
+    }
+    return false;
+  }
+
   /// Photo de profil — POST /api/me/avatar.
   ///
-  /// L'image est redimensionnée à 400×400 et compressée (qualité 75) par
-  /// image_picker : équivalent direct du canvas de compression de la PWA
-  /// (`compressImageForAvatar()`).
+  /// Chaîne complète, chacune des étapes étant la cause d'un échec réel
+  /// constaté avant correctif :
+  ///   1. permission galerie (jamais demandée auparavant) ;
+  ///   2. sélection 512 px (les avatars s'affichent au maximum en 120 px) ;
+  ///   3. `AvatarPhotoService` : format détecté par magic bytes, nom de fichier
+  ///      avec une extension acceptée par le backend, type MIME cohérent et
+  ///      compression sous la limite serveur (sinon 415 / 413 systématiques) ;
+  ///   4. envoi multipart champ « avatar » puis resynchronisation du profil.
   Future<void> _handleChangePhoto() async {
+    if (!await _autoriserAccesGalerie()) return;
+
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 400,
-        maxHeight: 400,
-        imageQuality: 75,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 85,
+        // Réduit les métadonnées : évite les demandes d'autorisation
+        // supplémentaires et les formats propriétaires (HEIC) sur iOS.
+        requestFullMetadata: false,
       );
       if (picked == null) return;
 
       setState(() => _isUploadingAvatar = true);
 
-      final authProvider = context.read<AuthProvider>();
-      // readAsBytes() fonctionne sur mobile comme sur web : un seul chemin.
       final bytes = await picked.readAsBytes();
+
+      // Préparation réelle du fichier : c'est ici qu'était le bug d'origine.
+      final preparation = AvatarPhotoService.preparer(
+        octets: bytes,
+        nomSource: picked.name.isNotEmpty ? picked.name : null,
+      );
+
+      if (!mounted) return;
+
+      if (preparation is AvatarPhotoErreur) {
+        setState(() => _isUploadingAvatar = false);
+        _snack(preparation.message, isError: true);
+        return;
+      }
+
+      final photo = preparation as AvatarPhotoPreparee;
+
+      final authProvider = context.read<AuthProvider>();
       final ok = await authProvider.uploadAvatar(
-        bytes: bytes,
-        filename: picked.name.isNotEmpty ? picked.name : 'avatar.jpg',
+        bytes: photo.octets,
+        filename: photo.nomFichier,
+        mimeType: photo.mimeType,
       );
 
       if (!mounted) return;
@@ -139,7 +202,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
   }
-
   Future<void> _handleLogout() async {
     final confirmed = await showDialog<bool>(
       context: context,

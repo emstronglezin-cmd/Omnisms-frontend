@@ -66,6 +66,9 @@ dependencies:
   flutter_svg: ^2.3.0
   firebase_core: ^5.1.0
   firebase_messaging: ^17.0.1
+  image: ^4.12.0
+  http_parser: ^4.1.2
+  image_picker_android: ^0.8.13+25
 
 dev_dependencies:
   flutter_test:

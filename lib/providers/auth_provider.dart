@@ -507,6 +507,7 @@ class AuthProvider with ChangeNotifier {
     List<int>? bytes,
     String? filename,
     String? filePath,
+    String? mimeType,
   }) async {
     _isLoading = true;
     _error = null;
@@ -517,6 +518,7 @@ class AuthProvider with ChangeNotifier {
         bytes: bytes,
         filename: filename,
         filePath: filePath,
+        mimeType: mimeType,
       );
 
       if (result['success'] == true) {

@@ -3,6 +3,17 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Photos de profil (POST /api/me/avatar) :
+         Sans ces permissions, image_picker ne peut pas lire le fichier renvoyé
+         par la galerie — la sélection échoue silencieusement sur Android ≤ 12
+         (READ_EXTERNAL_STORAGE) et sur Android 13+ quand le sélecteur photo
+         système est indisponible (READ_MEDIA_IMAGES).
+         La permission est en plus demandée à l'exécution par
+         ProfileScreen._autoriserAccesGalerie(). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
     <!-- Permission microphone pour les messages vocaux -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 

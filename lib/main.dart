@@ -16,6 +16,10 @@ import 'providers/messaging_provider.dart';
 import 'providers/groups_provider.dart';
 
 // Notifications
+// Sélecteur photo système Android : actif sur mobile, neutre sur le web.
+import 'services/photo_picker_natif_stub.dart'
+  if (dart.library.io) 'services/photo_picker_natif.dart';
+
 import 'services/notification_service.dart';
 import 'services/push_service.dart';
 import 'services/presence_service.dart';
@@ -52,6 +56,15 @@ void main() async {
     } catch (e) {
       debugPrint('Orientation error: $e');
     }
+  }
+
+  // Sélecteur photo système (Android 13+ / Photo Picker) : donne accès à la
+  // galerie sans permission sur les appareils récents, ce qui fiabilise la
+  // sélection de la photo de profil. Appel sans effet sur iOS et sur le web.
+  try {
+    await activerSelecteurPhotoSysteme();
+  } catch (e) {
+    debugPrint('Photo picker error: $e');
   }
 
   // Initialiser le service de notifications

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' show MediaType;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../models/models.dart';
@@ -572,10 +573,15 @@ class AuthService {
   ///
   /// [bytes] + [filename] fonctionnent sur mobile comme sur web.
   /// [filePath] est une alternative pratique sur mobile (dart:io).
+  /// [mimeType] doit être fourni par `AvatarPhotoService` : sans type MIME
+  /// explicite, Dart envoie `application/octet-stream`, que le filtre multer
+  /// du backend rejette dès que le nom de fichier n'a pas d'extension connue
+  /// (415 UNSUPPORTED_MEDIA_TYPE).
   Future<Map<String, dynamic>> uploadAvatar({
     List<int>? bytes,
     String? filename,
     String? filePath,
+    String? mimeType,
   }) async {
     try {
       final token = await getToken();
@@ -591,17 +597,23 @@ class AuthService {
       request.headers['Authorization'] = 'Bearer $token';
       request.headers['Accept'] = 'application/json';
 
+      // Type MIME annoncé = contenu réel (magic bytes), jamais octet-stream.
+      final typeContenu = MediaType.parse(mimeType ?? 'image/jpeg');
+      final nomFichier = filename ?? 'avatar.jpg';
+
       request.files.add(
         bytes != null && bytes.isNotEmpty
             ? http.MultipartFile.fromBytes(
                 'avatar',
                 bytes,
-                filename: filename ?? 'avatar.jpg',
+                filename: nomFichier,
+                contentType: typeContenu,
               )
             : await http.MultipartFile.fromPath(
                 'avatar',
                 filePath!,
-                filename: filename ?? 'avatar.jpg',
+                filename: nomFichier,
+                contentType: typeContenu,
               ),
       );
 
