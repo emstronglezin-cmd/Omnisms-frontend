@@ -69,6 +69,16 @@ class _ConversationScreenState extends State<ConversationScreen>
   bool _hasScrolledToBottom = false;
   int _lastMessageCount = 0;
 
+  /// Service de présence capturé : `context` n'est plus utilisable dans
+  /// `dispose()`. (Le champ `_presence`, lui, est l'état courant.)
+  PresenceService? _servicePresence;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _servicePresence ??= context.read<PresenceService>();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -97,9 +107,14 @@ class _ConversationScreenState extends State<ConversationScreen>
     // Bug Session 11 : sans ce clearance, _activeConversationId reste défini
     // et TOUTES les notifications suivantes pour cette conversation sont
     // silencieusement ignorées même lorsque l'utilisateur n'est plus dans la conv.
+    //
+    // La référence a été capturée dans `didChangeDependencies` : utiliser
+    // `context.read` ici échoue parfois (arbre en cours de démontage) et
+    // l'échec était avalé par le `catch`, laissant le suivi de présence — et
+    // son minuteur — tourner après la fermeture de la conversation.
     try {
       if (!widget.isGroup && widget.contactId.isNotEmpty) {
-        context.read<PresenceService>().unwatch(widget.contactId);
+        _servicePresence?.unwatch(widget.contactId);
       }
     } catch (_) {}
     try {

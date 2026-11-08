@@ -20,6 +20,7 @@ import 'providers/groups_provider.dart';
 import 'services/photo_picker_natif_stub.dart'
   if (dart.library.io) 'services/photo_picker_natif.dart';
 
+import 'services/notification_navigation.dart';
 import 'services/notification_service.dart';
 import 'services/push_service.dart';
 import 'services/presence_service.dart';
@@ -136,6 +137,10 @@ class OmniSMSApp extends StatelessWidget {
           theme: ThemeProvider.lightTheme,
           darkTheme: ThemeProvider.darkTheme,
           themeMode: themeProvider.themeMode,
+          // Clé de navigation globale : permet d'ouvrir une conversation
+          // depuis une notification, même quand c'est ce tap qui a lancé
+          // l'application (aucun BuildContext disponible sinon).
+          navigatorKey: navigateurGlobalKey,
           // CORRECTION : la bannière de notification est un `Stack`, qui a
           // besoin d'un ancêtre `Directionality` — fourni par MaterialApp.
           // Placée AU-DESSUS de MaterialApp, elle faisait échouer la toute
@@ -143,17 +148,14 @@ class OmniSMSApp extends StatelessWidget {
           // n'affichait qu'un écran d'erreur au démarrage, sur mobile.
           builder: (context, child) {
             return InAppNotificationWrapper(
-              // Callback : ouvrir la conversation depuis la notification
-              // Actuellement enregistré pour une future navigation directe
+              // Le tap ouvre RÉELLEMENT la conversation visée (avant : un
+              // simple debugPrint, l'utilisateur restait sur l'accueil).
               onTap: (conversationId) {
-                // Navigation vers la conversation depuis la notification :
-                // Le navigatorKey global permettrait une navigation directe.
-                // Cette fonctionnalité est enregistrée — l'overlay ferme la
-                // bannière et l'app amène l'utilisateur à la bonne
-                // conversation quand l'infrastructure de navigation globale
-                // est configurée.
-                debugPrint(
-                    '[NOTIFICATION] Tap → conversation: $conversationId');
+                NotificationNavigation.instance
+                    .ouvrir(conversationId)
+                    .catchError((Object e) {
+                  debugPrint('[NOTIFICATION] navigation impossible : $e');
+                });
               },
               child: child ?? const SizedBox.shrink(),
             );

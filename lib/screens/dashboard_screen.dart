@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../services/notification_navigation.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'contacts/contacts_screen_v2.dart';
@@ -25,6 +26,21 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // L'application a été ouverte par le tap sur une notification : la
+    // conversation était en attente que l'interface existe. On l'ouvre ici,
+    // une fois l'utilisateur authentifié et le tableau de bord monté.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationNavigation.instance
+          .traiterConversationEnAttente()
+          .catchError((Object e) {
+        debugPrint('[Notification] ouverture différée impossible : $e');
+      });
+    });
+  }
 
   final List<_NavItem> _navItems = const [
     _NavItem(icon: Icons.chat_bubble_outline_rounded, activeIcon: Icons.chat_bubble_rounded, label: 'Messages'),
