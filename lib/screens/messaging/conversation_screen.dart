@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
+import '../../theme/omni_design.dart';
 import '../../utils/user_messages.dart';
 import 'package:provider/provider.dart';
 import '../../providers/messaging_provider.dart';
@@ -266,10 +267,12 @@ class _ConversationScreenState extends State<ConversationScreen>
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      builder: (context) {
+        final c = OmniCouleurs.of(context);
+        return Container(
+        decoration: BoxDecoration(
+          color: c.fondSecondaire,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: SafeArea(
           child: Column(
@@ -280,7 +283,7 @@ class _ConversationScreenState extends State<ConversationScreen>
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: c.texteEstompe.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -290,8 +293,9 @@ class _ConversationScreenState extends State<ConversationScreen>
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                        color: Colors.blue[50], shape: BoxShape.circle),
-                    child: const Icon(Icons.text_fields, color: Colors.blue),
+                        color: c.accentDoux, shape: BoxShape.circle),
+                    child: Icon(Icons.text_fields_rounded,
+                        size: 20, color: c.accent),
                   ),
                   title: const Text('Transcrire le message vocal'),
                   subtitle: const Text('Convertir en texte'),
@@ -305,9 +309,10 @@ class _ConversationScreenState extends State<ConversationScreen>
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                      color: Colors.orange[50], shape: BoxShape.circle),
-                  child:
-                      const Icon(Icons.emoji_emotions, color: Colors.orange),
+                      color: OmniPalette.avertissement.withValues(alpha: 0.14),
+                      shape: BoxShape.circle),
+                  child: const Icon(Icons.emoji_emotions_rounded,
+                      size: 20, color: OmniPalette.avertissement),
                 ),
                 title: const Text('Réagir au message'),
                 subtitle: const Text('Ajouter un emoji'),
@@ -321,11 +326,13 @@ class _ConversationScreenState extends State<ConversationScreen>
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                      color: Colors.red[50], shape: BoxShape.circle),
-                  child: const Icon(Icons.delete, color: Colors.red),
+                      color: OmniPalette.erreur.withValues(alpha: 0.12),
+                      shape: BoxShape.circle),
+                  child: const Icon(Icons.delete_outline_rounded,
+                      size: 20, color: OmniPalette.erreur),
                 ),
                 title: const Text('Supprimer le message',
-                    style: TextStyle(color: Colors.red)),
+                    style: TextStyle(color: OmniPalette.erreur)),
                 subtitle: const Text('Cette action est irréversible'),
                 onTap: () async {
                   Navigator.pop(context);
@@ -339,11 +346,12 @@ class _ConversationScreenState extends State<ConversationScreen>
                 },
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: OmniEspace.l),
             ],
           ),
         ),
-      ),
+        );
+      },
     );
   }
 
@@ -468,13 +476,19 @@ class _ConversationScreenState extends State<ConversationScreen>
     _presence = presence;
     final isContactOnline = presence.isOnline;
 
+    final c = OmniCouleurs.of(context);
+
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      // Avant : `Colors.grey[50]` imposé, donc écran clair y compris en thème
+      // sombre. Le fond suit désormais le thème.
+      backgroundColor: c.fond,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.white,
+        scrolledUnderElevation: 0,
+        backgroundColor: c.fondSecondaire,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back_rounded, color: c.texte),
           onPressed: () => Navigator.pop(context),
         ),
         title: ConversationHeader(
@@ -492,14 +506,14 @@ class _ConversationScreenState extends State<ConversationScreen>
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.call, color: Colors.black87),
+            icon: Icon(Icons.call_rounded, color: c.texte),
             onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                   content: Text('Appel vocal (bientôt disponible)')),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.videocam, color: Colors.black87),
+            icon: Icon(Icons.videocam_rounded, color: c.texte),
             onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                   content: Text('Appel vidéo (bientôt disponible)')),
@@ -521,13 +535,25 @@ class _ConversationScreenState extends State<ConversationScreen>
                     provider.isLoadingMessages(widget.conversationId);
 
                 if (isLoading && messages.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text('Chargement des messages...'),
+                        SizedBox(
+                          width: 26,
+                          height: 26,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: c.accent,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          OmniEtats.chargement,
+                          style: OmniTypo.secondaire.copyWith(
+                            color: c.texteSecondaire,
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -535,40 +561,41 @@ class _ConversationScreenState extends State<ConversationScreen>
 
                 if (messages.isEmpty) {
                   return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: Colors.blue[50],
-                            shape: BoxShape.circle,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(OmniEspace.xxxl),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 92,
+                            height: 92,
+                            decoration: BoxDecoration(
+                              color: c.accentDoux,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              widget.isGroup
+                                  ? Icons.groups_rounded
+                                  : Icons.forum_rounded,
+                              size: 42,
+                              color: c.accent,
+                            ),
                           ),
-                          child: Icon(
-                            widget.isGroup
-                                ? Icons.group_outlined
-                                : Icons.message_outlined,
-                            size: 64,
-                            color: Colors.blue[300],
+                          const SizedBox(height: OmniEspace.xl),
+                          Text(
+                            'Aucun message',
+                            style: OmniTypo.sousTitre.copyWith(color: c.texte),
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'Aucun message',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
+                          const SizedBox(height: OmniEspace.s),
+                          Text(
+                            'Envoyez votre premier message à ${widget.contactName}',
+                            style: OmniTypo.secondaire.copyWith(
+                              color: c.texteSecondaire,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Envoyez votre premier message à ${widget.contactName}',
-                          style: TextStyle(
-                              fontSize: 14, color: Colors.grey[600]),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   );
                 }
@@ -628,6 +655,14 @@ class _ConversationScreenState extends State<ConversationScreen>
                     final canRetry =
                         message.isMe && provider.canRetry(message.id);
 
+                    // Séries compactes : l'avatar n'est affiché que sur la
+                    // dernière bulle d'un même expéditeur (comme une
+                    // conversation réelle, sans surcharger l'écran).
+                    final suivant =
+                        index + 1 < messages.length ? messages[index + 1] : null;
+                    final afficherAvatar =
+                        suivant == null || suivant.isMe != message.isMe;
+
                     return Stack(
                       clipBehavior: Clip.none,
                       children: [
@@ -647,6 +682,10 @@ class _ConversationScreenState extends State<ConversationScreen>
                               : null,
                           onLongPress: () =>
                               _showMessageOptions(message),
+                          // Nom de l'expéditeur : données réelles du backend
+                          // (`senderName`), affiché dans les groupes.
+                          senderName: widget.isGroup ? message.senderName : null,
+                          afficherAvatar: afficherAvatar,
                           audioWidget:
                               message.type == MessageType.voice
                                   ? AudioPlayerWidget(
@@ -725,14 +764,8 @@ class _ConversationScreenState extends State<ConversationScreen>
           // ── Input bar — ALWAYS VISIBLE ─────────────────────
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -2),
-                ),
-              ],
+              color: c.fondSecondaire,
+              border: Border(top: BorderSide(color: c.contour)),
             ),
             child: SafeArea(
               child: _isRecording

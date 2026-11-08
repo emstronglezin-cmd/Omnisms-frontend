@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/presence_service.dart';
+import '../../theme/omni_design.dart';
 import '../common/avatar_image.dart';
 
 /// Widget pour afficher le statut en ligne d'un utilisateur
@@ -18,22 +19,29 @@ class OnlineStatusIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final c = OmniCouleurs.of(context);
+    final couleur = isOnline ? OmniPalette.succes : c.texteEstompe;
+    return AnimatedContainer(
+      duration: OmniMouvement.normal,
+      curve: OmniMouvement.courbe,
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: isOnline ? Colors.green : Colors.grey[400],
+        color: couleur,
         border: showBorder
             ? Border.all(
-                color: Colors.white,
-                width: size * 0.15,
+                // La bordure prend la couleur de la surface porteuse : la
+                // pastille se détache de l'avatar sans jamais être blanche
+                // sur un fond clair.
+                color: c.surface,
+                width: size * 0.22,
               )
             : null,
         boxShadow: isOnline
             ? [
                 BoxShadow(
-                  color: Colors.green.withOpacity(0.4),
+                  color: OmniPalette.succes.withValues(alpha: 0.45),
                   blurRadius: size * 0.5,
                   spreadRadius: size * 0.1,
                 ),
@@ -81,12 +89,13 @@ class OnlineStatusText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
     return Text(
       _getStatusText(),
       style: style ??
           TextStyle(
             fontSize: 12,
-            color: isOnline ? Colors.green : Colors.grey[600],
+            color: isOnline ? OmniPalette.succes : c.texteSecondaire,
             fontWeight: isOnline ? FontWeight.w500 : FontWeight.normal,
           ),
     );
@@ -198,6 +207,7 @@ class ConversationHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Row(
@@ -216,11 +226,8 @@ class ConversationHeader extends StatelessWidget {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
+                  // Avant : `Colors.white`, invisible sur l'AppBar claire.
+                  style: OmniTypo.sousTitre.copyWith(color: c.texte),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -228,17 +235,17 @@ class ConversationHeader extends StatelessWidget {
                 presence != null
                     ? PresenceStatusText(
                         presence: presence!,
-                        style: const TextStyle(
+                        style: OmniTypo.micro.copyWith(
                           fontSize: 12,
-                          color: Colors.white70,
+                          color: c.texteSecondaire,
                         ),
                       )
                     : OnlineStatusText(
                         isOnline: isOnline,
                         lastSeen: lastSeen,
-                        style: const TextStyle(
+                        style: OmniTypo.micro.copyWith(
                           fontSize: 12,
-                          color: Colors.white70,
+                          color: c.texteSecondaire,
                         ),
                       ),
               ],
@@ -287,9 +294,12 @@ class PresenceStatusText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
+    // Couleur par état RÉEL : vert = session active, texte secondaire =
+    // hors ligne confirmé, estompé = inconnu (jamais « hors ligne »).
     final color = presence.isOnline
-        ? Colors.green.shade300
-        : (presence.isUnknown ? Colors.white54 : Colors.white70);
+        ? OmniPalette.succes
+        : (presence.isUnknown ? c.texteEstompe : c.texteSecondaire);
     return Text(
       label,
       style: (style ?? const TextStyle(fontSize: 12)).copyWith(color: color),

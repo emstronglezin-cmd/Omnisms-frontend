@@ -1,29 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../common/avatar_image.dart';
 import '../../models/message_model.dart' show MessageStatus;
+import '../../theme/omni_design.dart';
+
+/// ⚠️ Widget mobile (APK / IPA). La PWA conserve ses propres composants.
 
 enum MessageType { text, audio, image }
 
+/// Bulle de message — identité OmniSMS.
+///
+/// Sortante : dégradé cyan → bleu profond, texte sombre, coin bas-droit
+/// resserré. Entrante : surface du thème, fine bordure, coin bas-gauche
+/// resserré. Rien de ces choix ne reprend le vert de WhatsApp, le bleu clair
+/// de Telegram ou le bleu Messenger (#0084FF) utilisé auparavant.
+///
+/// Le statut affiché provient **toujours** du backend ([status]) : un message
+/// en cours d'envoi ou en échec n'arbore jamais la mention « remis ».
 class ModernMessageBubble extends StatelessWidget {
-  final String message;
-  final bool isMe;
-  final DateTime timestamp;
-  final MessageType type;
-  final bool isRead;
-
-  /// Statut réellement renvoyé par le backend (`status` du message).
-  ///
-  /// Il prime sur [isRead] : un message en cours d'envoi ou en échec ne doit
-  /// jamais arborer la coche de « remis ».
-  final MessageStatus? status;
-  final VoidCallback? onLongPress;
-  final Widget? audioWidget;
-  final String? imageUrl;
-
-  /// Renvoi d'un message dont l'envoi a échoué (bouton de l'écran).
-  final VoidCallback? onRetry;
-
   const ModernMessageBubble({
     super.key,
     required this.message,
@@ -36,166 +31,221 @@ class ModernMessageBubble extends StatelessWidget {
     this.audioWidget,
     this.imageUrl,
     this.onRetry,
+    this.senderName,
+    this.afficherAvatar = true,
   });
+
+  final String message;
+  final bool isMe;
+  final DateTime timestamp;
+  final MessageType type;
+  final bool isRead;
+
+  /// Statut réellement renvoyé par le backend. Il prime sur [isRead].
+  final MessageStatus? status;
+
+  final VoidCallback? onLongPress;
+
+  final Widget? audioWidget;
+  final String? imageUrl;
+
+  /// Renvoi d'un message dont l'envoi a échoué.
+  final VoidCallback? onRetry;
+
+  /// Nom de l'expéditeur — affiché au-dessus des bulles entrantes dans un
+  /// groupe (donnée réelle du backend : `MessageModel.senderName`).
+  final String? senderName;
+
+  /// Masque l'avatar quand plusieurs bulles se suivent (séries compactes).
+  final bool afficherAvatar;
 
   @override
   Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
+
     return GestureDetector(
       onLongPress: onLongPress,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: Row(
-          mainAxisAlignment:
-              isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        padding: EdgeInsets.fromLTRB(
+          isMe ? 56 : 12,
+          3,
+          isMe ? 12 : 56,
+          3,
+        ),
+        child: Column(
+          crossAxisAlignment:
+              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            if (!isMe) _buildAvatar(context),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.75,
-                ),
-                decoration: BoxDecoration(
-                  color: isMe
-                      ? const Color(0xFF0084FF)
-                      : Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(20),
-                    topRight: const Radius.circular(20),
-                    bottomLeft: Radius.circular(isMe ? 20 : 4),
-                    bottomRight: Radius.circular(isMe ? 4 : 20),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 5,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (type == MessageType.audio && audioWidget != null)
-                      audioWidget!
-                    else if (type == MessageType.image && imageUrl != null)
-                      _buildImage()
-                    else
-                      _buildTextContent(context),
-                    _buildFooter(context),
-                  ],
+            // Nom de l'expéditeur (groupes) — donnée réelle, jamais devinée.
+            if (!isMe && senderName != null && senderName!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 46, bottom: 3),
+                child: Text(
+                  senderName!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: OmniTypo.micro.copyWith(color: c.texteSecondaire),
                 ),
               ),
+            Row(
+              mainAxisAlignment:
+                  isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (!isMe)
+                  SizedBox(
+                    width: 34,
+                    child: afficherAvatar
+                        ? UserAvatar(
+                            name: senderName ?? 'Contact',
+                            size: 34,
+                          )
+                        : null,
+                  ),
+                if (!isMe) const SizedBox(width: 8),
+                Flexible(child: _bulle(context, c)),
+              ],
             ),
-            const SizedBox(width: 8),
-            if (isMe) _buildSeenStatus(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAvatar(BuildContext context) {
+  Widget _bulle(BuildContext context, OmniCouleurs c) {
+    final contenu = <Widget>[];
+
+    if (type == MessageType.audio && audioWidget != null) {
+      contenu.add(audioWidget!);
+    } else if (type == MessageType.image && imageUrl != null) {
+      contenu.add(_image(context, c));
+    } else {
+      contenu.add(_texte(c));
+    }
+    contenu.add(_pied(context, c));
+
     return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context).primaryColor,
-            Theme.of(context).primaryColor.withOpacity(0.7),
-          ],
-        ),
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.76,
       ),
-      child: const Center(
-        child: Icon(Icons.person, color: Colors.white, size: 20),
+      decoration: isMe
+          ? OmniDecor.bulleSortante(c)
+          : OmniDecor.bulleEntrante(c),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: contenu,
       ),
     );
   }
 
-  Widget _buildTextContent(BuildContext context) {
+  Widget _texte(OmniCouleurs c) {
+    final auVide = type == MessageType.audio || type == MessageType.image;
+    if (message.trim().isEmpty && !auVide) return const SizedBox.shrink();
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 2),
       child: Text(
         message,
-        style: TextStyle(
-          color: isMe ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
-          fontSize: 16,
-          height: 1.4,
+        style: OmniTypo.corps.copyWith(
+          color: isMe ? c.bulleSortanteTexte : c.bulleEntranteTexte,
+          fontSize: 15.5,
+          height: 1.38,
         ),
       ),
     );
   }
 
-  Widget _buildImage() {
+  Widget _image(BuildContext context, OmniCouleurs c) {
     return ClipRRect(
-      borderRadius: const BorderRadius.only(
-        topLeft: Radius.circular(20),
-        topRight: Radius.circular(20),
+      borderRadius: const BorderRadius.vertical(
+        top: Radius.circular(OmniRayon.l),
+        bottom: Radius.circular(6),
       ),
       child: SmartImage(
         imageUrl: imageUrl,
         fit: BoxFit.cover,
         placeholder: Container(
-          height: 200,
-          color: Colors.grey[300],
-          child: const Center(child: CircularProgressIndicator()),
+          height: 180,
+          color: c.surfaceVariante,
+          child: Center(
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: c.accent,
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildFooter(BuildContext context) {
+  /// Pied de bulle : heure, et statut serveur aligné à droite pour mes
+  /// messages (les coches sont désormais DANS la bulle).
+  Widget _pied(BuildContext context, OmniCouleurs c) {
+    final couleurHeure = isMe
+        ? c.bulleSortanteTexte.withValues(alpha: 0.62)
+        : c.texteEstompe;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.fromLTRB(14, 2, 12, 8),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             DateFormat('HH:mm').format(timestamp),
-            style: TextStyle(
-              color: isMe
-                  ? Colors.white.withOpacity(0.7)
-                  : Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6),
-              fontSize: 11,
-            ),
+            style: OmniTypo.micro.copyWith(color: couleurHeure, fontSize: 10.5),
           ),
+          if (isMe) ...[
+            const SizedBox(width: 5),
+            _statut(c),
+          ],
         ],
       ),
     );
   }
 
   /// Indicateur d'état, strictement calé sur le statut serveur :
-  ///   envoi en cours → horloge ; échec → point d'exclamation rouge ;
-  ///   remis → double coche grise ; lu → double coche bleue.
+  ///   envoi en cours → horloge ; échec → point d'exclamation (rouge) ;
+  ///   remis → double coche ; lu → double coche en couleur d'accent.
   ///
   /// Aucun message n'est présenté comme remis sans confirmation du serveur.
-  Widget _buildSeenStatus() {
+  Widget _statut(OmniCouleurs c) {
     final etat = status;
+
     if (etat != null) {
       switch (etat) {
         case MessageStatus.sending:
-          return const Icon(Icons.schedule, size: 15, color: Colors.white70);
+          return Icon(Icons.schedule_rounded,
+              size: 14, color: c.bulleSortanteTexte.withValues(alpha: 0.7));
         case MessageStatus.failed:
           return GestureDetector(
             onTap: onRetry,
-            child: const Icon(Icons.error_outline, size: 16, color: Colors.redAccent),
+            child: const Icon(Icons.error_outline_rounded,
+                size: 15, color: OmniPalette.erreur),
           );
         case MessageStatus.read:
-          return const Icon(Icons.done_all, size: 16, color: Color(0xFF0084FF));
+          return Icon(Icons.done_all_rounded, size: 15, color: c.surAccent);
         case MessageStatus.delivered:
-          return const Icon(Icons.done_all, size: 16, color: Colors.grey);
+          return Icon(Icons.done_all_rounded,
+              size: 15, color: c.bulleSortanteTexte.withValues(alpha: 0.75));
         case MessageStatus.sent:
-          return const Icon(Icons.done, size: 16, color: Colors.grey);
+          return Icon(Icons.done_rounded,
+              size: 15, color: c.bulleSortanteTexte.withValues(alpha: 0.6));
       }
     }
+
     // Repli (statut absent) : comportement historique.
     return Icon(
-      isRead ? Icons.done_all : Icons.done,
-      size: 16,
-      color: isRead ? const Color(0xFF0084FF) : Colors.grey,
+      isRead ? Icons.done_all_rounded : Icons.done_rounded,
+      size: 15,
+      color: isRead
+          ? c.surAccent
+          : c.bulleSortanteTexte.withValues(alpha: 0.6),
     );
   }
 }
