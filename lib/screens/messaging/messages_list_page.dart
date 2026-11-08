@@ -1,16 +1,24 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/messaging_provider.dart';
-import '../../models/models.dart';
-import 'conversation_screen.dart';
-import '../../widgets/common/avatar_image.dart';
 
-/// MessagesListPage — WhatsApp-style conversations list.
+import '../../models/models.dart';
+import '../../providers/messaging_provider.dart';
+import '../../theme/omni_design.dart';
+import '../../widgets/common/avatar_image.dart';
+import 'conversation_screen.dart';
+
+/// ⚠️ Écran mobile (APK / IPA). La PWA conserve sa propre interface.
+
+/// Liste des conversations — écran d'accueil de la messagerie.
 ///
-/// Loaded from GET /api/messages via MessagingProvider.
-/// Each tile shows: avatar, name, last message preview, timestamp, unread badge.
-/// Tapping opens ConversationScreen(conversationId, contactName).
+/// Source des données : `GET /api/messages` via [MessagingProvider].
+/// Chaque ligne affiche l'avatar, le nom, l'aperçu du dernier message,
+/// l'horodatage et le compteur de non-lus. Un appui ouvre
+/// [ConversationScreen] et marque la conversation comme lue.
+///
+/// Refonte 2026 : recherche locale, hiérarchie typographique, états de
+/// chargement / vide / erreur soignés, aucune couleur codée en dur.
 class MessagesListPage extends StatefulWidget {
   const MessagesListPage({super.key});
 
@@ -19,10 +27,12 @@ class MessagesListPage extends StatefulWidget {
 }
 
 class _MessagesListPageState extends State<MessagesListPage> {
+  final TextEditingController _rechercheController = TextEditingController();
+  String _filtre = '';
+
   @override
   void initState() {
     super.initState();
-    // Load conversations when screen first appears
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<MessagingProvider>().loadConversations();
@@ -31,98 +41,95 @@ class _MessagesListPageState extends State<MessagesListPage> {
   }
 
   @override
+  void dispose() {
+    _rechercheController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final isWeb = kIsWeb && MediaQuery.of(context).size.width >= 768;
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final c = OmniCouleurs.of(context);
+    final estLarge = kIsWeb && MediaQuery.of(context).size.width >= 768;
 
     return Scaffold(
-      backgroundColor: isWeb ? const Color(0xFF080c14) : theme.scaffoldBackgroundColor,
-      appBar: isWeb
-          ? null
-          : AppBar(
-              elevation: 0,
-              backgroundColor: theme.scaffoldBackgroundColor,
-              title: const Text(
-                'Messages',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: () {
-                    // TODO: search conversations
-                  },
-                  tooltip: 'Rechercher',
-                ),
-                Consumer<MessagingProvider>(
-                  builder: (ctx, provider, _) => IconButton(
-                    icon: provider.isLoadingConversations
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.refresh),
-                    onPressed: provider.isLoadingConversations
-                        ? null
-                        : () => provider.loadConversations(),
-                    tooltip: 'Actualiser',
-                  ),
-                ),
-                const SizedBox(width: 4),
-              ],
-            ),
-      body: Consumer<MessagingProvider>(
-        builder: (context, provider, _) {
-          // Loading state
-          if (provider.isLoadingConversations &&
-              provider.conversations.isEmpty) {
-            return _buildLoadingView(isDark);
-          }
-
-          // Error state with no conversations
-          if (provider.conversationsError != null &&
-              provider.conversations.isEmpty) {
-            return _buildErrorView(provider, isDark);
-          }
-
-          // Empty state
-          if (provider.conversations.isEmpty) {
-            return _buildEmptyView(isDark);
-          }
-
-          // Conversations list
-          return RefreshIndicator(
-            onRefresh: () => provider.loadConversations(),
-            child: ListView.separated(
-              physics: const AlwaysScrollableScrollPhysics(),
-              itemCount: provider.conversations.length,
-              separatorBuilder: (_, __) => Divider(
-                height: 1,
-                indent: 76,
-                color: isDark
-                    ? Colors.white10
-                    : Colors.grey.withOpacity(0.2),
-              ),
-              itemBuilder: (context, index) {
-                final conv = provider.conversations[index];
-                return _ConversationTile(
-                  conversation: conv,
-                  isDark: isDark,
-                  onTap: () => _openConversation(context, conv),
-                );
+      backgroundColor: c.fond,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _EnTete(
+              controller: _rechercheController,
+              onChanged: (v) => setState(() => _filtre = v.trim().toLowerCase()),
+              onEffacer: () {
+                _rechercheController.clear();
+                setState(() => _filtre = '');
               },
             ),
-          );
-        },
+            Expanded(
+              child: Consumer<MessagingProvider>(
+                builder: (context, provider, _) {
+                  if (provider.isLoadingConversations &&
+                      provider.conversations.isEmpty) {
+                    return const _ChargementListe();
+                  }
+
+                  if (provider.conversationsError != null &&
+                      provider.conversations.isEmpty) {
+                    return _ErreurListe(
+                      message: provider.conversationsError!,
+                      onReessayer: provider.loadConversations,
+                    );
+                  }
+
+                  final conversations = _filtrer(provider.conversations);
+
+                  if (provider.conversations.isEmpty) {
+                    return _VideListe(onRafraichir: provider.loadConversations);
+                  }
+
+                  if (conversations.isEmpty) {
+                    return _AucunResultat(filtre: _filtre);
+                  }
+
+                  return RefreshIndicator(
+                    color: c.accent,
+                    backgroundColor: c.surface,
+                    onRefresh: () => provider.loadConversations(),
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.only(
+                        bottom: estLarge ? 24 : 8,
+                        top: 4,
+                      ),
+                      itemCount: conversations.length,
+                      itemBuilder: (context, index) => _LigneConversation(
+                        conversation: conversations[index],
+                        onTap: () => _ouvrirConversation(context, conversations[index]),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _openConversation(BuildContext context, ConversationModel conv) {
-    context.read<MessagingProvider>().setActiveConversation(conv.id);
-    context.read<MessagingProvider>().markConversationAsRead(conv.id);
+  /// Filtre local (nom, nom du groupe, aperçu du dernier message).
+  List<ConversationModel> _filtrer(List<ConversationModel> source) {
+    if (_filtre.isEmpty) return source;
+    return source.where((conv) {
+      final nom = conv.displayName.toLowerCase();
+      final apercu = (conv.lastMessage ?? '').toLowerCase();
+      return nom.contains(_filtre) || apercu.contains(_filtre);
+    }).toList();
+  }
+
+  void _ouvrirConversation(BuildContext context, ConversationModel conv) {
+    final provider = context.read<MessagingProvider>();
+    provider.setActiveConversation(conv.id);
+    provider.markConversationAsRead(conv.id);
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -135,116 +142,495 @@ class _MessagesListPageState extends State<MessagesListPage> {
         ),
       ),
     ).then((_) {
-      // Clear active conversation when returning
-      context.read<MessagingProvider>().setActiveConversation(null);
+      // La conversation n'est plus active : on libère l'état.
+      if (mounted) context.read<MessagingProvider>().setActiveConversation(null);
+    });
+  }
+}
+
+// ─── En-tête (titre, compteur, recherche) ──────────────────────────────────
+class _EnTete extends StatelessWidget {
+  const _EnTete({
+    required this.controller,
+    required this.onChanged,
+    required this.onEffacer,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onEffacer;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: c.fond,
+        border: Border(bottom: BorderSide(color: c.contour)),
+      ),
+      padding: const EdgeInsets.fromLTRB(
+        OmniEspace.l,
+        OmniEspace.m,
+        OmniEspace.l,
+        OmniEspace.m,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('Messages', style: OmniTypo.display.copyWith(color: c.texte)),
+              ),
+              Consumer<MessagingProvider>(
+                builder: (context, provider, _) {
+                  final nonLus = provider.conversations.fold<int>(
+                    0,
+                    (total, conv) => total + conv.unreadCount,
+                  );
+                  if (nonLus == 0) {
+                    return IconButton(
+                      onPressed: provider.isLoadingConversations
+                          ? null
+                          : provider.loadConversations,
+                      icon: provider.isLoadingConversations
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: c.accent,
+                              ),
+                            )
+                          : Icon(Icons.refresh_rounded, color: c.texteSecondaire),
+                      tooltip: 'Actualiser',
+                    );
+                  }
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: c.accentDoux,
+                          borderRadius: OmniRayon.pill,
+                        ),
+                        child: Text(
+                          '$nonLus non lu${nonLus > 1 ? 's' : ''}',
+                          style: OmniTypo.micro.copyWith(color: c.accent),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: provider.isLoadingConversations
+                            ? null
+                            : provider.loadConversations,
+                        icon: Icon(Icons.refresh_rounded, color: c.texteSecondaire),
+                        tooltip: 'Actualiser',
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: OmniEspace.m),
+          // ── Recherche ──
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, valeur, _) {
+              final actif = valeur.text.isNotEmpty;
+              return TextField(
+                controller: controller,
+                onChanged: onChanged,
+                style: OmniTypo.corps.copyWith(color: c.texte),
+                cursorColor: c.accent,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: 'Rechercher une conversation',
+                  hintStyle: OmniTypo.corps.copyWith(color: c.texteEstompe),
+                  filled: true,
+                  fillColor: c.surfaceVariante,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  prefixIcon: Icon(Icons.search_rounded,
+                      color: c.texteEstompe, size: 20),
+                  suffixIcon: actif
+                      ? IconButton(
+                          icon: Icon(Icons.close_rounded,
+                              color: c.texteEstompe, size: 18),
+                          onPressed: onEffacer,
+                          tooltip: 'Effacer',
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: OmniRayon.champ,
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: OmniRayon.champ,
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: OmniRayon.champ,
+                    borderSide: BorderSide(color: c.accent, width: 1.4),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Ligne de conversation ─────────────────────────────────────────────────
+class _LigneConversation extends StatelessWidget {
+  const _LigneConversation({required this.conversation, required this.onTap});
+
+  final ConversationModel conversation;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
+    final nonLu = conversation.unreadCount > 0;
+    final apercu = conversation.lastMessage?.trim().isNotEmpty == true
+        ? conversation.lastMessage!.trim()
+        : 'Aucun message pour l’instant';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        splashColor: c.accentDoux,
+        highlightColor: c.accentDoux,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: OmniEspace.l,
+            vertical: 11,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              UserAvatar(
+                imageUrl: conversation.otherUserPhotoUrl,
+                name: conversation.displayName,
+                size: 56,
+                isGroup: conversation.isGroup,
+              ),
+              const SizedBox(width: OmniEspace.m),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            conversation.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: OmniTypo.corpsGras.copyWith(
+                              color: c.texte,
+                              fontWeight:
+                                  nonLu ? FontWeight.w700 : FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: OmniEspace.s),
+                        Text(
+                          _formatHorodatage(conversation.lastMessageTime),
+                          style: OmniTypo.micro.copyWith(
+                            color: nonLu ? c.accent : c.texteEstompe,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Icon(
+                          _iconeCanal(conversation.channel),
+                          size: 13,
+                          color: nonLu ? c.accent : c.texteEstompe,
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            apercu,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: OmniTypo.secondaire.copyWith(
+                              color: nonLu ? c.texte : c.texteSecondaire,
+                              fontWeight:
+                                  nonLu ? FontWeight.w500 : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                        if (nonLu) ...[
+                          const SizedBox(width: OmniEspace.s),
+                          Container(
+                            constraints: const BoxConstraints(minWidth: 22),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: c.accent,
+                              borderRadius: OmniRayon.pill,
+                            ),
+                            child: Text(
+                              conversation.unreadCount > 99
+                                  ? '99+'
+                                  : '${conversation.unreadCount}',
+                              textAlign: TextAlign.center,
+                              style: OmniTypo.micro.copyWith(
+                                color: c.surAccent,
+                                fontSize: 10.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Icône du canal d'origine du dernier message (donnée réelle du backend).
+  IconData _iconeCanal(String canal) {
+    switch (canal.toLowerCase()) {
+      case 'sms':
+        return Icons.sms_rounded;
+      case 'whatsapp':
+        return Icons.chat_rounded;
+      case 'email':
+        return Icons.mail_rounded;
+      default:
+        return Icons.forum_rounded;
+    }
+  }
+
+  /// « 14:32 » aujourd'hui, « Hier », le jour de la semaine, puis la date.
+  String _formatHorodatage(DateTime? date) {
+    if (date == null) return '';
+    final maintenant = DateTime.now();
+    final aujourdhui = DateTime(maintenant.year, maintenant.month, maintenant.day);
+    final jourMessage = DateTime(date.year, date.month, date.day);
+    final ecart = aujourdhui.difference(jourMessage).inDays;
+
+    if (ecart == 0) {
+      final h = date.hour.toString().padLeft(2, '0');
+      final m = date.minute.toString().padLeft(2, '0');
+      return '$h:$m';
+    }
+    if (ecart == 1) return 'Hier';
+    if (ecart < 7) {
+      const jours = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+      return jours[date.weekday - 1];
+    }
+    final j = date.day.toString().padLeft(2, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    return '$j/$m/${date.year.toString().substring(2)}';
+  }
+}
+
+// ─── Chargement : squelette shimmer léger ──────────────────────────────────
+class _ChargementListe extends StatelessWidget {
+  const _ChargementListe();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
+    return ListView.builder(
+      padding: const EdgeInsets.only(top: OmniEspace.s),
+      itemCount: 7,
+      itemBuilder: (context, index) => _LigneSquelette(
+        couleurBase: c.surfaceVariante,
+        couleurBrillance: c.contour.withValues(alpha: 0.5),
+        delai: index * 90,
+      ),
+    );
+  }
+}
+
+class _LigneSquelette extends StatefulWidget {
+  const _LigneSquelette({
+    required this.couleurBase,
+    required this.couleurBrillance,
+    required this.delai,
+  });
+
+  final Color couleurBase;
+  final Color couleurBrillance;
+  final int delai;
+
+  @override
+  State<_LigneSquelette> createState() => _LigneSqueletteState();
+}
+
+class _LigneSqueletteState extends State<_LigneSquelette>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controleur;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controleur = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _animation = Tween<double>(begin: 0.35, end: 1).animate(
+      CurvedAnimation(parent: _controleur, curve: Curves.easeInOut),
+    );
+    Future<void>.delayed(Duration(milliseconds: widget.delai), () {
+      if (mounted) _controleur.repeat(reverse: true);
     });
   }
 
-  Widget _buildLoadingView(bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  @override
+  void dispose() {
+    _controleur.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: OmniEspace.l,
+        vertical: 11,
+      ),
+      child: Row(
         children: [
-          CircularProgressIndicator(
-            color: isDark ? const Color(0xFF00D4FF) : null,
+          FadeTransition(
+            opacity: _animation,
+            child: CircleAvatar(radius: 28, backgroundColor: widget.couleurBase),
           ),
-          const SizedBox(height: 24),
-          Text(
-            'Chargement des messages...',
-            style: TextStyle(
-              fontSize: 16,
-              color: isDark ? const Color(0xFF6b7a96) : Colors.grey,
+          const SizedBox(width: OmniEspace.m),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FadeTransition(
+                  opacity: _animation,
+                  child: Container(
+                    height: 13,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: widget.couleurBase,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 9),
+                FadeTransition(
+                  opacity: _animation,
+                  child: Container(
+                    height: 11,
+                    width: MediaQuery.of(context).size.width * 0.55,
+                    decoration: BoxDecoration(
+                      color: widget.couleurBrillance,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildErrorView(MessagingProvider provider, bool isDark) {
+// ─── Aucun résultat de recherche ───────────────────────────────────────────
+class _AucunResultat extends StatelessWidget {
+  const _AucunResultat({required this.filtre});
+
+  final String filtre;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(OmniEspace.xxxl),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 72,
-              color: isDark ? Colors.red[300] : Colors.red[400],
-            ),
-            const SizedBox(height: 24),
+            Icon(Icons.search_off_rounded, size: 52, color: c.texteEstompe),
+            const SizedBox(height: OmniEspace.l),
             Text(
-              'Impossible de charger les messages',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: isDark ? const Color(0xFFe8edf5) : null,
-              ),
-              textAlign: TextAlign.center,
+              OmniEtats.aucunResultat,
+              style: OmniTypo.sousTitre.copyWith(color: c.texte),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: OmniEspace.s),
             Text(
-              provider.conversationsError ?? 'Erreur réseau',
-              style: TextStyle(
-                fontSize: 14,
-                color: isDark ? const Color(0xFF6b7a96) : Colors.grey,
-              ),
+              'Aucune conversation ne contient « $filtre ».',
               textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            FilledButton.icon(
-              onPressed: () => provider.loadConversations(),
-              icon: const Icon(Icons.refresh),
-              label: const Text('Réessayer'),
+              style: OmniTypo.secondaire.copyWith(color: c.texteSecondaire),
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildEmptyView(bool isDark) {
+// ─── État vide ─────────────────────────────────────────────────────────────
+class _VideListe extends StatelessWidget {
+  const _VideListe({required this.onRafraichir});
+
+  final Future<void> Function() onRafraichir;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(OmniEspace.xxxl),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(28),
+              width: 96,
+              height: 96,
               decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF00D4FF).withOpacity(0.08)
-                    : Colors.blue.withOpacity(0.06),
+                color: c.accentDoux,
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                Icons.chat_bubble_outline_rounded,
-                size: 72,
-                color: isDark
-                    ? const Color(0xFF00D4FF).withOpacity(0.6)
-                    : Colors.blue[300],
-              ),
+              child: Icon(Icons.forum_rounded, size: 44, color: c.accent),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: OmniEspace.xl),
             Text(
               'Aucune conversation',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: isDark ? const Color(0xFFe8edf5) : Colors.black87,
-              ),
+              style: OmniTypo.sousTitre.copyWith(color: c.texte),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: OmniEspace.s),
             Text(
-              'Ajoutez un contact et envoyez\nvotre premier message.',
-              style: TextStyle(
-                fontSize: 15,
-                color: isDark ? const Color(0xFF6b7a96) : Colors.grey[600],
-                height: 1.5,
-              ),
+              'Vos échanges apparaîtront ici dès qu’un message '
+              'sera envoyé ou reçu.',
               textAlign: TextAlign.center,
+              style: OmniTypo.secondaire.copyWith(color: c.texteSecondaire),
+            ),
+            const SizedBox(height: OmniEspace.xxl),
+            OutlinedButton.icon(
+              onPressed: onRafraichir,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Actualiser'),
             ),
           ],
         ),
@@ -253,248 +639,52 @@ class _MessagesListPageState extends State<MessagesListPage> {
   }
 }
 
-// ── Conversation Tile ─────────────────────────────────────────────────────────
-class _ConversationTile extends StatelessWidget {
-  final ConversationModel conversation;
-  final bool isDark;
-  final VoidCallback onTap;
+// ─── Erreur ────────────────────────────────────────────────────────────────
+class _ErreurListe extends StatelessWidget {
+  const _ErreurListe({required this.message, required this.onReessayer});
 
-  const _ConversationTile({
-    required this.conversation,
-    required this.isDark,
-    required this.onTap,
-  });
+  final String message;
+  final Future<void> Function() onReessayer;
 
   @override
   Widget build(BuildContext context) {
-    final hasUnread = conversation.unreadCount > 0;
-    final name = conversation.displayName;
-    final lastMsg = conversation.lastMessage ?? '';
-    final timeStr = _formatTime(conversation.lastMessageTime);
-
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
+    final c = OmniCouleurs.of(context);
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(OmniEspace.xxxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Avatar
-            _ConversationAvatar(
-              name: name,
-              imageUrl: conversation.otherUserPhotoUrl,
-              isGroup: conversation.isGroup,
-              isDark: isDark,
-            ),
-            const SizedBox(width: 12),
-            // Content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          name,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: hasUnread
-                                ? FontWeight.bold
-                                : FontWeight.w600,
-                            color: isDark
-                                ? const Color(0xFFe8edf5)
-                                : Colors.black87,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (timeStr.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          timeStr,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: hasUnread
-                                ? (isDark
-                                    ? const Color(0xFF00D4FF)
-                                    : Theme.of(context).primaryColor)
-                                : (isDark
-                                    ? const Color(0xFF6b7a96)
-                                    : Colors.grey[500]),
-                            fontWeight: hasUnread
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          lastMsg.isNotEmpty
-                              ? lastMsg
-                              : 'Démarrer une conversation',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: hasUnread
-                                ? (isDark
-                                    ? const Color(0xFFe8edf5)
-                                    : Colors.black87)
-                                : (isDark
-                                    ? const Color(0xFF6b7a96)
-                                    : Colors.grey[600]),
-                            fontWeight: hasUnread
-                                ? FontWeight.w500
-                                : FontWeight.normal,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (hasUnread) ...[
-                        const SizedBox(width: 8),
-                        _UnreadBadge(count: conversation.unreadCount),
-                      ],
-                    ],
-                  ),
-                ],
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: OmniPalette.erreur.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
               ),
+              child: const Icon(Icons.wifi_off_rounded,
+                  size: 44, color: OmniPalette.erreur),
+            ),
+            const SizedBox(height: OmniEspace.xl),
+            Text(
+              'Impossible de charger les conversations',
+              textAlign: TextAlign.center,
+              style: OmniTypo.sousTitre.copyWith(color: c.texte),
+            ),
+            const SizedBox(height: OmniEspace.s),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: OmniTypo.secondaire.copyWith(color: c.texteSecondaire),
+            ),
+            const SizedBox(height: OmniEspace.xxl),
+            FilledButton.icon(
+              onPressed: onReessayer,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text(OmniEtats.reessayer),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  String _formatTime(DateTime? dt) {
-    if (dt == null) return '';
-    final now = DateTime.now();
-    final local = dt.toLocal();
-
-    if (local.year == now.year &&
-        local.month == now.month &&
-        local.day == now.day) {
-      // Today — show time
-      final h = local.hour.toString().padLeft(2, '0');
-      final m = local.minute.toString().padLeft(2, '0');
-      return '$h:$m';
-    } else if (now.difference(local).inDays < 7) {
-      // Within 7 days — show day name
-      const days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-      return days[local.weekday - 1];
-    } else {
-      // Older — show date
-      final d = local.day.toString().padLeft(2, '0');
-      final mo = local.month.toString().padLeft(2, '0');
-      return '$d/$mo';
-    }
-  }
-}
-
-// ── Avatar Widget ─────────────────────────────────────────────────────────────
-class _ConversationAvatar extends StatelessWidget {
-  final String name;
-  final String? imageUrl;
-  final bool isGroup;
-  final bool isDark;
-
-  const _ConversationAvatar({
-    required this.name,
-    this.imageUrl,
-    required this.isGroup,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final initials = name.isNotEmpty
-        ? (name.trim().split(' ').length >= 2
-            ? '${name.trim().split(' ')[0][0]}${name.trim().split(' ')[1][0]}'
-                .toUpperCase()
-            : name[0].toUpperCase())
-        : '?';
-
-    if (imageUrl != null && imageUrl!.isNotEmpty) {
-      return UserAvatar(
-        imageUrl: imageUrl,
-        name: name,
-        size: 56,
-        isGroup: isGroup,
-        fallback: CircleAvatar(
-          radius: 28,
-          backgroundColor: Colors.transparent,
-          child: isGroup
-              ? Icon(
-                  Icons.group,
-                  size: 26,
-                  color: isDark ? const Color(0xFF00D4FF) : Colors.blue,
-                )
-              : Text(
-                  initials,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? const Color(0xFF00D4FF) : Colors.green[700],
-                  ),
-                ),
-        ),
-      );
-    }
-
-    return CircleAvatar(
-      radius: 28,
-      backgroundColor: isGroup
-          ? (isDark
-              ? const Color(0xFF1a3a5c)
-              : Colors.blue.withOpacity(0.15))
-          : (isDark
-              ? const Color(0xFF1a4a3a)
-              : Colors.green.withOpacity(0.15)),
-      child: isGroup
-          ? Icon(
-              Icons.group,
-              size: 26,
-              color: isDark ? const Color(0xFF00D4FF) : Colors.blue,
-            )
-          : Text(
-              initials,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: isDark ? const Color(0xFF00D4FF) : Colors.green[700],
-              ),
-            ),
-    );
-  }
-}
-
-// ── Unread Badge ──────────────────────────────────────────────────────────────
-class _UnreadBadge extends StatelessWidget {
-  final int count;
-  const _UnreadBadge({required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    final label = count > 99 ? '99+' : count.toString();
-    return Container(
-      constraints: const BoxConstraints(minWidth: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
-        textAlign: TextAlign.center,
       ),
     );
   }
