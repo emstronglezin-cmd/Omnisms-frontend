@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/omni_design.dart';
+import '../../theme/omni_motion.dart';
+import '../../theme/omni_responsive.dart';
 
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
@@ -312,9 +314,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 Expanded(
                                   child: Text(
                                     'Démarrage du serveur en cours…\nCela peut prendre jusqu\'à 60 secondes.',
-                                    style: TextStyle(
-                                      color: Colors.orange.shade700,
-                                      fontSize: 12,
+                                    style: OmniTypo.micro.copyWith(
+                                      color: OmniPalette.avertissement,
                                     ),
                                   ),
                                 ),
@@ -391,30 +392,37 @@ class _LoginScreenState extends State<LoginScreen> {
                         // ── Login button ──────────────────────────
                         SizedBox(
                           height: 52,
-                          child: ElevatedButton(
-                            onPressed: auth.isBusy ? null : _handleLogin,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: OmniCouleurs.of(context).accent,
-                              foregroundColor: OmniCouleurs.of(context).surAccent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                          child: OmniPression(
+                            borderRadius: BorderRadius.circular(OmniRayon.m),
+                            onTap: auth.isBusy ? null : _handleLogin,
+                            child: DecoratedBox(
+                              // V3 — l'action principale porte le dégradé de
+                              // marque : c'est le seul élément de l'écran qui
+                              // « appelle » l'utilisateur, et le dégradé le
+                              // distingue immédiatement des actions
+                              // secondaires.
+                              decoration: BoxDecoration(
+                                gradient: OmniCouleurs.of(context).degradeAccent,
+                                borderRadius: BorderRadius.circular(OmniRayon.m),
+                              ),
+                              child: Center(
+                                child: auth.isLoading
+                                    ? const SizedBox(
+                                        height: 22, width: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : Text(
+                                        'Se connecter',
+                                        style: OmniTypo.corpsGras.copyWith(
+                                          color:
+                                              OmniCouleurs.of(context).surAccent,
+                                        ),
+                                      ),
                               ),
                             ),
-                            child: auth.isLoading
-                                ? const SizedBox(
-                                    height: 22, width: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Se connecter',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -428,11 +436,20 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 16),
 
                         // ── Register link ─────────────────────────
-                        const Center(child: Text('ou', style: TextStyle(color: Colors.grey))),
+                        Center(
+                          child: Text(
+                            'ou',
+                            style: OmniTypo.secondaire.copyWith(
+                              color: OmniCouleurs.of(context).texteEstompe,
+                            ),
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextButton(
                           onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                            OmniRoute<void>(
+                              builder: (_) => const RegisterScreen(),
+                            ),
                           ),
                           child: const Text('Pas de compte ? S\'inscrire'),
                         ),

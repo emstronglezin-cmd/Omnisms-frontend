@@ -81,6 +81,87 @@ abstract final class OmniMouvement {
 
   static const Curve courbe = Curves.easeOutCubic;
   static const Curve courbeEntree = Curves.easeOutQuart;
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // V3 — durées et courbes alignées sur Material 3 / Material 3 Expressive.
+  //
+  // Chaque valeur correspond à un usage précis et documenté : aucune durée
+  // n'est libre. Le principe directeur est qu'un retour au toucher doit être
+  // perçu comme instantané (≤ 100 ms) alors qu'un changement d'écran peut
+  // durer (400–500 ms) parce que l'utilisateur observe un déplacement.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /// Retour tactile immédiat. Au-delà de ~100 ms l'interface paraît molle.
+  static const Duration instantane = Duration(milliseconds: 80);
+
+  /// Micro-interaction : badge, changement d'état d'une icône.
+  static const Duration court = Duration(milliseconds: 150);
+
+  /// Transition utilitaire : menu, bascule d'onglet.
+  static const Duration moyen = Duration(milliseconds: 300);
+
+  /// Transition d'écran complète (l'élément entre et reste).
+  static const Duration long = Duration(milliseconds: 500);
+
+  /// Entrée d'un élément à l'écran (courbe décélérée).
+  static const Duration entree = Duration(milliseconds: 400);
+
+  /// Sortie définitive de l'écran.
+  static const Duration sortie = Duration(milliseconds: 200);
+
+  /// Moment expressif : validation, démarrage. Un seul par parcours.
+  static const Duration expressif = Duration(milliseconds: 700);
+
+  /// Balayage d'un squelette de chargement.
+  static const Duration squelette = Duration(milliseconds: 1200);
+
+  /// Courbe « emphasized » — cubic-bezier(0.2, 0, 0, 1).
+  static const Curve appuye = Cubic(0.2, 0.0, 0.0, 1.0);
+
+  /// Entrée — cubic-bezier(0.05, 0.7, 0.1, 1) : part vite, se pose en freinant.
+  static const Curve arrivee = Cubic(0.05, 0.7, 0.1, 1.0);
+
+  /// Sortie définitive — cubic-bezier(0.3, 0, 0.8, 0.15).
+  static const Curve depart = Cubic(0.3, 0.0, 0.8, 0.15);
+
+  /// Sortie temporaire — cubic-bezier(0.4, 0, 0.2, 1).
+  static const Curve standard = Cubic(0.4, 0.0, 0.2, 1.0);
+
+  /// Décélération douce pour les apparitions discrètes.
+  static const Curve doux = Curves.easeOutCubic;
+
+  /// Accélération pour les disparitions discrètes.
+  static const Curve vif = Curves.easeInCubic;
+
+  /// Ressort raide, sans dépassement (micro-interactions).
+  static const SpringDescription ressortCourt = SpringDescription(
+    mass: 1,
+    stiffness: 900,
+    damping: 34,
+  );
+
+  /// Ressort légèrement rebondi (feuilles, panneaux).
+  static const SpringDescription ressortMoyen = SpringDescription(
+    mass: 1,
+    stiffness: 420,
+    damping: 30,
+  );
+
+  /// Ressort ample (feuille plein écran).
+  static const SpringDescription ressortLong = SpringDescription(
+    mass: 1,
+    stiffness: 220,
+    damping: 26,
+  );
+
+  /// Vrai si l'utilisateur a demandé la réduction des animations
+  /// (réglage système, iOS comme Android).
+  static bool animationsReduites(BuildContext context) =>
+      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
+  /// Durée à utiliser : nulle quand les animations sont réduites.
+  static Duration duree(BuildContext context, Duration souhaitee) =>
+      animationsReduites(context) ? Duration.zero : souhaitee;
 }
 
 // ─── Typographie ───────────────────────────────────────────────────────────

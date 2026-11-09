@@ -5,6 +5,8 @@ import '../../providers/messaging_provider.dart';
 import '../../models/models.dart';
 import '../messaging/conversation_screen.dart';
 import '../../services/auth_service.dart';
+import '../../theme/omni_design.dart';
+import '../../theme/omni_motion.dart';
 import '../../widgets/common/avatar_image.dart';
 
 /// ContactsScreenV2 — Écran des contacts avec import et ajout
@@ -893,11 +895,19 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
   Widget _buildContactsList(ContactsProviderV2 provider) {
     final contacts = provider.contacts;
 
+    // V3 — apparition en cascade et retour au toucher, comme sur la liste
+    // des conversations : la cohérence du mouvement entre les écrans fait
+    // partie de l'identité du produit. Le décalage est plafonné pour qu'un
+    // carnet d'adresses de plusieurs centaines de contacts ne paraisse pas
+    // lent.
     return ListView.builder(
       itemCount: contacts.length,
       itemBuilder: (ctx, index) {
         final contact = contacts[index];
-        return _buildContactTile(contact);
+        return OmniApparitionEspacee(
+          index: index,
+          child: _buildContactTile(contact),
+        );
       },
     );
   }
@@ -939,7 +949,8 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
 
     Navigator.push(
       context,
-      MaterialPageRoute(
+      OmniRoute<void>(
+        type: OmniTypeTransition.axePartage,
         builder: (_) => ConversationScreen(
           conversationId: conversationId,
           contactId: contactId,

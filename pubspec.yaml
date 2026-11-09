@@ -1,7 +1,7 @@
 name: omnisms
 description: OmniSMS - Application de messagerie SMS complète
 publish_to: 'none'
-version: 2.5.0+1
+version: 3.0.0+3
 
 # Version de référence du projet : Flutter 3.47.7 (canal stable) / Dart 3.13.5.
 # Toute la branche 3.47.x convient ; les versions antérieures ne sont plus

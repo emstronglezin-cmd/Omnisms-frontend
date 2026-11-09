@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 import '../../theme/omni_design.dart';
+import '../../theme/omni_motion.dart';
 import '../../utils/user_messages.dart';
 import 'package:provider/provider.dart';
 import '../../providers/messaging_provider.dart';
@@ -69,6 +70,17 @@ class _ConversationScreenState extends State<ConversationScreen>
   bool _hasScrolledToBottom = false;
   int _lastMessageCount = 0;
 
+  // ─── V3 ────────────────────────────────────────────────────────────────
+  /// Vrai quand l'utilisateur a remonté dans l'historique : on affiche alors
+  /// un bouton de retour au bas. Sans ce repère, un nouvel message reçu
+  /// alors qu'on lit d'anciens messages laisse l'utilisateur perdu.
+  final ValueNotifier<bool> _loinDuBas = ValueNotifier<bool>(false);
+
+  /// Vrai pendant l'image qui suit l'arrivée d'un nouveau message : la
+  /// dernière bulle est alors animée. Consommé par l'`itemBuilder`, puis
+  /// remis à faux — l'animation ne se rejoue pas à chaque reconstruction.
+  bool _animerDernierMessage = false;
+
   /// Service de présence capturé : `context` n'est plus utilisable dans
   /// `dispose()`. (Le champ `_presence`, lui, est l'état courant.)
   PresenceService? _servicePresence;
@@ -98,6 +110,19 @@ class _ConversationScreenState extends State<ConversationScreen>
     });
 
     _textController.addListener(_onTextChanged);
+    _scrollController.addListener(_surveillerDefilement);
+  }
+
+  /// Met à jour l'indicateur « éloigné du bas ».
+  ///
+  /// Le seuil de 300 dp est volontairement large : proche du bas, le défilement
+  /// automatique reste pertinent et le bouton n'a aucune raison d'apparaître.
+  void _surveillerDefilement() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final distance = position.maxScrollExtent - position.pixels;
+    final loin = distance > 300;
+    if (_loinDuBas.value != loin) _loinDuBas.value = loin;
   }
 
   @override
@@ -125,8 +150,53 @@ class _ConversationScreenState extends State<ConversationScreen>
     _textController.removeListener(_onTextChanged);
     _textController.dispose();
     _scrollController.dispose();
+    _loinDuBas.dispose();
     super.dispose();
   }
+
+  // ─── V3 · Construction de la liste (séparateurs de jour) ─────────────────
+
+  /// Découpe la liste de messages en entrées affichables, en insérant un
+  /// séparateur chaque fois que le jour change.
+  ///
+  /// Pourquoi c'est important : dans une conversation qui dure, l'absence de
+  /// repère temporel oblige à remonter message par message pour savoir
+  /// « quand » quelque chose a été dit. Un séparateur par jour est le
+  /// moyen le plus sobre de rendre l'historique lisible — c'est aussi ce que
+  /// font les messageries de référence.
+  List<_EntreeListe> _construireEntrees(List<MessageModel> messages) {
+    final entrees = <_EntreeListe>[];
+    DateTime? jourCourant;
+
+    for (var i = 0; i < messages.length; i++) {
+      final message = messages[i];
+      final jour = _jourDe(message.timestamp);
+
+      if (jourCourant == null || !_estMemeJour(jourCourant, jour)) {
+        entrees.add(_EntreeListe.separateur(jour));
+        jourCourant = jour;
+      }
+
+      // Séries compactes : l'avatar n'est affiché que sur la dernière bulle
+      // d'un même expéditeur. Un séparateur interrompt la série, sinon un
+      // avatar manquerait juste avant « Hier ».
+      final suivant = i + 1 < messages.length ? messages[i + 1] : null;
+      final jourSuivant = suivant == null ? null : _jourDe(suivant.timestamp);
+      final serieInterrompue = suivant == null ||
+          suivant.isMe != message.isMe ||
+          (jourSuivant != null && !_estMemeJour(jour, jourSuivant));
+
+      entrees.add(_EntreeListe.message(i, afficherAvatar: serieInterrompue));
+    }
+
+    return entrees;
+  }
+
+  static DateTime _jourDe(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
+
+  static bool _estMemeJour(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   void _onTextChanged() {
     final hasText = _textController.text.trim().isNotEmpty;
@@ -638,15 +708,23 @@ class _ConversationScreenState extends State<ConversationScreen>
                       (_) => _scrollToBottom(),
                     );
                   }
+                  // V3 — le dernier message s'animera à la prochaine image.
+                  _animerDernierMessage = true;
                 }
 
-                return ListView.builder(
+                // V3 — la liste est découpée en entrées : un séparateur est
+                // inséré à chaque changement de jour.
+                final entrees = _construireEntrees(messages);
+
+                return Stack(
+                  children: [
+                    ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   itemCount:
-                      messages.length + (_showTypingIndicator ? 1 : 0),
+                      entrees.length + (_showTypingIndicator ? 1 : 0),
                   itemBuilder: (context, index) {
-                    if (_showTypingIndicator && index == messages.length) {
+                    if (_showTypingIndicator && index == entrees.length) {
                       return Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 8),
@@ -666,19 +744,35 @@ class _ConversationScreenState extends State<ConversationScreen>
                       );
                     }
 
-                    final message = messages[index];
+                    final entree = entrees[index];
+
+                    // Séparateur de jour : repère temporel discret.
+                    if (entree.estSeparateur) {
+                      return _SeparateurJour(date: entree.jour!);
+                    }
+
+                    final message = messages[entree.indexMessage!];
                     final canRetry =
                         message.isMe && provider.canRetry(message.id);
 
-                    // Séries compactes : l'avatar n'est affiché que sur la
-                    // dernière bulle d'un même expéditeur (comme une
-                    // conversation réelle, sans surcharger l'écran).
-                    final suivant =
-                        index + 1 < messages.length ? messages[index + 1] : null;
-                    final afficherAvatar =
-                        suivant == null || suivant.isMe != message.isMe;
+                    // L'avatar est décidé lors de la construction des
+                    // entrées : une série s'interrompt au changement
+                    // d'expéditeur **et** au changement de jour.
+                    final afficherAvatar = entree.afficherAvatar;
 
-                    return Stack(
+                    // V3 — la dernière bulle s'anime à l'arrivée d'un
+                    // nouveau message. Le drapeau est consommé ici puis
+                    // remis à faux : l'animation ne se rejoue pas à chaque
+                    // reconstruction de la liste.
+                    final animer = _animerDernierMessage &&
+                        entree.indexMessage == messages.length - 1;
+                    if (animer) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) _animerDernierMessage = false;
+                      });
+                    }
+
+                    Widget bulle = Stack(
                       clipBehavior: Clip.none,
                       children: [
                         modern.ModernMessageBubble(
@@ -765,7 +859,40 @@ class _ConversationScreenState extends State<ConversationScreen>
                           ),
                       ],
                     );
+
+                    if (!animer) return bulle;
+                    return OmniApparition(
+                      duree: OmniMouvement.moyen,
+                      distance: 10,
+                      child: bulle,
+                    );
                   },
+                ),
+
+                    // V3 — retour au bas. Apparaît uniquement quand
+                    // l'utilisateur a remonté l'historique : sans ce repère,
+                    // un message reçu pendant la lecture d'anciens échanges
+                    // passerait inaperçu et la position serait perdue.
+                    ValueListenableBuilder<bool>(
+                      valueListenable: _loinDuBas,
+                      builder: (context, visible, _) {
+                        return AnimatedPositioned(
+                          duration: OmniMouvement.moyen,
+                          curve: OmniMouvement.arrivee,
+                          right: 16,
+                          bottom: visible ? 16 : -72,
+                          child: AnimatedOpacity(
+                            duration: OmniMouvement.court,
+                            opacity: visible ? 1 : 0,
+                            child: _BoutonRetourBas(
+                              nonLus: 0,
+                              onPressed: () => _scrollToBottom(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 );
               },
             ),
@@ -921,6 +1048,135 @@ class _RetryButton extends StatelessWidget {
           padding: const EdgeInsets.all(4),
           child: Icon(Icons.refresh_rounded,
               size: 16, color: Colors.red.shade700),
+        ),
+      ),
+    );
+  }
+}
+
+
+// ─── V3 · Entrées de liste, séparateurs de jour, retour au bas ──────────────
+
+/// Une entrée affichable de la liste de messages.
+///
+/// Soit un séparateur de jour, soit un message (avec la décision
+/// d'affichage de l'avatar, calculée une seule fois).
+class _EntreeListe {
+  const _EntreeListe.separateur(this.jour)
+      : indexMessage = null,
+        afficherAvatar = false;
+
+  const _EntreeListe.message(this.indexMessage, {required this.afficherAvatar})
+      : jour = null;
+
+  final DateTime? jour;
+  final int? indexMessage;
+  final bool afficherAvatar;
+
+  bool get estSeparateur => jour != null;
+}
+
+/// Repère de jour (« Aujourd'hui », « Hier », ou la date).
+///
+/// Volontairement discret : c'est une information de contexte, pas un titre.
+/// Elle ne doit pas concurrencer les bulles.
+class _SeparateurJour extends StatelessWidget {
+  const _SeparateurJour({required this.date});
+
+  final DateTime date;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
+    final maintenant = DateTime.now();
+    final aujourdhui =
+        DateTime(maintenant.year, maintenant.month, maintenant.day);
+    final hier = aujourdhui.subtract(const Duration(days: 1));
+    final jour = DateTime(date.year, date.month, date.day);
+
+    final String libelle;
+    if (jour == aujourdhui) {
+      libelle = "Aujourd'hui";
+    } else if (jour == hier) {
+      libelle = 'Hier';
+    } else if (maintenant.difference(jour).inDays < 7) {
+      // À moins d'une semaine, le nom du jour est plus parlant que la date.
+      const noms = [
+        'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'
+      ];
+      libelle = noms[date.weekday - 1];
+    } else {
+      final j = date.day.toString().padLeft(2, '0');
+      final m = date.month.toString().padLeft(2, '0');
+      libelle = '$j/$m/${date.year}';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: OmniEspace.xxxl,
+        vertical: OmniEspace.m,
+      ),
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: c.contour, thickness: 1)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: OmniEspace.m),
+            child: Text(
+              libelle,
+              style: OmniTypo.etiquette.copyWith(color: c.texteEstompe),
+            ),
+          ),
+          Expanded(child: Divider(color: c.contour, thickness: 1)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bouton flottant « retour au bas ».
+///
+/// N'apparaît que lorsque l'utilisateur a remonté l'historique. Le compteur
+/// de nouveaux messages reste à 0 tant que le fournisseur n'expose pas le
+/// nombre de messages arrivés hors écran : plutôt que d'afficher un chiffre
+/// inventé, le bouton n'en montre aucun.
+class _BoutonRetourBas extends StatelessWidget {
+  const _BoutonRetourBas({required this.nonLus, required this.onPressed});
+
+  final int nonLus;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
+
+    return Semantics(
+      button: true,
+      label: 'Revenir aux messages les plus récents',
+      child: Material(
+        color: Colors.transparent,
+        child: Ink(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: c.degradeAccent,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: c.accent.withValues(alpha: 0.34),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: InkWell(
+            onTap: onPressed,
+            customBorder: const CircleBorder(),
+            child: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Colors.white,
+              size: 26,
+            ),
+          ),
         ),
       ),
     );

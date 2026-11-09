@@ -1,11 +1,14 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:provider/provider.dart';
 
 import '../../models/models.dart';
 import '../../providers/messaging_provider.dart';
 import '../../services/presence_service.dart';
 import '../../theme/omni_design.dart';
+import '../../theme/omni_motion.dart';
+import '../../theme/omni_responsive.dart';
 import '../../widgets/common/avatar_image.dart';
 import 'conversation_screen.dart';
 
@@ -135,6 +138,11 @@ class _MessagesListPageState extends State<MessagesListPage> {
                   // Présence réelle : suit les contacts affichés, pas plus.
                   _suivrePresences(conversations);
 
+                  // V3 — la liste apparaît en cascade : l'œil est guidé du
+                  // haut vers le bas et l'écran semble se construire au lieu
+                  // d'apparaître d'un bloc. Le décalage est plafonné (voir
+                  // OmniApparitionEspacee) pour qu'une longue liste ne
+                  // paraisse jamais lente.
                   return RefreshIndicator(
                     color: c.accent,
                     backgroundColor: c.surface,
@@ -146,10 +154,23 @@ class _MessagesListPageState extends State<MessagesListPage> {
                         top: 4,
                       ),
                       itemCount: conversations.length,
-                      itemBuilder: (context, index) => _LigneConversation(
-                        conversation: conversations[index],
-                        onTap: () => _ouvrirConversation(context, conversations[index]),
-                      ),
+                      itemBuilder: (context, index) {
+                        final conv = conversations[index];
+                        return OmniApparitionEspacee(
+                          index: index,
+                          child: OmniPression(
+                            // La navigation reste portée par l'InkWell
+                            // interne (qui fournit aussi l'ondulation) :
+                            // l'enveloppe n'ajoute que la contraction au
+                            // toucher, sans doubler le geste.
+                            haptique: false,
+                            child: _LigneConversation(
+                              conversation: conv,
+                              onTap: () => _ouvrirConversation(context, conv),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   );
                 },
@@ -175,9 +196,16 @@ class _MessagesListPageState extends State<MessagesListPage> {
     final provider = context.read<MessagingProvider>();
     provider.setActiveConversation(conv.id);
     provider.markConversationAsRead(conv.id);
+    // Retour haptique confirmant la prise en compte de l'appui : ici le
+    // geste est certain, on n'est pas en train de faire défiler la liste.
+    HapticFeedback.selectionClick();
     Navigator.push(
       context,
-      MaterialPageRoute(
+      // V3 — transition « axe partagé » : l'écran de conversation avance
+      // par-dessus la liste, ce qui matérialise le lien d'un écran à
+      // l'autre. Durée 500 ms, courbe d'entrée Material.
+      OmniRoute<void>(
+        type: OmniTypeTransition.axePartage,
         builder: (_) => ConversationScreen(
           conversationId: conv.id,
           contactId: conv.otherUserId,

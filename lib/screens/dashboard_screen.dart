@@ -3,6 +3,12 @@ import 'package:flutter/material.dart';
 import '../services/notification_navigation.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/contacts_provider_v2.dart';
+import '../providers/groups_provider.dart';
+import '../providers/messaging_provider.dart';
+import '../theme/omni_design.dart';
+import '../theme/omni_motion.dart';
+import '../theme/omni_responsive.dart';
 import 'contacts/contacts_screen_v2.dart';
 import 'groups/groups_screen.dart';
 import 'settings/settings_screen.dart';
@@ -370,38 +376,48 @@ class DashboardHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final isWeb = kIsWeb && MediaQuery.of(context).size.width >= 768;
 
+    // ⚠️ Le rendu **web** est conservé à l'identique. La refonte V3 ne
+    // concerne que les applications Android (APK) et iOS (IPA) ; la PWA
+    // garde exactement son interface, ses couleurs et sa mise en page.
+    if (isWeb) return const _VueWebInchangee();
+
+    return const _AccueilMobileV3();
+  }
+}
+
+// ─── Vue web : strictement inchangée ───────────────────────────────────────
+
+/// Reproduction exacte de l'ancien affichage web.
+///
+/// Ce bloc est figé volontairement : aucune couleur, aucun espacement et
+/// aucune animation n'y sont modifiés, conformément à la consigne de ne pas
+/// toucher à l'expérience PWA.
+class _VueWebInchangee extends StatelessWidget {
+  const _VueWebInchangee();
+
+  @override
+  Widget build(BuildContext context) {
+    const isWeb = true;
+
     return Scaffold(
-      backgroundColor: isWeb ? const Color(0xFF080c14) : null,
-      appBar: isWeb
-          ? null
-          : AppBar(
-              title: const Text('OmniSMS'),
-              centerTitle: true,
-            ),
+      backgroundColor: const Color(0xFF080c14),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(isWeb ? 32 : 16),
+        padding: const EdgeInsets.all(32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Welcome card
             _buildWelcomeCard(context, isWeb),
             const SizedBox(height: 24),
-
-            // Stats
             _buildStatsRow(context, isWeb),
             const SizedBox(height: 24),
-
-            // Quick actions title
             Text(
               'Actions rapides',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: isWeb ? const Color(0xFFe8edf5) : null,
+                    color: const Color(0xFFe8edf5),
                   ),
             ),
             const SizedBox(height: 16),
-
-            // Quick actions
             _buildQuickAction(
               context, 'Nouveau message', Icons.add_comment,
               const Color(0xFF00D4FF), isWeb,
@@ -457,6 +473,9 @@ class DashboardHomePage extends StatelessWidget {
       ),
     );
   }
+
+  // ─── Helpers historiques, strictement inchangés ────────────────────────
+  // Ils ne sont plus utilisés que par la vue web figée.
 
   Widget _buildWelcomeCard(BuildContext context, bool isWeb) {
     return Consumer<AuthProvider>(
@@ -600,3 +619,382 @@ class DashboardHomePage extends StatelessWidget {
     );
   }
 }
+
+// ─── Vue mobile V3 ─────────────────────────────────────────────────────────
+
+/// Accueil mobile OmniSMS V3.
+///
+/// Trois blocs, dans l'ordre d'importance décroissante :
+/// 1. une carte d'accueil qui salue l'utilisateur ;
+/// 2. des compteurs **réels** (conversations, contacts, groupes, crédits) ;
+/// 3. les actions rapides.
+///
+/// Les valeurs ne sont jamais inventées : chaque compteur provient d'un
+/// fournisseur alimenté par le backend. Là où aucune donnée n'existe, le
+/// chiffre affiché est « — » et non un zéro de complaisance.
+class _AccueilMobileV3 extends StatelessWidget {
+  const _AccueilMobileV3();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
+
+    return Scaffold(
+      backgroundColor: c.fond,
+      body: SafeArea(
+        child: OmniContenuCentre(
+          child: ListView(
+            padding: const EdgeInsets.only(
+              top: OmniEspace.l,
+              bottom: OmniEspace.xxxl,
+            ),
+            children: const [
+              _CarteAccueil(),
+              SizedBox(height: OmniEspace.xl),
+              _GrilleCompteurs(),
+              SizedBox(height: OmniEspace.xxl),
+              _TitreSection(titre: 'Actions rapides'),
+              SizedBox(height: OmniEspace.m),
+              _ActionsRapides(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Titre de section, aligné sur l'échelle typographique V3.
+class _TitreSection extends StatelessWidget {
+  const _TitreSection({required this.titre});
+
+  final String titre;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
+    return Text(
+      titre,
+      style: OmniTypo.sousTitre.copyWith(color: c.texte),
+    );
+  }
+}
+
+/// Carte d'accueil : dégradé de marque, nom réel de l'utilisateur.
+class _CarteAccueil extends StatelessWidget {
+  const _CarteAccueil();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
+
+    return Consumer<AuthProvider>(
+      builder: (context, auth, _) {
+        final nom = auth.currentUser?.name?.trim();
+        final accueil = nom != null && nom.isNotEmpty ? nom : 'vous';
+
+        return OmniApparition(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: c.degradeAccent,
+              borderRadius: OmniRayon.carte,
+              boxShadow: [
+                BoxShadow(
+                  color: c.accent.withValues(alpha: 0.28),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(OmniEspace.xl),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Bonjour $accueil',
+                  style: OmniTypo.titre.copyWith(color: c.surAccent),
+                ),
+                const SizedBox(height: OmniEspace.xs),
+                Text(
+                  'Messagerie unifiée : SMS, groupes et messages internes.',
+                  style: OmniTypo.secondaire.copyWith(
+                    color: c.surAccent.withValues(alpha: 0.86),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Grille de compteurs réels, en cascade.
+class _GrilleCompteurs extends StatelessWidget {
+  const _GrilleCompteurs();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<MessagingProvider>(
+      builder: (context, messagerie, _) {
+        return Consumer<ContactsProviderV2>(
+          builder: (context, contacts, _) {
+            return Consumer<GroupsProvider>(
+              builder: (context, groupes, _) {
+                return Consumer<AuthProvider>(
+                  builder: (context, auth, _) {
+                    // Données réelles uniquement : aucun compteur n'est
+                    // estimé ni mis en scène.
+                    final cartes = <_DonneeCompteur>[
+                      _DonneeCompteur(
+                        titre: 'Conversations',
+                        valeur: messagerie.conversations.length,
+                        icone: Icons.forum_rounded,
+                      ),
+                      _DonneeCompteur(
+                        titre: 'Contacts',
+                        valeur: contacts.contacts.length,
+                        icone: Icons.contacts_rounded,
+                      ),
+                      _DonneeCompteur(
+                        titre: 'Groupes',
+                        valeur: groupes.groups.length,
+                        icone: Icons.groups_rounded,
+                      ),
+                      _DonneeCompteur(
+                        titre: 'Crédits',
+                        valeur: auth.currentUser?.credits.round(),
+                        icone: Icons.credit_card_rounded,
+                      ),
+                    ];
+
+                    return LayoutBuilder(
+                      builder: (context, contraintes) {
+                        // Deux colonnes sur téléphone, trois dès que la
+                        // largeur le permet (paysage, pliable).
+                        final colonnes = contraintes.maxWidth >= 520 ? 4 : 2;
+                        final largeur =
+                            (contraintes.maxWidth - (colonnes - 1) * 12) /
+                                colonnes;
+
+                        return Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            for (var i = 0; i < cartes.length; i++)
+                              SizedBox(
+                                width: largeur,
+                                child: OmniApparitionEspacee(
+                                  index: i,
+                                  child: _CarteCompteur(donnee: cartes[i]),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// Valeur d'un compteur : `null` signifie « inconnue », jamais zéro.
+class _DonneeCompteur {
+  const _DonneeCompteur({
+    required this.titre,
+    required this.valeur,
+    required this.icone,
+  });
+
+  final String titre;
+  final int? valeur;
+  final IconData icone;
+}
+
+class _CarteCompteur extends StatelessWidget {
+  const _CarteCompteur({required this.donnee});
+
+  final _DonneeCompteur donnee;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
+    final connue = donnee.valeur != null;
+
+    return Container(
+      decoration: OmniDecor.carte(c),
+      padding: const EdgeInsets.all(OmniEspace.m),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: c.accentDoux,
+              borderRadius: OmniRayon.champ,
+            ),
+            child: Icon(donnee.icone, color: c.accent, size: 20),
+          ),
+          const SizedBox(height: OmniEspace.m),
+          if (connue)
+            OmniCompteurAnime(
+              valeur: donnee.valeur!,
+              style: OmniTypo.titre.copyWith(color: c.texte),
+            )
+          else
+            // Aucune donnée : on l'affiche, on n'invente pas un zéro.
+            Text('—', style: OmniTypo.titre.copyWith(color: c.texteEstompe)),
+          const SizedBox(height: 2),
+          Text(
+            donnee.titre,
+            style: OmniTypo.micro.copyWith(color: c.texteSecondaire),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Actions rapides : mêmes destinations qu'avant, présentation V3.
+class _ActionsRapides extends StatelessWidget {
+  const _ActionsRapides();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
+
+    final actions = <_ActionRapide>[
+      _ActionRapide(
+        titre: 'Nouveau message',
+        sousTitre: 'Écrire à un contact',
+        icone: Icons.add_comment_rounded,
+        onTap: () => Navigator.push(
+          context,
+          OmniRoute<void>(
+            builder: (_) => const ConversationScreen(
+              conversationId: 'new',
+              contactId: 'new',
+              contactName: 'Nouveau message',
+            ),
+          ),
+        ),
+      ),
+      _ActionRapide(
+        titre: 'Créer un groupe',
+        sousTitre: 'Réunir plusieurs contacts',
+        icone: Icons.group_add_rounded,
+        onTap: () => Navigator.push(
+          context,
+          OmniRoute<void>(builder: (_) => const CreateGroupScreen()),
+        ),
+      ),
+      _ActionRapide(
+        titre: 'Transcription vocale',
+        sousTitre: 'Convertir un audio en texte',
+        icone: Icons.mic_rounded,
+        onTap: () => Navigator.push(
+          context,
+          OmniRoute<void>(builder: (_) => const TranscriptionScreen()),
+        ),
+      ),
+      _ActionRapide(
+        titre: 'Statistiques',
+        sousTitre: 'Votre activité',
+        icone: Icons.bar_chart_rounded,
+        onTap: () => Navigator.push(
+          context,
+          OmniRoute<void>(builder: (_) => const StatisticsScreen()),
+        ),
+      ),
+      _ActionRapide(
+        titre: 'Abonnement',
+        sousTitre: 'Formules et avantages',
+        icone: Icons.workspace_premium_rounded,
+        onTap: () => Navigator.push(
+          context,
+          OmniRoute<void>(builder: (_) => const SubscriptionScreen()),
+        ),
+      ),
+    ];
+
+    return Column(
+      children: [
+        for (var i = 0; i < actions.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: OmniEspace.s),
+            child: OmniApparitionEspacee(
+              index: i,
+              child: OmniPression(
+                borderRadius: OmniRayon.carte,
+                onTap: actions[i].onTap,
+                child: Container(
+                  decoration: OmniDecor.carte(c),
+                  padding: const EdgeInsets.all(OmniEspace.m),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: c.accentDoux,
+                          borderRadius: OmniRayon.champ,
+                        ),
+                        child: Icon(actions[i].icone, color: c.accent, size: 22),
+                      ),
+                      const SizedBox(width: OmniEspace.m),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              actions[i].titre,
+                              style: OmniTypo.corpsGras
+                                  .copyWith(color: c.texte),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              actions[i].sousTitre,
+                              style: OmniTypo.micro
+                                  .copyWith(color: c.texteSecondaire),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: c.texteEstompe,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ActionRapide {
+  const _ActionRapide({
+    required this.titre,
+    required this.sousTitre,
+    required this.icone,
+    required this.onTap,
+  });
+
+  final String titre;
+  final String sousTitre;
+  final IconData icone;
+  final VoidCallback onTap;
+}
+
