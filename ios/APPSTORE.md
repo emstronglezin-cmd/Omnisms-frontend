@@ -82,7 +82,7 @@ Environnement de préparation : Linux (aucun Mac, aucun Xcode) → rien n'a ét�
 |---|---|---|---|
 | 8.1 | Nom | ✅ | OmniSMS (`CFBundleDisplayName`, corrigé : c'était « Omni Smsnew »). |
 | 8.2 | Identifiant de bundle | ✅ | `com.omnisms.app` (à réserver sur le compte Apple Developer). |
-| 8.3 | Version / build | ✅ | 2.5.0 (build 1) — alignés sur `pubspec.yaml`. |
+| 8.3 | Version / build | ✅ | 3.0.0 (build 3) — alignés sur `pubspec.yaml` et sur `lib/utils/app_version.dart` (cohérence vérifiée par un test). |
 | 8.4 | Icône 1024×1024 | ✅ | Présente, sans canal alpha, dessin de marque (bulle cyan sur fond sombre). |
 | 8.5 | Catégorie | ⚠️ | À choisir : *Réseaux sociaux* (principale) + *Productivité* (secondaire) suggérées. |
 | 8.6 | Captures d'écran | ⚠️ | À produire sur simulateur iPhone 6,9" (obligatoire) + 6,5" — aucune capture ne peut être générée sans Mac. |

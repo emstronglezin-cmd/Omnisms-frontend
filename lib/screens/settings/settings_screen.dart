@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../theme/omni_design.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/api_config.dart';
-import 'gateway_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../providers/auth_provider.dart';
 import '../auth/profile_screen.dart';
@@ -13,6 +11,7 @@ import 'theme_settings_screen.dart';
 import 'statistics_screen.dart';
 import '../../screens/subscription_screen.dart';
 import '../../widgets/common/avatar_image.dart';
+import '../../utils/app_version.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -61,7 +60,7 @@ class SettingsScreen extends StatelessWidget {
                           '@${user.username}',
                           style: TextStyle(
                             fontSize: 14,
-                            color: OmniCouleurs.of(context).texteSecondaire,
+                            color: Colors.grey[600],
                           ),
                         ),
                       if (user?.email != null)
@@ -69,7 +68,7 @@ class SettingsScreen extends StatelessWidget {
                           user!.email!,
                           style: TextStyle(
                             fontSize: 14,
-                            color: OmniCouleurs.of(context).texteSecondaire,
+                            color: Colors.grey[600],
                           ),
                         ),
                       if (user?.phone != null && user!.phone!.isNotEmpty)
@@ -77,7 +76,7 @@ class SettingsScreen extends StatelessWidget {
                           user.phone!,
                           style: TextStyle(
                             fontSize: 14,
-                            color: OmniCouleurs.of(context).texteSecondaire,
+                            color: Colors.grey[600],
                           ),
                         ),
                       const SizedBox(height: 6),
@@ -87,16 +86,18 @@ class SettingsScreen extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: OmniCouleurs.of(context).accentDoux,
+                            color: const Color(0xFF00D4FF).withOpacity(0.15),
                             borderRadius: BorderRadius.circular(999),
                             border: Border.all(
-                              color: OmniCouleurs.of(context).accentContour,
+                              color: const Color(0xFF00D4FF).withOpacity(0.4),
                             ),
                           ),
-                          child: Text(
+                          child: const Text(
                             '💎 Premium actif',
-                            style: OmniTypo.etiquette.copyWith(
-                              color: OmniCouleurs.of(context).accent,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF00D4FF),
                             ),
                           ),
                         ),
@@ -109,7 +110,7 @@ class SettingsScreen extends StatelessWidget {
                             '⚠️ Téléphone non renseigné',
                             style: TextStyle(
                               fontSize: 12,
-                              color: OmniPalette.avertissement,
+                              color: Colors.orange,
                             ),
                           ),
                         ),
@@ -226,24 +227,13 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => _confirmLogout(context),
           ),
           ListTile(
-            leading: const Icon(Icons.delete_forever,
-                  color: OmniPalette.erreur),
+            leading: const Icon(Icons.delete_forever, color: Colors.red),
             title: const Text(
               'Supprimer mon compte',
-              style: const TextStyle(color: OmniPalette.erreur),
+              style: TextStyle(color: Colors.red),
             ),
             subtitle: const Text('Action irréversible'),
             onTap: () => _confirmDeleteAccount(context),
-          ),
-          ListTile(
-            leading: const Icon(Icons.router_outlined),
-            title: const Text('Passerelle SMS'),
-            subtitle: const Text('État du service d’envoi des SMS'),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const GatewayScreen(),
-              ),
-            ),
           ),
           // Parcours web public : exigé par Google Play et par l'App Store
           // pour les comptes créés depuis l'application. Il fonctionne même
@@ -260,7 +250,7 @@ class SettingsScreen extends StatelessWidget {
           // 🔥 TEST CRASHLYTICS (DEBUG ONLY)
           if (!const bool.fromEnvironment('dart.vm.product'))
             ListTile(
-              leading: const Icon(Icons.bug_report, color: OmniPalette.avertissement),
+              leading: const Icon(Icons.bug_report, color: Colors.orange),
               title: const Text('Test Crash (Debug)'),
               subtitle: const Text('Tester Firebase Crashlytics'),
               onTap: () async {
@@ -295,12 +285,15 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('À propos'),
-            subtitle: const Text('Version 2.5.0'),
+            // Version lue depuis la source unique (lib/utils/app_version.dart),
+            // gardée par un test contre pubspec.yaml : elle ne peut plus
+            // afficher « 2.5.0 » dans une application qui est en 3.0.0.
+            subtitle: Text('Version ${AppVersion.complete}'),
             onTap: () {
               showAboutDialog(
                 context: context,
                 applicationName: 'OmniSMS',
-                applicationVersion: '2.2.0',
+                applicationVersion: AppVersion.complete,
                 applicationIcon: Icon(
                   Icons.sms_outlined,
                   size: 48,
@@ -393,7 +386,7 @@ class SettingsScreen extends StatelessWidget {
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text(
               'Supprimer',
-              style: const TextStyle(color: OmniPalette.erreur),
+              style: TextStyle(color: Colors.red),
             ),
           ),
         ],
@@ -417,7 +410,7 @@ class SettingsScreen extends StatelessWidget {
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text(
               'Supprimer définitivement',
-              style: const TextStyle(color: OmniPalette.erreur),
+              style: TextStyle(color: Colors.red),
             ),
           ),
         ],
@@ -435,7 +428,7 @@ class SettingsScreen extends StatelessWidget {
         content: Text(ok
             ? 'Compte supprimé. Au revoir !'
             : (auth.error ?? 'Erreur lors de la suppression du compte')),
-        backgroundColor: ok ? OmniPalette.succes : OmniPalette.erreur,
+        backgroundColor: ok ? Colors.green : Colors.red,
         behavior: SnackBarBehavior.floating,
       ),
     );

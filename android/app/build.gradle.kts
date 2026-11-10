@@ -37,7 +37,7 @@ android {
         // toute nouvelle application et toute mise à jour. On suit donc la
         // valeur du SDK Flutter (36) au lieu d'une valeur figée.
         targetSdk = flutter.targetSdkVersion
-        // Version lue depuis pubspec.yaml (2.5.0+1) : une seule source de
+        // Version lue depuis pubspec.yaml (3.0.0+3) : une seule source de
         // vérité, plus de désynchronisation Gradle/pubspec.
         versionCode = flutter.versionCode
         versionName = flutter.versionName

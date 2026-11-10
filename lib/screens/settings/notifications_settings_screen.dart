@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../services/settings_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/push_service.dart';
+import '../../theme/omni_design.dart';
+import '../../theme/omni_motion.dart';
 
 class NotificationsSettingsScreen extends StatefulWidget {
   const NotificationsSettingsScreen({super.key});
@@ -123,6 +125,59 @@ class _NotificationsSettingsScreenState
     }
   }
 
+
+  /// Encart « notifications locales » — ce qui fonctionne réellement.
+  ///
+  /// Le mécanisme en service est la connexion Socket.IO : le serveur signale
+  /// le message, l'application affiche une bannière (et une notification
+  /// système quand elle est autorisée). Cela suppose l'application ouverte.
+  ///
+  /// Cet encart existe pour que la distinction avec les notifications à
+  /// distance soit visible, et non seulement documentée dans le code :
+  /// l'utilisateur doit pouvoir savoir à quoi s'attendre.
+  Widget _buildEtatLocal() {
+    final c = OmniCouleurs.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Card(
+        color: c.surface,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.wifi_rounded, color: OmniPalette.succes, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Notifications locales (Socket.IO)',
+                      style: OmniTypo.corpsGras.copyWith(color: c.texte),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Actives : vous êtes prévenu en temps réel dès qu’un message '
+                'arrive, pendant que l’application est ouverte.',
+                style: OmniTypo.secondaire.copyWith(color: c.texteSecondaire),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Elles cessent dès que l’application est fermée — c’est le '
+                'rôle des notifications à distance, distinctes.',
+                style: OmniTypo.micro.copyWith(color: c.texteEstompe),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Affiche le widget d'état de permission système.
   /// Encart d'état des notifications à distance.
   ///
@@ -157,8 +212,9 @@ class _NotificationsSettingsScreenState
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Notifications à distance',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      'Notifications à distance (FCM / APNs)',
+                      style: OmniTypo.corpsGras
+                          .copyWith(color: OmniCouleurs.of(context).texte),
                     ),
                   ),
                 ],
@@ -285,12 +341,17 @@ class _NotificationsSettingsScreenState
                     children: [
                       Text(
                         'Gérer les notifications',
-                        style: Theme.of(context).textTheme.headlineSmall,
+                        style: OmniTypo.sousTitre
+                            .copyWith(color: OmniCouleurs.of(context).texte),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: OmniEspace.xs),
                       Text(
-                        'Configurez comment vous souhaitez être notifié pour les nouveaux messages',
-                        style: TextStyle(color: Colors.grey[600]),
+                        'Deux mécanismes distincts coexistent : les notifications '
+                        'locales, actives pendant que l’application est ouverte, et '
+                        'les notifications à distance, qui nécessitent un serveur.',
+                        style: OmniTypo.secondaire.copyWith(
+                          color: OmniCouleurs.of(context).texteSecondaire,
+                        ),
                       ),
                     ],
                   ),
@@ -300,11 +361,18 @@ class _NotificationsSettingsScreenState
                 _buildPermissionStatus(),
                 const SizedBox(height: 16),
 
+                // ── Notifications locales (Socket.IO) ────────────
+                // Mécanisme réellement en service aujourd'hui : il fonctionne
+                // grâce à la connexion Socket.IO, tant que l'application est
+                // au premier plan.
+                OmniApparitionEspacee(index: 0, child: _buildEtatLocal()),
+                const SizedBox(height: 12),
+
                 // ── État des notifications à distance (FCM / APNs) ──
                 // Cet encart ne ment jamais sur l'état réel : tant que
                 // Firebase n'est pas configuré ou que le serveur ne sait pas
                 // enregistrer le jeton, c'est écrit ici noir sur blanc.
-                _buildPushStatus(),
+                OmniApparitionEspacee(index: 1, child: _buildPushStatus()),
                 const SizedBox(height: 16),
 
                 // ── Notifications (toggle principal) ──────────────
