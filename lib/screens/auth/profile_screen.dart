@@ -10,6 +10,7 @@ import '../../widgets/common/avatar_image.dart';
 import '../../utils/user_messages.dart';
 import '../../services/avatar_photo_service.dart';
 import '../../theme/omni_design.dart';
+import '../../theme/omni_motion.dart';
 
 /// Écran « Profil » — aligné sur l'onglet Paramètres de la PWA
 /// (`renderSettings()` / `saveProfile()` / `uploadAvatar()` dans public/app.js).
@@ -265,50 +266,124 @@ class _ProfileScreenState extends State<ProfileScreen> {
               key: _formKey,
               child: Column(
                 children: [
-                  // ── Avatar (clic → upload) ──────────────────
-                  Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 60,
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        child: _avatarContent(user?.photoUrl),
+                  // ── En-tête de profil V3 ────────────────────
+                  // L'avatar n'est plus posé sur un fond neutre : il trône
+                  // sur le dégradé de marque, avec le nom et le contact
+                  // en dessous. C'est l'écran le plus personnel de
+                  // l'application ; il mérite une vraie hiérarchie plutôt
+                  // qu'une suite de champs.
+                  OmniApparition(
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        gradient: OmniCouleurs.of(context).degradeAccent,
+                        borderRadius: OmniRayon.carte,
+                        boxShadow: [
+                          BoxShadow(
+                            color: OmniCouleurs.of(context)
+                                .accent
+                                .withValues(alpha: 0.26),
+                            blurRadius: 22,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
                       ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Material(
-                          color: OmniCouleurs.of(context).accent,
-                          shape: const CircleBorder(),
-                          // Fin liseré : la pastille se détache de la photo,
-                          // y compris quand l'avatar est clair.
-                          clipBehavior: Clip.antiAlias,
-                          child: InkWell(
-                            onTap:
-                                _isUploadingAvatar ? null : _handleChangePhoto,
-                            customBorder: const CircleBorder(),
-                            child: Padding(
-                              padding: const EdgeInsets.all(9),
-                              child: _isUploadingAvatar
-                                  ? SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: OmniCouleurs.of(context).surAccent,
-                                      ),
-                                    )
-                                  : Icon(
-                                      Icons.photo_camera_rounded,
-                                      size: 19,
-                                      color: OmniCouleurs.of(context).surAccent,
+                      padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                      child: Column(
+                        children: [
+                          // ── Avatar (clic → upload) ────────────
+                          Stack(
+                            children: [
+                              Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: OmniCouleurs.of(context)
+                                        .surAccent
+                                        .withValues(alpha: 0.55),
+                                    width: 3,
+                                  ),
+                                ),
+                                child: CircleAvatar(
+                                  radius: 58,
+                                  backgroundColor:
+                                      Theme.of(context).colorScheme.primary,
+                                  child: _avatarContent(user?.photoUrl),
+                                ),
+                              ),
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: Material(
+                                  color: OmniCouleurs.of(context).surface,
+                                  shape: const CircleBorder(),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: InkWell(
+                                    onTap: _isUploadingAvatar
+                                        ? null
+                                        : _handleChangePhoto,
+                                    customBorder: const CircleBorder(),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(9),
+                                      child: _isUploadingAvatar
+                                          ? SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child:
+                                                  CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: OmniCouleurs.of(context)
+                                                    .accent,
+                                              ),
+                                            )
+                                          : Icon(
+                                              Icons.photo_camera_rounded,
+                                              size: 19,
+                                              color:
+                                                  OmniCouleurs.of(context)
+                                                      .accent,
+                                            ),
                                     ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: OmniEspace.m),
+                          Text(
+                            user?.name?.trim().isNotEmpty == true
+                                ? user!.name!.trim()
+                                : 'Votre profil',
+                            textAlign: TextAlign.center,
+                            style: OmniTypo.sousTitre.copyWith(
+                              color: OmniCouleurs.of(context).surAccent,
                             ),
                           ),
-                        ),
+                          // Contact réel, jamais reconstitué : si le champ
+                          // est vide, la ligne n'est tout simplement pas
+                          // affichée.
+                          if ((user?.email?.trim().isNotEmpty == true) ||
+                              (user?.phone?.trim().isNotEmpty == true))
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                  top: OmniEspace.xxs),
+                              child: Text(
+                                user?.email?.trim().isNotEmpty == true
+                                    ? user!.email!.trim()
+                                    : user!.phone!.trim(),
+                                textAlign: TextAlign.center,
+                                style: OmniTypo.secondaire.copyWith(
+                                  color: OmniCouleurs.of(context)
+                                      .surAccent
+                                      .withValues(alpha: 0.86),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: OmniEspace.xl),
 
                   // ── Nom ─────────────────────────────────────
                   TextFormField(
@@ -490,7 +565,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       name: auth.currentUser?.name ?? 'Utilisateur',
       size: 120,
       cacheVersion: auth.avatarVersion,
-      fallback: const Icon(Icons.person, size: 60, color: Colors.white),
+      fallback: const Icon(Icons.person, size: 58, color: Colors.white),
     );
   }
 

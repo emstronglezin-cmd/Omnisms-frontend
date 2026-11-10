@@ -4,6 +4,8 @@ import '../../providers/groups_provider.dart';
 import '../../widgets/common/avatar_image.dart';
 import 'create_group_screen.dart';
 import 'group_conversation_screen.dart';
+import '../../theme/omni_motion.dart';
+import '../../widgets/common/etats_v3.dart';
 
 class GroupsScreen extends StatefulWidget {
   const GroupsScreen({super.key});
@@ -38,73 +40,32 @@ class _GroupsScreenState extends State<GroupsScreen> {
       body: Consumer<GroupsProvider>(
         builder: (context, provider, _) {
           if (provider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const OmniEtatChargement();
           }
 
           if (provider.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(
-                    provider.error!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => provider.loadGroups(),
-                    child: const Text('Réessayer'),
-                  ),
-                ],
-              ),
+            return OmniEtatErreur(
+              message: provider.error!,
+              onReessayer: provider.loadGroups,
             );
           }
 
           if (provider.groups.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.group_outlined,
-                    size: 64,
-                    color: Colors.grey[400],
+            return OmniEtatVide(
+              icone: Icons.groups_rounded,
+              titre: 'Aucun groupe',
+              message:
+                  'Créez un groupe pour échanger à plusieurs avec vos contacts.',
+              libelleAction: 'Créer un groupe',
+              onAction: () {
+                Navigator.push(
+                  context,
+                  OmniRoute<void>(
+                    type: OmniTypeTransition.fondu,
+                    builder: (_) => const CreateGroupScreen(),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Aucun groupe',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Créez votre premier groupe',
-                    style: TextStyle(color: Colors.grey[500]),
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const CreateGroupScreen(),
-                        ),
-                      ).then((_) {
-                        // Reload groups when returning
-                        context.read<GroupsProvider>().loadGroups();
-                      });
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Créer un groupe'),
-                  ),
-                ],
-              ),
+                ).then((_) => provider.loadGroups());
+              },
             );
           }
 
@@ -112,7 +73,10 @@ class _GroupsScreenState extends State<GroupsScreen> {
             itemCount: provider.groups.length,
             itemBuilder: (context, index) {
               final group = provider.groups[index];
-              return Card(
+              // V3 — apparition en cascade, comme sur les autres listes.
+              return OmniApparitionEspacee(
+                index: index,
+                child: Card(
                 margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: ListTile(
                   // Photo du groupe quand elle existe (stockée côté serveur
@@ -150,7 +114,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
+                      OmniRoute<void>(
+                        type: OmniTypeTransition.axePartage,
                         builder: (_) => GroupConversationScreen(
                           groupId: group.id,
                           groupName: group.name,
@@ -162,6 +127,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                     _showGroupOptions(group.id, group.name);
                   },
                 ),
+              ),
               );
             },
           );

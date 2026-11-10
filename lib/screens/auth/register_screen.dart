@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/omni_design.dart';
+import '../../theme/omni_motion.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
@@ -205,10 +206,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        const Text(
+                        Text(
                           'Rejoignez OmniSMS',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
+                          style: OmniTypo.secondaire.copyWith(
+                            color: OmniCouleurs.of(context).texteEstompe,
+                          ),
                         ),
                         const SizedBox(height: 28),
 
@@ -419,28 +422,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         // ── Register button ───────────────────────
                         SizedBox(
                           height: 52,
-                          child: ElevatedButton(
-                            onPressed: auth.isLoading ? null : _handleRegister,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: OmniCouleurs.of(context).accentSecondaire,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                          child: OmniPression(
+                            borderRadius: BorderRadius.circular(OmniRayon.m),
+                            onTap: auth.isLoading ? null : _handleRegister,
+                            child: DecoratedBox(
+                              // Même traitement que la connexion : l'action
+                              // principale porte le dégradé de marque, seul
+                              // élément de l'écran qui appelle l'utilisateur.
+                              decoration: BoxDecoration(
+                                gradient: OmniCouleurs.of(context).degradeAccent,
+                                borderRadius: BorderRadius.circular(OmniRayon.m),
+                              ),
+                              child: Center(
+                                child: auth.isLoading
+                                    ? SizedBox(
+                                        height: 22, width: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: OmniCouleurs.of(context).surAccent,
+                                        ),
+                                      )
+                                    : Text(
+                                        'S\'inscrire',
+                                        style: OmniTypo.corpsGras.copyWith(
+                                          color:
+                                              OmniCouleurs.of(context).surAccent,
+                                        ),
+                                      ),
                               ),
                             ),
-                            child: auth.isLoading
-                                ? SizedBox(
-                                    height: 22, width: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5, color: OmniCouleurs.of(context).surAccent,
-                                    ),
-                                  )
-                                : const Text(
-                                    'S\'inscrire',
-                                    style: TextStyle(
-                                      fontSize: 16, fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
                           ),
                         ),
                         const SizedBox(height: 12),

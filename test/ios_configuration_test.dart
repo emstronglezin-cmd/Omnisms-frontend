@@ -196,10 +196,24 @@ void main() {
               'l\'application à une revue sur tablette.');
     });
 
-    test('la version suit pubspec.yaml (2.5.0)', () {
-      expect(_count(projet, 'MARKETING_VERSION = 2.5.0;'), 3,
-          reason: 'Les trois configurations (Debug, Release, Profile) '
-              'doivent porter la même version.');
+    test('la version suit pubspec.yaml', () {
+      // La version attendue est lue dans pubspec.yaml, jamais recopiée :
+      // c'est ce qui évite qu'un test fige « 2.5.0 » alors que
+      // l'application est passée en 3.0.0.
+      final pubspec = File('pubspec.yaml').readAsStringSync();
+      final version = RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)',
+              multiLine: true)
+          .firstMatch(pubspec)
+          ?.group(1);
+      expect(version, isNotNull,
+          reason: 'Version introuvable dans pubspec.yaml.');
+
+      expect(
+        _count(projet, 'MARKETING_VERSION = $version;'),
+        3,
+        reason: 'Les trois configurations (Debug, Release, Profile) doivent '
+            'porter la version $version, celle de pubspec.yaml.',
+      );
     });
 
     test('le manifeste de confidentialité est bien embarqué dans la ressource',
