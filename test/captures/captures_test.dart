@@ -29,6 +29,7 @@ import 'package:omnisms/services/presence_service.dart';
 import 'package:omnisms/services/realtime_service.dart';
 import 'package:omnisms/screens/messaging/messages_list_page.dart';
 import 'package:omnisms/widgets/chat/modern_message_bubble.dart';
+import 'package:omnisms/theme/omni_motion.dart';
 
 /// Taille d'écran de téléphone (logique) utilisée pour les captures.
 const double kLargeurEcran = 411;
@@ -261,6 +262,12 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() async {
+    // Une capture d'écran doit montrer l'ÉTAT FINAL d'un écran, pas une
+    // image saisie au milieu d'une animation d'entrée. Sans cette ligne,
+    // les éléments qui apparaissent en cascade sont enregistrés à moitié
+    // transparents, et la comparaison avant/après devient fausse : la liste
+    // paraît vide alors qu'elle ne l'est pas.
+    OmniMouvementTest.desactivees = true;
     // `ThemeProvider` lit les préférences partagées : sans ce simulacre, le
     // canal de plateforme lève une exception et le test est marqué en échec
     // (les captures, elles, sont tout de même produites).
