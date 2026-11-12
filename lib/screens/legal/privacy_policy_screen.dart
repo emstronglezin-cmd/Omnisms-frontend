@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../../theme/omni_design.dart';
 
 import 'privacy_content.dart';
 
@@ -206,16 +207,16 @@ class _BlockView extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.amber.withValues(alpha: 0.18),
+            color: OmniPalette.avertissement.withValues(alpha: 0.18),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: Colors.amber.shade800.withValues(alpha: 0.7),
+              color: OmniPalette.avertissement.withValues(alpha: 0.7),
             ),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.edit_note, size: 20, color: Colors.amber.shade900),
+              Icon(Icons.edit_note, size: 20, color: OmniPalette.avertissement),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

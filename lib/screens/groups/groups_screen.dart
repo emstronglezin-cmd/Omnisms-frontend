@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/omni_design.dart';
 import 'package:provider/provider.dart';
 import '../../providers/groups_provider.dart';
 import '../../widgets/common/avatar_image.dart';
@@ -87,7 +88,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                     size: 40,
                     fallback: Icon(
                       Icons.group,
-                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      color: OmniCouleurs.of(context).texte,
                     ),
                   ),
                   title: Text(group.name),
@@ -105,7 +106,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                         '${group.memberIds.length} membres',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey[600],
+                          color: OmniCouleurs.of(context).texteSecondaire,
                         ),
                       ),
                     ],
@@ -186,8 +187,9 @@ class _GroupsScreenState extends State<GroupsScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+              leading: Icon(Icons.delete, color: OmniPalette.erreur),
+              title: Text('Supprimer',
+                  style: TextStyle(color: OmniPalette.erreur)),
               onTap: () {
                 Navigator.pop(context);
                 _confirmDeleteGroup(groupId);
@@ -263,7 +265,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 }
               }
             },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: OmniPalette.erreur),
             child: const Text('Supprimer'),
           ),
         ],
