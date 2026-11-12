@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/omni_design.dart';
 import '../../services/settings_service.dart';
 
 class StatisticsScreen extends StatefulWidget {
@@ -63,7 +64,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                       Icon(
                         Icons.error_outline,
                         size: 64,
-                        color: Colors.red[300],
+                        color: OmniPalette.erreur,
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -100,7 +101,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                             Text(
                               'Statistiques de votre utilisation',
                               style: TextStyle(
-                                color: Colors.grey[600],
+                                color: OmniCouleurs.of(context).texteSecondaire,
                               ),
                             ),
                           ],
@@ -114,7 +115,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                         title: 'Messages envoyés',
                         value: _stats?['messagesSent']?.toString() ?? '0',
                         icon: Icons.send,
-                        color: Colors.blue,
+                        color: OmniPalette.info,
                       ),
                       const SizedBox(height: 12),
 
@@ -123,7 +124,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                         title: 'Messages reçus',
                         value: _stats?['messagesReceived']?.toString() ?? '0',
                         icon: Icons.inbox,
-                        color: Colors.green,
+                        color: OmniPalette.succes,
                       ),
                       const SizedBox(height: 12),
 
@@ -132,7 +133,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                         title: 'Contacts',
                         value: _stats?['totalContacts']?.toString() ?? '0',
                         icon: Icons.contacts,
-                        color: Colors.orange,
+                        color: OmniPalette.avertissement,
                       ),
                       const SizedBox(height: 12),
 
@@ -141,7 +142,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                         title: 'Groupes actifs',
                         value: _stats?['activeGroups']?.toString() ?? '0',
                         icon: Icons.group,
-                        color: Colors.purple,
+                        color: OmniPalette.bleu,
                       ),
                       const SizedBox(height: 24),
 
@@ -169,7 +170,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                               Text(
                                 'Les statistiques sont mises à jour en temps réel depuis le serveur.',
                                 style: TextStyle(
-                                  color: Colors.grey[600],
+                                  color: OmniCouleurs.of(context).texteSecondaire,
                                   fontSize: 14,
                                 ),
                               ),
@@ -177,7 +178,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                               Text(
                                 'Tirez vers le bas pour actualiser.',
                                 style: TextStyle(
-                                  color: Colors.grey[600],
+                                  color: OmniCouleurs.of(context).texteSecondaire,
                                   fontSize: 14,
                                 ),
                               ),
@@ -207,7 +208,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
@@ -225,7 +226,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     title,
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.grey[600],
+                      color: OmniCouleurs.of(context).texteSecondaire,
                     ),
                   ),
                   const SizedBox(height: 4),

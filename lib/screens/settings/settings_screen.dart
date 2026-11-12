@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/omni_design.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -36,11 +37,11 @@ class SettingsScreen extends StatelessWidget {
                   imageUrl: user?.photoUrl,
                   name: user?.name ?? 'Utilisateur',
                   size: 70,
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  fallback: const Icon(
+                  backgroundColor: OmniCouleurs.of(context).accent,
+                  fallback: Icon(
                     Icons.person,
                     size: 35,
-                    color: Colors.white,
+                    color: OmniCouleurs.of(context).surAccent,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -60,7 +61,7 @@ class SettingsScreen extends StatelessWidget {
                           '@${user.username}',
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.grey[600],
+                            color: OmniCouleurs.of(context).texteSecondaire,
                           ),
                         ),
                       if (user?.email != null)
@@ -68,7 +69,7 @@ class SettingsScreen extends StatelessWidget {
                           user!.email!,
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.grey[600],
+                            color: OmniCouleurs.of(context).texteSecondaire,
                           ),
                         ),
                       if (user?.phone != null && user!.phone!.isNotEmpty)
@@ -76,7 +77,7 @@ class SettingsScreen extends StatelessWidget {
                           user.phone!,
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.grey[600],
+                            color: OmniCouleurs.of(context).texteSecondaire,
                           ),
                         ),
                       const SizedBox(height: 6),
@@ -86,18 +87,18 @@ class SettingsScreen extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF00D4FF).withOpacity(0.15),
+                            color: OmniCouleurs.of(context).accentDoux,
                             borderRadius: BorderRadius.circular(999),
                             border: Border.all(
-                              color: const Color(0xFF00D4FF).withOpacity(0.4),
+                              color: OmniCouleurs.of(context).accentContour,
                             ),
                           ),
-                          child: const Text(
+                          child: Text(
                             '💎 Premium actif',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF00D4FF),
+                              color: OmniCouleurs.of(context).accent,
                             ),
                           ),
                         ),
@@ -110,7 +111,7 @@ class SettingsScreen extends StatelessWidget {
                             '⚠️ Téléphone non renseigné',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.orange,
+                              color: OmniPalette.avertissement,
                             ),
                           ),
                         ),
@@ -227,10 +228,10 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => _confirmLogout(context),
           ),
           ListTile(
-            leading: const Icon(Icons.delete_forever, color: Colors.red),
+            leading: Icon(Icons.delete_forever, color: OmniPalette.erreur),
             title: const Text(
               'Supprimer mon compte',
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(color: OmniPalette.erreur),
             ),
             subtitle: const Text('Action irréversible'),
             onTap: () => _confirmDeleteAccount(context),
@@ -250,7 +251,7 @@ class SettingsScreen extends StatelessWidget {
           // 🔥 TEST CRASHLYTICS (DEBUG ONLY)
           if (!const bool.fromEnvironment('dart.vm.product'))
             ListTile(
-              leading: const Icon(Icons.bug_report, color: Colors.orange),
+              leading: Icon(Icons.bug_report, color: OmniPalette.avertissement),
               title: const Text('Test Crash (Debug)'),
               subtitle: const Text('Tester Firebase Crashlytics'),
               onTap: () async {
@@ -386,7 +387,7 @@ class SettingsScreen extends StatelessWidget {
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text(
               'Supprimer',
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(color: OmniPalette.erreur),
             ),
           ),
         ],
@@ -410,7 +411,7 @@ class SettingsScreen extends StatelessWidget {
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text(
               'Supprimer définitivement',
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(color: OmniPalette.erreur),
             ),
           ),
         ],
@@ -428,7 +429,7 @@ class SettingsScreen extends StatelessWidget {
         content: Text(ok
             ? 'Compte supprimé. Au revoir !'
             : (auth.error ?? 'Erreur lors de la suppression du compte')),
-        backgroundColor: ok ? Colors.green : Colors.red,
+        backgroundColor: ok ? OmniPalette.succes : OmniPalette.erreur,
         behavior: SnackBarBehavior.floating,
       ),
     );

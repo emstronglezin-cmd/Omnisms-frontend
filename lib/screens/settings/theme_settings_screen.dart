@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/omni_design.dart';
 import 'package:provider/provider.dart';
 import '../../providers/theme_provider.dart';
 
@@ -29,7 +30,7 @@ class ThemeSettingsScreen extends StatelessWidget {
                     Text(
                       'Choisissez le thème de l\'application',
                       style: TextStyle(
-                        color: Colors.grey[600],
+                        color: OmniCouleurs.of(context).texteSecondaire,
                       ),
                     ),
                   ],
@@ -174,7 +175,7 @@ class ThemeSettingsScreen extends StatelessWidget {
                             'Le changement de thème est immédiat dans toute l\'application',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.grey[700],
+                              color: OmniCouleurs.of(context).texte,
                             ),
                           ),
                         ),

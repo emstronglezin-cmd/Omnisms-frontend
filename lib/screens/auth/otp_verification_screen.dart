@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../theme/omni_design.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -130,7 +131,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.orange,
+        backgroundColor: OmniPalette.avertissement,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -149,7 +150,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(result.message),
-          backgroundColor: Colors.green,
+          backgroundColor: OmniPalette.succes,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -226,13 +227,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           height: 64,
                           margin: const EdgeInsets.only(bottom: 16),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF00D4FF), Color(0xFF0066FF)],
-                            ),
-                            borderRadius: BorderRadius.circular(16),
+                            gradient: OmniCouleurs.of(context).degradeAccent,
+                            borderRadius: OmniRayon.carte,
                           ),
-                          child: const Icon(Icons.sms_rounded,
-                              color: Colors.white, size: 32),
+                          child: Icon(Icons.sms_rounded,
+                              color: OmniCouleurs.of(context).surAccent, size: 32),
                         ),
                         Text(
                           'Vérifiez votre numéro',
@@ -294,21 +293,21 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.red.withValues(alpha: 0.1),
+                              color: OmniPalette.erreur.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: Colors.red.withValues(alpha: 0.4),
+                                color: OmniPalette.erreur.withValues(alpha: 0.4),
                               ),
                             ),
                             child: Row(
                               children: [
                                 const Icon(Icons.error_outline,
-                                    color: Colors.red, size: 20),
+                                    color: OmniPalette.erreur, size: 20),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     auth.otpError!,
-                                    style: const TextStyle(color: Colors.red),
+                                    style: TextStyle(color: OmniPalette.erreur),
                                   ),
                                 ),
                               ],

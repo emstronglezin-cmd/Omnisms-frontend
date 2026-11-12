@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../theme/omni_design.dart';
+import '../../theme/omni_motion.dart';
 import 'package:provider/provider.dart';
 import '../../providers/contacts_provider_v2.dart';
 import '../../providers/groups_provider.dart';
@@ -105,7 +107,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Échec de la création du groupe'),
-          backgroundColor: Colors.red,
+          backgroundColor: OmniPalette.erreur,
         ),
       );
     }
@@ -196,7 +198,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 Text(
                   '(optionnel)',
                   style: TextStyle(
-                      fontSize: 12, color: Colors.grey[500]),
+                      fontSize: 12, color: OmniCouleurs.of(context).texteEstompe),
                 ),
               ],
             ),
@@ -215,8 +217,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.contacts_outlined,
-                            size: 64, color: Colors.grey),
+                        Icon(Icons.contacts_outlined,
+                            size: 64, color: OmniCouleurs.of(context).texteEstompe),
                         const SizedBox(height: 16),
                         const Text(
                           'Aucun contact disponible',
@@ -250,7 +252,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                     final canBeMember = contact.memberId != null;
                     final phoneLabel = contact.phone ?? 'Pas de numéro';
 
-                    return CheckboxListTile(
+return OmniApparitionEspacee(
+                      index: index,
+                      child: CheckboxListTile(
                       value: isSelected,
                       onChanged: canBeMember
                           ? (value) {
@@ -294,6 +298,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                           ),
                         ),
                       ),
+                    ),
                     );
                   },
                 );

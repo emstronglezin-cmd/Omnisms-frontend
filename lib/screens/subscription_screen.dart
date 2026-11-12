@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../theme/omni_design.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -247,29 +248,29 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
+                  color: OmniPalette.erreur.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                   border:
-                      Border.all(color: Colors.red.withOpacity(0.4)),
+                      Border.all(color: OmniPalette.erreur.withValues(alpha: 0.4)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Icon(Icons.error_outline,
-                        color: Colors.red, size: 20),
+                        color: OmniPalette.erreur, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         _errorMessage!,
                         style: const TextStyle(
-                            color: Colors.red, fontSize: 13),
+                            color: OmniPalette.erreur, fontSize: 13),
                       ),
                     ),
                     GestureDetector(
                       onTap: () =>
                           setState(() => _errorMessage = null),
                       child: const Icon(Icons.close,
-                          color: Colors.red, size: 16),
+                          color: OmniPalette.erreur, size: 16),
                     ),
                   ],
                 ),
@@ -281,22 +282,22 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
+                  color: OmniPalette.succes.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                      color: Colors.green.withOpacity(0.4)),
+                      color: OmniPalette.succes.withValues(alpha: 0.4)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Icon(Icons.check_circle_outline,
-                        color: Colors.green, size: 20),
+                        color: OmniPalette.succes, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         _successMessage!,
                         style: const TextStyle(
-                            color: Colors.green, fontSize: 13),
+                            color: OmniPalette.succes, fontSize: 13),
                       ),
                     ),
                   ],
@@ -310,7 +311,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 Icons.workspace_premium,
                 size: 120,
                 color: _isPremium
-                    ? Colors.green
+                    ? OmniPalette.succes
                     : Theme.of(context).primaryColor,
               ),
             ),
@@ -415,7 +416,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     : _handleSubscribePressed,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _isPremium
-                      ? Colors.green
+                      ? OmniPalette.succes
                       : (isWeb
                           ? const Color(0xFF00d4ff)
                           : Theme.of(context).primaryColor),
@@ -429,7 +430,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   ),
                   elevation: 4,
                   disabledBackgroundColor:
-                      _isPremium ? Colors.green : null,
+                      _isPremium ? OmniPalette.succes : null,
                   disabledForegroundColor:
                       _isPremium ? Colors.white : null,
                 ),

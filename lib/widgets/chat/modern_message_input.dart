@@ -1,6 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
 
+import '../../theme/omni_design.dart';
+import '../../theme/omni_motion.dart';
+
+/// Barre de saisie d'un message.
+///
+/// Le point central de cet écran est le bouton à droite : il est **micro**
+/// quand le champ est vide et **envoyer** dès qu'un texte est saisi. Changer
+/// la fonction d'un bouton sans le montrer est une source d'erreur classique
+/// — l'utilisateur appuie en croyant dicter et envoie un message vide, ou
+/// l'inverse. Le bouton **morphe** donc : rotation, fondu et léger
+/// redimensionnement, pour que le changement de rôle soit visible avant
+/// l'appui.
 class ModernMessageInput extends StatefulWidget {
   final Function(String) onSendMessage;
   final VoidCallback? onStartRecording;
@@ -19,34 +30,38 @@ class ModernMessageInput extends StatefulWidget {
 
 class _ModernMessageInputState extends State<ModernMessageInput> {
   final TextEditingController _controller = TextEditingController();
+  final FocusNode _focus = FocusNode();
   bool _hasText = false;
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(() {
-      setState(() {
-        _hasText = _controller.text.trim().isNotEmpty;
-      });
-    });
+    _controller.addListener(_surveillerTexte);
+    _focus.addListener(() => setState(() {}));
+  }
+
+  void _surveillerTexte() {
+    final nouveau = _controller.text.trim().isNotEmpty;
+    if (nouveau != _hasText) setState(() => _hasText = nouveau);
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_surveillerTexte);
     _controller.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
   void _handleSend() {
     final text = _controller.text.trim();
-    debugPrint('[DEBUG_SEND] ModernMessageInput _handleSend pressed, hasText=$_hasText, textLen=${text.length}, content=$text');
+    debugPrint('[DEBUG_SEND] ModernMessageInput _handleSend pressed, '
+        'hasText=$_hasText, textLen=${text.length}, content=$text');
     if (text.isNotEmpty) {
       debugPrint('[DEBUG_SEND] ModernMessageInput calling onSendMessage');
       widget.onSendMessage(text);
       _controller.clear();
-      setState(() {
-        _hasText = false;
-      });
+      setState(() => _hasText = false);
     } else {
       debugPrint('[DEBUG_SEND] ModernMessageInput empty text, abort');
     }
@@ -54,103 +69,171 @@ class _ModernMessageInputState extends State<ModernMessageInput> {
 
   @override
   Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: OmniEspace.s,
+        vertical: OmniEspace.s,
+      ),
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
+        color: c.fond,
+        border: Border(top: BorderSide(color: c.contour)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+            color: c.ombre.withValues(alpha: 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
       child: SafeArea(
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // Attachment button
-            IconButton(
-              icon: Icon(
-                Icons.add_circle_outline,
-                color: Theme.of(context).primaryColor,
-                size: 28,
-              ),
-              onPressed: widget.onAttachment,
-            ),
-            // Text input
-            Expanded(
+            // ── Bouton d'ajout ──────────────────────────────────────
+            OmniPression(
+              borderRadius: OmniRayon.pill,
+              onTap: widget.onAttachment,
+              actif: widget.onAttachment != null,
               child: Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.add_circle_outline_rounded,
+                  color: widget.onAttachment != null ? c.accent : c.texteEstompe,
+                  size: 26,
+                ),
+              ),
+            ),
+
+            // ── Champ de saisie ─────────────────────────────────────
+            Expanded(
+              child: AnimatedContainer(
+                duration: OmniMouvement.rapide,
+                curve: OmniMouvement.standard,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(24),
+                  color: c.surfaceVariante,
+                  // Le champ se creuse légèrement quand il est actif :
+                  // c'est le seul indice qui indique où le texte ira.
+                  borderRadius: OmniRayon.champ,
+                  border: Border.all(
+                    color: _focus.hasFocus ? c.accentContour : c.contour,
+                    width: _focus.hasFocus ? 1.5 : 1,
+                  ),
                 ),
                 child: TextField(
                   controller: _controller,
+                  focusNode: _focus,
                   maxLines: 5,
                   minLines: 1,
                   decoration: InputDecoration(
-                    hintText: 'Message...',
-                    hintStyle: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 16,
-                    ),
+                    hintText: 'Message…',
+                    hintStyle: OmniTypo.corps
+                        .copyWith(color: c.texteEstompe),
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    isDense: true,
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                      horizontal: OmniEspace.m,
+                      vertical: OmniEspace.m,
                     ),
                   ),
-                  style: const TextStyle(fontSize: 16),
+                  style: OmniTypo.corps.copyWith(color: c.texte),
                   textCapitalization: TextCapitalization.sentences,
                   onSubmitted: (_) => _handleSend(),
                 ),
               ),
             ),
-            const SizedBox(width: 4),
-            // Send or Voice button
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: _hasText
-                      ? [
-                          const Color(0xFF0084FF),
-                          const Color(0xFF0066FF),
-                        ]
-                      : [
-                          Theme.of(context).primaryColor,
-                          Theme.of(context).primaryColor.withOpacity(0.8),
-                        ],
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme.of(context).primaryColor.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: _hasText ? _handleSend : widget.onStartRecording,
-                  onLongPress: !_hasText ? widget.onStartRecording : null,
-                  customBorder: const CircleBorder(),
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    alignment: Alignment.center,
-                    child: Icon(
-                      _hasText ? Icons.send_rounded : Icons.mic,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                ),
-              ),
+
+            const SizedBox(width: OmniEspace.xs),
+
+            // ── Bouton micro / envoyer ──────────────────────────────
+            _BoutonMorph(
+              modeEnvoi: _hasText,
+              onAppui: _hasText ? _handleSend : widget.onStartRecording,
+              onAppuiLong: !_hasText ? widget.onStartRecording : null,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bouton qui **morphe** entre « dicter » et « envoyer ».
+///
+/// Pourquoi une animation ici : un bouton qui change de fonction en
+/// silence est un bouton qu'on utilise mal. La rotation et le fondu rendent
+/// le changement de rôle perceptible avant l'appui.
+class _BoutonMorph extends StatelessWidget {
+  const _BoutonMorph({
+    required this.modeEnvoi,
+    required this.onAppui,
+    this.onAppuiLong,
+  });
+
+  final bool modeEnvoi;
+  final VoidCallback? onAppui;
+  final VoidCallback? onAppuiLong;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = OmniCouleurs.of(context);
+    final actif = onAppui != null;
+    const duree = OmniMouvement.rapide;
+
+    return OmniPression(
+      borderRadius: OmniRayon.pill,
+      onTap: onAppui,
+      onLongPress: onAppuiLong,
+      actif: actif,
+      child: AnimatedContainer(
+        duration: duree,
+        curve: OmniMouvement.standard,
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          // Le dégradé de marque n'apparaît qu'en mode envoi : c'est le
+          // signal « cette action va produire quelque chose ».
+          gradient: modeEnvoi ? c.degradeAccent : null,
+          color: modeEnvoi ? null : c.surfaceVariante,
+          shape: BoxShape.circle,
+          border: modeEnvoi ? null : Border.all(color: c.contour),
+          boxShadow: modeEnvoi
+              ? [
+                  BoxShadow(
+                    color: c.accent.withValues(alpha: 0.32),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: AnimatedSwitcher(
+          duration: duree,
+          switchInCurve: OmniMouvement.arrivee,
+          switchOutCurve: OmniMouvement.depart,
+          transitionBuilder: (child, animation) {
+            // Rotation + fondu : l'icône pivotante attire l'œil juste ce
+            // qu'il faut pour signaler le changement de rôle.
+            final rotation = Tween<double>(
+              begin: modeEnvoi ? 0.6 : -0.6,
+              end: 0,
+            ).animate(animation);
+            return RotationTransition(
+              turns: rotation,
+              child: FadeTransition(opacity: animation, child: child),
+            );
+          },
+          child: Icon(
+            modeEnvoi ? Icons.send_rounded : Icons.mic_rounded,
+            key: ValueKey<bool>(modeEnvoi),
+            color: modeEnvoi ? c.surAccent : c.texte,
+            size: 22,
+          ),
         ),
       ),
     );

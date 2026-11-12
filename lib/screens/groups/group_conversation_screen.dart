@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../theme/omni_design.dart';
+import '../../theme/omni_motion.dart';
 import '../../utils/user_messages.dart';
+import '../../widgets/common/etats_v3.dart';
 import '../../widgets/common/avatar_image.dart';
 import '../../models/models.dart';
 import '../../services/auth_service.dart';
@@ -23,6 +26,10 @@ class GroupConversationScreen extends StatefulWidget {
 class _GroupConversationScreenState extends State<GroupConversationScreen> {
   final GroupsService _groupsService = GroupsService();
   final AuthService _authService = AuthService();
+
+  /// Utilisé pour ouvrir le clavier depuis l'état vide : « Écrire » doit
+  /// faire exactement ce que son libellé promet, pas seulement décorer.
+  final FocusNode _focusMessage = FocusNode();
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -157,9 +164,9 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
       } else if (idx >= 0) {
         _messages[idx] = optimistic.copyWith(status: MessageStatus.failed);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text("Échec de l'envoi du message"),
-            backgroundColor: Colors.red,
+            backgroundColor: OmniPalette.erreur,
           ),
         );
       }
@@ -170,6 +177,7 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _focusMessage.dispose();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -182,10 +190,19 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.groupName),
+            Text(
+              widget.groupName,
+              style: OmniTypo.sousTitre.copyWith(
+                color: OmniCouleurs.of(context).texte,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             Text(
               '${_memberNames.length} membres',
-              style: const TextStyle(fontSize: 12),
+              style: OmniTypo.micro.copyWith(
+                color: OmniCouleurs.of(context).texteSecondaire,
+              ),
             ),
           ],
         ),
@@ -215,52 +232,36 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const OmniEtatChargement(nombreLignes: 6);
     }
 
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(userMessage(_error)),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () {
-                setState(() => _isLoading = true);
-                _loadMessages(showLoader: true);
-              },
-              child: const Text('Réessayer'),
-            ),
-          ],
-        ),
+      return OmniEtatErreur(
+        message: userMessage(_error),
+        onReessayer: () {
+          setState(() => _isLoading = true);
+          _loadMessages(showLoader: true);
+        },
       );
     }
 
     if (_messages.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.group, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'Messages de groupe',
-              style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Envoyez votre premier message',
-              style: TextStyle(color: Colors.grey[500]),
-            ),
-          ],
-        ),
+      return OmniEtatVide(
+        icone: Icons.forum_rounded,
+        titre: 'Messages de groupe',
+        message: 'Envoyez votre premier message à ce groupe.',
+        libelleAction: 'Écrire un message',
+        onAction: () => _focusMessage.requestFocus(),
       );
     }
 
-    return RefreshIndicator(
+    // L'apparition est appliquée à la liste entière, une seule fois, et non
+    // à chaque bulle : dans une conversation, les bulles sont recréées à
+    // chaque défilement, et une animation par bulle se rejouerait sans fin
+    // au moindre geste.
+    return OmniApparition(
+      duree: OmniMouvement.entree,
+      child: RefreshIndicator(
       onRefresh: () => _loadMessages(),
       child: ListView.builder(
         controller: _scrollController,
@@ -275,18 +276,16 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
           return _buildBubble(message, isMe, senderName);
         },
       ),
+      ),
     );
   }
 
   Widget _buildBubble(MessageModel message, bool isMe, String? senderName) {
     final alignment =
         isMe ? Alignment.centerRight : Alignment.centerLeft;
-    final bubbleColor = isMe
-        ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.surfaceVariant;
-    final textColor = isMe
-        ? Theme.of(context).colorScheme.onPrimary
-        : Theme.of(context).colorScheme.onSurfaceVariant;
+    final c = OmniCouleurs.of(context);
+    final bubbleColor = isMe ? c.bulleSortante : c.bulleEntrante;
+    final textColor = isMe ? c.bulleSortanteTexte : c.bulleEntranteTexte;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -300,10 +299,8 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
               padding: const EdgeInsets.only(left: 12, bottom: 2),
               child: Text(
                 senderName,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.primary,
+                style: OmniTypo.etiquette.copyWith(
+                  color: OmniCouleurs.of(context).accent,
                 ),
               ),
             ),
@@ -317,16 +314,13 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: bubbleColor,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(18),
-                  topRight: const Radius.circular(18),
-                  bottomLeft: Radius.circular(isMe ? 18 : 4),
-                  bottomRight: Radius.circular(isMe ? 4 : 18),
-                ),
+                borderRadius: isMe
+                    ? OmniRayon.bulleSortante
+                    : OmniRayon.bulleEntrante,
               ),
               child: Text(
                 message.content ?? '',
-                style: TextStyle(color: textColor, fontSize: 15),
+                style: OmniTypo.corps.copyWith(color: textColor),
               ),
             ),
           ),
@@ -334,7 +328,9 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
             padding: const EdgeInsets.only(top: 2, left: 12, right: 12),
             child: Text(
               _formatTime(message.timestamp),
-              style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+              style: OmniTypo.micro.copyWith(
+                color: OmniCouleurs.of(context).texteEstompe,
+              ),
             ),
           ),
         ],
@@ -347,50 +343,87 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
   }
 
   Widget _buildInputBar() {
+    final c = OmniCouleurs.of(context);
+
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(OmniEspace.s),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, -2),
-          ),
-        ],
+        color: c.fond,
+        border: Border(top: BorderSide(color: c.contour)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _textController,
-              onSubmitted: (_) => _sendMessage(),
-              decoration: InputDecoration(
-                hintText: 'Message...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
+      child: SafeArea(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: c.surfaceVariante,
+                  borderRadius: OmniRayon.champ,
+                  border: Border.all(color: c.contour),
                 ),
-                filled: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
+                child: TextField(
+                  controller: _textController,
+                  focusNode: _focusMessage,
+                  onSubmitted: (_) => _sendMessage(),
+                  maxLines: 5,
+                  minLines: 1,
+                  decoration: InputDecoration(
+                    hintText: 'Message…',
+                    hintStyle: OmniTypo.corps.copyWith(color: c.texteEstompe),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: OmniEspace.m,
+                      vertical: OmniEspace.m,
+                    ),
+                  ),
+                  style: OmniTypo.corps.copyWith(color: c.texte),
+                  textCapitalization: TextCapitalization.sentences,
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: _isSending
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.send),
-            onPressed: _sendMessage,
-          ),
-        ],
+            const SizedBox(width: OmniEspace.s),
+            // Le bouton montre l'état d'envoi : un envoi en cours silencieux
+            // pousse l'utilisateur à renvoyer, donc à créer un doublon.
+            OmniPression(
+              borderRadius: OmniRayon.pill,
+              onTap: _isSending ? null : _sendMessage,
+              actif: !_isSending,
+              child: AnimatedContainer(
+                duration: OmniMouvement.rapide,
+                curve: OmniMouvement.standard,
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: c.degradeAccent,
+                  shape: BoxShape.circle,
+                ),
+                child: AnimatedSwitcher(
+                  duration: OmniMouvement.rapide,
+                  child: _isSending
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Icon(
+                          Icons.send_rounded,
+                          key: const ValueKey<String>('envoyer'),
+                          color: c.surAccent,
+                          size: 22,
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
