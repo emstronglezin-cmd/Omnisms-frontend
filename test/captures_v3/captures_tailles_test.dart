@@ -38,6 +38,7 @@ import 'package:omnisms/screens/messaging/messages_list_page.dart';
 import 'package:omnisms/services/presence_service.dart';
 import 'package:omnisms/services/realtime_service.dart';
 import 'package:omnisms/theme/omni_design.dart';
+import 'package:omnisms/theme/omni_theme.dart';
 import 'package:omnisms/theme/omni_motion.dart';
 import 'package:omnisms/widgets/chat/modern_message_bubble.dart' as modern;
 
@@ -267,7 +268,7 @@ Widget _application({
   required double largeur,
   required double hauteur,
 }) {
-  final theme = sombre ? ThemeProvider.darkTheme : ThemeProvider.lightTheme;
+  final theme = sombre ? OmniTheme.sombre() : OmniTheme.clair();
   return MultiProvider(
     providers: providers,
     child: MaterialApp(

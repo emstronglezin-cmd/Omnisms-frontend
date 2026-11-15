@@ -134,8 +134,10 @@ class OmniSMSApp extends StatelessWidget {
         return MaterialApp(
           title: 'OmniSMS',
           debugShowCheckedModeBanner: false,
-          theme: ThemeProvider.lightTheme,
-          darkTheme: ThemeProvider.darkTheme,
+          // Les thèmes dépendent de la variante visuelle choisie : ils sont
+          // donc lus sur l'instance, plus en getters statiques.
+          theme: themeProvider.lightTheme,
+          darkTheme: themeProvider.darkTheme,
           themeMode: themeProvider.themeMode,
           // Clé de navigation globale : permet d'ouvrir une conversation
           // depuis une notification, même quand c'est ce tap qui a lancé

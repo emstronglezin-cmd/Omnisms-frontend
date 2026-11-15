@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../theme/omni_design.dart';
 import 'package:flutter/services.dart';
 import '../services/settings_service.dart';
 import '../theme/omni_theme.dart';
@@ -46,6 +48,10 @@ class ThemeProvider with ChangeNotifier {
 
   ThemeMode _themeMode = ThemeMode.dark; // OmniSMS est dark-first
 
+  /// Variante visuelle active. « Classique » reste le défaut : une nouvelle
+  /// identité ne remplace jamais l'ancienne sans être choisie.
+  OmniVariante _variante = OmniVariante.classique;
+
   ThemeMode get themeMode => _themeMode;
 
   ThemeProvider() {
@@ -55,7 +61,34 @@ class ThemeProvider with ChangeNotifier {
   Future<void> _loadTheme() async {
     final theme = await _settingsService.getThemeMode();
     _themeMode = _parseThemeMode(theme);
+    _variante = _parseVariante(await _settingsService.getVariante());
     notifyListeners();
+  }
+
+  /// Variante visuelle courante.
+  OmniVariante get variante => _variante;
+
+  /// Change de variante visuelle. Toute l'interface est reconstruite : aucun
+  /// écran ne connaît la variante, ils lisent tous les jetons du thème.
+  Future<void> setVariante(OmniVariante variante) async {
+    if (variante == _variante) return;
+    _variante = variante;
+    await _settingsService.setVariante(_varianteToString(variante));
+    notifyListeners();
+  }
+
+  OmniVariante _parseVariante(String valeur) {
+    return switch (valeur.toLowerCase()) {
+      'nova' => OmniVariante.nova,
+      _ => OmniVariante.classique, // l'identité d'origine reste le repli
+    };
+  }
+
+  String _varianteToString(OmniVariante variante) {
+    return switch (variante) {
+      OmniVariante.nova => 'nova',
+      OmniVariante.classique => 'classique',
+    };
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -101,9 +134,15 @@ class ThemeProvider with ChangeNotifier {
   // Les deux thèmes sont désormais de qualité égale — le mode clair n'est plus
   // une « version allégée » du mode sombre.
 
-  /// Thème clair.
-  static ThemeData get lightTheme => OmniTheme.clair();
+  /// Thème clair, dans la variante courante.
+  ThemeData get lightTheme => switch (_variante) {
+        OmniVariante.nova => OmniTheme.novaClair(),
+        OmniVariante.classique => OmniTheme.clair(),
+      };
 
-  /// Thème sombre (thème par défaut d'OmniSMS).
-  static ThemeData get darkTheme => OmniTheme.sombre();
+  /// Thème sombre (par défaut d'OmniSMS), dans la variante courante.
+  ThemeData get darkTheme => switch (_variante) {
+        OmniVariante.nova => OmniTheme.novaSombre(),
+        OmniVariante.classique => OmniTheme.sombre(),
+      };
 }

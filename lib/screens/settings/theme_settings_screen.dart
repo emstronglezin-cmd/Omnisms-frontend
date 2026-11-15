@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/omni_design.dart';
+import '../../theme/omni_motion.dart';
 import 'package:provider/provider.dart';
 import '../../providers/theme_provider.dart';
 
@@ -76,6 +77,55 @@ class ThemeSettingsScreen extends StatelessWidget {
                 subtitle: const Text('Suivre les paramètres du système'),
                 secondary: const Icon(Icons.settings_brightness),
               ),
+
+              // ── Style visuel ─────────────────────────────────────────
+              const Divider(height: 32),
+              OmniApparitionEspacee(
+                index: 0,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: OmniEspace.l,
+                    vertical: OmniEspace.s,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Style visuel',
+                        style: OmniTypo.sousTitre.copyWith(
+                          color: OmniCouleurs.of(context).texte,
+                        ),
+                      ),
+                      const SizedBox(height: OmniEspace.xs),
+                      Text(
+                        'Deux identités coexistent. L’ancienne reste '
+                        'disponible : si la nouvelle ne convient pas, le '
+                        'retour est immédiat.',
+                        style: OmniTypo.secondaire.copyWith(
+                          color: OmniCouleurs.of(context).texteSecondaire,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              for (final variante in OmniVariante.values)
+                OmniApparitionEspacee(
+                  index: OmniVariante.values.indexOf(variante) + 1,
+                  child: RadioListTile<OmniVariante>(
+                    value: variante,
+                    groupValue: themeProvider.variante,
+                    onChanged: (value) {
+                      if (value != null) {
+                        themeProvider.setVariante(value);
+                      }
+                    },
+                    title: Text(variante.libelle),
+                    subtitle: Text(variante.description),
+                    secondary: _Pastille(variante: variante),
+                  ),
+                ),
 
               const SizedBox(height: 24),
 
@@ -187,6 +237,48 @@ class ThemeSettingsScreen extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Pastille d'aperçu d'une variante.
+///
+/// Montrer les couleurs réelles de la variante vaut mieux que les décrire :
+/// le choix se fait à l'œil, pas sur un texte.
+class _Pastille extends StatelessWidget {
+  const _Pastille({required this.variante});
+
+  final OmniVariante variante;
+
+  @override
+  Widget build(BuildContext context) {
+    final degrade = switch (variante) {
+      OmniVariante.nova => const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            OmniNovaPalette.cyan,
+            OmniNovaPalette.indigo,
+            OmniNovaPalette.magenta,
+          ],
+        ),
+      OmniVariante.classique => const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [OmniPalette.cyan, OmniPalette.bleu],
+        ),
+    };
+
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        gradient: degrade,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: OmniCouleurs.of(context).contour,
+        ),
       ),
     );
   }

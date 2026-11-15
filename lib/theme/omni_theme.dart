@@ -16,13 +16,23 @@ import 'omni_design.dart';
 abstract final class OmniTheme {
   /// Thème clair : fonds froids très légèrement bleutés, cartes blanches,
   /// accent cyan légèrement assombri pour garantir un contraste AA sur blanc.
-  static ThemeData clair() => _construire(OmniCouleurs.clair());
+  static ThemeData clair() =>
+      _construire(OmniCouleurs.clair(), OmniVariante.classique);
 
   /// Thème sombre : fonds profonds (#08090F), surfaces à peine plus claires,
   /// accent cyan électrique, bordures discrètes plutôt que des ombres.
-  static ThemeData sombre() => _construire(OmniCouleurs.sombre());
+  static ThemeData sombre() =>
+      _construire(OmniCouleurs.sombre(), OmniVariante.classique);
 
-  static ThemeData _construire(OmniCouleurs c) {
+  /// Variante Nova, thème clair.
+  static ThemeData novaClair() =>
+      _construire(OmniCouleurs.novaClair(), OmniVariante.nova);
+
+  /// Variante Nova, thème sombre.
+  static ThemeData novaSombre() =>
+      _construire(OmniCouleurs.novaSombre(), OmniVariante.nova);
+
+  static ThemeData _construire(OmniCouleurs c, OmniVariante variante) {
     final scheme = ColorScheme(
       brightness: c.estSombre ? Brightness.dark : Brightness.light,
       primary: c.accent,
@@ -304,6 +314,11 @@ abstract final class OmniTheme {
         textStyle: OmniTypo.etiquette.copyWith(color: Colors.white),
       ),
       splashFactory: InkSparkle.splashFactory,
+      // La palette voyage avec le thème : c'est ce qui rend la variante
+      // sélectionnable sans toucher au moindre écran.
+      extensions: <ThemeExtension<dynamic>>[
+        OmniJetons(couleurs: c, variante: variante),
+      ],
     );
   }
 

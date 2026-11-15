@@ -16,6 +16,83 @@ import 'package:flutter/services.dart';
 /// ne doit plus coder une couleur en dur.
 
 // ─── Espacements ───────────────────────────────────────────────────────────
+/// Deux identités visuelles pour la même application.
+///
+/// Un changement d'identité se juge à l'usage, pas sur une description. Les
+/// deux variantes coexistent, sont sélectionnables à tout moment, et
+/// l'ancienne n'est jamais supprimée : si la nouvelle ne convient pas, le
+/// retour arrière est immédiat et sans perte.
+enum OmniVariante {
+  /// Identité d'origine : fonds neutres profonds, accent cyan.
+  classique,
+
+  /// Variante « Nova » : bleu nuit, dégradés aurore, accents lumineux.
+  nova;
+
+  String get libelle => switch (this) {
+        OmniVariante.classique => 'Omni Classique',
+        OmniVariante.nova => 'Omni Nova',
+      };
+
+  String get description => switch (this) {
+        OmniVariante.classique =>
+          'Fonds neutres profonds, accent cyan, contrastes francs.',
+        OmniVariante.nova =>
+          'Bleu nuit, dégradés aurore, surfaces translucides et accents lumineux.',
+      };
+}
+
+/// Les jetons de la variante courante, transportés par le thème.
+///
+/// Le mécanisme est un `ThemeExtension` : la palette voyage avec le
+/// `ThemeData`. Quand la variante change, Flutter reconstruit l'interface et
+/// chaque `OmniCouleurs.of(context)` renvoie la nouvelle palette — sans
+/// qu'aucun écran n'ait à être modifié, ni même à être au courant.
+class OmniJetons extends ThemeExtension<OmniJetons> {
+  const OmniJetons({required this.couleurs, required this.variante});
+
+  final OmniCouleurs couleurs;
+  final OmniVariante variante;
+
+  bool get estNova => variante == OmniVariante.nova;
+
+  /// Dégradé aurore, signature de Nova. Sur la variante classique il reprend
+  /// le dégradé d'accent : le code appelant n'a pas à distinguer les deux.
+  LinearGradient get degradeAurore => estNova
+      ? const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            OmniNovaPalette.cyan,
+            OmniNovaPalette.indigo,
+            OmniNovaPalette.magenta,
+          ],
+        )
+      : couleurs.degradeAccent;
+
+  @override
+  ThemeExtension<OmniJetons> copyWith({
+    OmniCouleurs? couleurs,
+    OmniVariante? variante,
+  }) =>
+      OmniJetons(
+        couleurs: couleurs ?? this.couleurs,
+        variante: variante ?? this.variante,
+      );
+
+  @override
+  ThemeExtension<OmniJetons> lerp(
+    covariant ThemeExtension<OmniJetons>? autre,
+    double t,
+  ) {
+    // La palette ne s'interpole pas : un mélange des deux identités
+    // produirait des teintes intermédiaires qui n'appartiennent à aucune.
+    // Le basculement est donc franc.
+    if (autre is! OmniJetons) return this;
+    return t < 0.5 ? this : autre;
+  }
+}
+
 abstract final class OmniEspace {
   static const double xxs = 2;
   static const double xs = 4;
@@ -236,6 +313,39 @@ abstract final class OmniTypo {
 }
 
 // ─── Palette brute (valeurs de référence) ──────────────────────────────────
+/// Palette de la variante « Nova » (bleu nuit, accents aurore).
+///
+/// Elle reprend **exactement la même structure** que [OmniPalette] : mêmes
+/// rôles, mêmes niveaux. C'est ce qui permet à chaque écran de s'afficher
+/// dans l'une ou l'autre identité sans qu'une seule ligne d'écran ne change.
+abstract final class OmniNovaPalette {
+  // Fonds — bleu nuit profond, légèrement violacé.
+  static const Color sombreFond = Color(0xFF050A18);
+  static const Color sombreFondSecondaire = Color(0xFF0A1229);
+  static const Color sombreSurface = Color(0xFF0E1833);
+  static const Color sombreSurfaceVariante = Color(0xFF152043);
+  static const Color sombreContour = Color(0xFF24325C);
+
+  // Texte — légèrement bleuté pour s'accorder au fond.
+  static const Color sombreTexte = Color(0xFFEAF0FF);
+  static const Color sombreTexteSecondaire = Color(0xFF9AAAD4);
+  static const Color sombreTexteEstompe = Color(0xFF64739E);
+
+  // Clair — mêmes teintes, valeurs très pâles.
+  static const Color clairFond = Color(0xFFF4F7FF);
+  static const Color clairSurface = Color(0xFFFFFFFF);
+  static const Color clairSurfaceVariante = Color(0xFFE9EEFB);
+  static const Color clairContour = Color(0xFFD3DCF2);
+  static const Color clairTexte = Color(0xFF0A1330);
+  static const Color clairTexteSecondaire = Color(0xFF54628C);
+  static const Color clairTexteEstompe = Color(0xFF8D99BE);
+
+  // Accents aurore : cyan → indigo → magenta.
+  static const Color cyan = Color(0xFF35E6FF);
+  static const Color indigo = Color(0xFF6C5CE7);
+  static const Color magenta = Color(0xFFFF5FD2);
+}
+
 abstract final class OmniPalette {
   // Accents — identité OmniSMS
   static const Color cyan = Color(0xFF00C8FF);
@@ -275,6 +385,7 @@ abstract final class OmniPalette {
 class OmniCouleurs {
   OmniCouleurs._(
     this.estSombre, {
+    this.estNova = false,
     required this.fond,
     required this.fondSecondaire,
     required this.surface,
@@ -294,6 +405,9 @@ class OmniCouleurs {
   });
 
   final bool estSombre;
+
+  /// Vrai si cette palette appartient à la variante Nova.
+  final bool estNova;
 
   // Fonds
   final Color fond;
@@ -324,6 +438,12 @@ class OmniCouleurs {
 
   /// Résout la palette depuis le [BuildContext].
   factory OmniCouleurs.of(BuildContext context) {
+    // Si le thème porte des jetons (cas normal), ils font foi : c'est ce qui
+    // permet à la même arborescence d'écrans de s'afficher dans l'une ou
+    // l'autre identité. À défaut, on retombe sur la luminosité, pour qu'aucun
+    // écran ne puisse se retrouver sans couleurs.
+    final jetons = Theme.of(context).extension<OmniJetons>();
+    if (jetons != null) return jetons.couleurs;
     final sombre = Theme.of(context).brightness == Brightness.dark;
     return sombre ? OmniCouleurs.sombre() : OmniCouleurs.clair();
   }
@@ -349,6 +469,52 @@ class OmniCouleurs {
       ombre: const Color(0x140E1626),
     );
   }
+
+  /// Variante Nova, thème clair. Même structure de jetons, autres couleurs.
+  factory OmniCouleurs.novaClair() => OmniCouleurs._(
+        false,
+        estNova: true,
+        fond: OmniNovaPalette.clairFond,
+        fondSecondaire: OmniNovaPalette.clairSurface,
+        surface: OmniNovaPalette.clairSurface,
+        surfaceVariante: OmniNovaPalette.clairSurfaceVariante,
+        contour: OmniNovaPalette.clairContour,
+        texte: OmniNovaPalette.clairTexte,
+        texteSecondaire: OmniNovaPalette.clairTexteSecondaire,
+        texteEstompe: OmniNovaPalette.clairTexteEstompe,
+        // Indigo assombri : contraste AA sur fond blanc.
+        accent: const Color(0xFF5B3FD6),
+        accentSecondaire: OmniNovaPalette.indigo,
+        surAccent: Colors.white,
+        bulleSortante: const Color(0xFF6C5CE7),
+        bulleSortanteTexte: Colors.white,
+        bulleEntrante: OmniNovaPalette.clairSurfaceVariante,
+        bulleEntranteTexte: OmniNovaPalette.clairTexte,
+        ombre: const Color(0x1F0A1330),
+      );
+
+  /// Variante Nova, thème sombre.
+  factory OmniCouleurs.novaSombre() => OmniCouleurs._(
+        true,
+        estNova: true,
+        fond: OmniNovaPalette.sombreFond,
+        fondSecondaire: OmniNovaPalette.sombreFondSecondaire,
+        surface: OmniNovaPalette.sombreSurface,
+        surfaceVariante: OmniNovaPalette.sombreSurfaceVariante,
+        contour: OmniNovaPalette.sombreContour,
+        texte: OmniNovaPalette.sombreTexte,
+        texteSecondaire: OmniNovaPalette.sombreTexteSecondaire,
+        texteEstompe: OmniNovaPalette.sombreTexteEstompe,
+        accent: OmniNovaPalette.cyan,
+        accentSecondaire: OmniNovaPalette.indigo,
+        // Texte foncé sur accent clair : jamais de blanc sur cyan pâle.
+        surAccent: const Color(0xFF050A18),
+        bulleSortante: OmniNovaPalette.indigo,
+        bulleSortanteTexte: Colors.white,
+        bulleEntrante: OmniNovaPalette.sombreSurfaceVariante,
+        bulleEntranteTexte: OmniNovaPalette.sombreTexte,
+        ombre: const Color(0x66000000),
+      );
 
   factory OmniCouleurs.sombre() {
     return OmniCouleurs._(
