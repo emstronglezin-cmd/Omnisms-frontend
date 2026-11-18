@@ -551,6 +551,89 @@ class OmniCouleurs {
   /// Accent très atténué pour les séparations et contours actifs (28 %).
   Color get accentContour => accent.withValues(alpha: 0.32);
 
+  // ─── Profondeur ───────────────────────────────────────────────────────────
+  // Une interface sombre ne se lit pas par ses ombres : elle se lit par ses
+  // plans. Plus une surface est proche de l'utilisateur, plus elle est claire.
+  // Cinq niveaux sont définis, là où un fond unique aplati tout.
+
+  /// Fond le plus éloigné, celui de l'écran.
+  Color get planFond => fond;
+
+  /// Plan intermédiaire : sections, en-têtes collants.
+  Color get planIntermediaire =>
+      estSombre ? Color.lerp(fond, fondSecondaire, 0.5)! : fondSecondaire;
+
+  /// Plan des cartes posées sur le fond.
+  Color get planCarte => surface;
+
+  /// Plan des éléments interactifs dans une carte (chips, boutons secondaires).
+  Color get planEleve => surfaceVariante;
+
+  /// Plan le plus proche : couches flottantes, menus, feuilles modales.
+  Color get planFlottant => estSombre
+      ? Color.lerp(surfaceVariante, Colors.white, estNova ? 0.10 : 0.06)!
+      : Colors.white;
+
+  // ─── Verre (Liquid Glass) ─────────────────────────────────────────────────
+  // Le verre est réservé aux couches qui recouvrent du contenu : barre de
+  // navigation, en-tête qui défile, champ de saisie, feuilles modales, cartes
+  // d'action. Le flou y signifie « ceci est temporaire, ce dessous existe
+  // encore ». Sur un fond plein il ne renseigne sur rien et coûte cher.
+
+  /// Remplissage d'une couche de verre posée sur du contenu.
+  Color get verre => estSombre
+      ? (estNova ? planFlottant.withValues(alpha: 0.58)
+                 : planFlottant.withValues(alpha: 0.74))
+      : Colors.white.withValues(alpha: estNova ? 0.58 : 0.74);
+
+  /// Verre d'une couche flottante, plus opaque car du contenu défile dessous.
+  Color get verreFlottant => estSombre
+      ? (estNova ? planFlottant.withValues(alpha: 0.78)
+                 : planFlottant.withValues(alpha: 0.88))
+      : Colors.white.withValues(alpha: estNova ? 0.80 : 0.90);
+
+  /// Liseré du verre. Un trait clair à 1 px matérialise la tranche : c'est lui,
+  /// et non une ombre, qui donne le relief en thème sombre.
+  Color get verreContour => Colors.white.withValues(alpha: estSombre
+      ? (estNova ? 0.16 : 0.10)
+      : (estNova ? 0.62 : 0.50));
+
+  /// Reflet interne : léger éclaircissement du coin supérieur gauche.
+  LinearGradient get verreReflet => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.white.withValues(alpha: estNova ? 0.07 : 0.045),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.62],
+      );
+
+  /// Halo d'accent. En sombre il remplace l'ombre portée : la lumière émane de
+  /// l'élément au lieu d'être projetée par lui.
+  Color get lueur => accent.withValues(
+        alpha: estSombre ? (estNova ? 0.32 : 0.18) : 0.14,
+      );
+
+  /// Dégradé aurore de la variante courante (cyan → indigo → magenta sur Nova,
+  /// cyan → bleu sur Classique). Les écrans n'ont pas à distinguer les deux.
+  LinearGradient get degradeAurore => estNova
+      ? const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            OmniNovaPalette.cyan,
+            OmniNovaPalette.indigo,
+            OmniNovaPalette.magenta,
+          ],
+          stops: [0.0, 0.55, 1.0],
+        )
+      : degradeAccent;
+
+  /// Flou du verre, en pixels logiques. Nova est plus translucide donc plus
+  /// floutée : sans cela le contenu derrière se lit et parasite le premier plan.
+  double get verreFlou => estNova ? 22.0 : 16.0;
+
   /// Barre d'état adaptée (icônes lisibles sur les deux thèmes).
   SystemUiOverlayStyle get overlay => estSombre
       ? const SystemUiOverlayStyle(
@@ -573,12 +656,25 @@ class OmniCouleurs {
 /// Fabriques de décoration cohérentes : cartes, champs, bulles, panneaux.
 abstract final class OmniDecor {
   /// Carte / panneau standard.
+  ///
+  /// En Nova la carte porte un reflet interne : en thème sombre un fond plat
+  /// paraît éteint, un très léger éclaircissement du bord haut suffit à lui
+  /// donner une épaisseur. Classique garde sa carte neutre d'origine.
   static BoxDecoration carte(OmniCouleurs c, {Color? couleur}) => BoxDecoration(
         color: couleur ?? c.surface,
         borderRadius: OmniRayon.carte,
         border: Border.all(color: c.contour, width: 1),
+        gradient: c.estNova ? c.verreReflet : null,
         boxShadow: c.estSombre
-            ? null
+            ? (c.estNova
+                ? [
+                    BoxShadow(
+                      color: c.lueur.withValues(alpha: 0.35),
+                      blurRadius: 22,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : null)
             : [
                 BoxShadow(
                   color: c.ombre,
@@ -589,31 +685,51 @@ abstract final class OmniDecor {
       );
 
   /// Champ de saisie (recherche, message, formulaire).
+  ///
+  /// En Nova le champ est en verre : il repose sur le fond aurore et le
+  /// laisse transparaître, ce qui le rattache visuellement à l'écran.
   static BoxDecoration champ(OmniCouleurs c, {bool actif = false}) =>
       BoxDecoration(
-        color: c.surfaceVariante,
+        color: c.estNova ? c.verre : c.surfaceVariante,
         borderRadius: OmniRayon.champ,
         border: Border.all(
-          color: actif ? c.accentContour : c.contour,
+          color: actif ? c.accentContour : (c.estNova ? c.verreContour : c.contour),
           width: actif ? 1.4 : 1,
         ),
       );
 
   /// Bulle de message sortante (dégradé signature).
+  ///
+  /// Nova peint la bulle dans le dégradé aurore et lui donne un halo : c'est
+  /// l'élément le plus regardé de l'application, c'est donc lui qui porte
+  /// l'identité. Classique conserve son dégradé cyan → bleu.
   static BoxDecoration bulleSortante(OmniCouleurs c) => BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [c.accent, c.accentSecondaire],
-        ),
+        gradient: c.degradeAurore,
         borderRadius: OmniRayon.bulleSortante,
+        boxShadow: c.estNova
+            ? [
+                BoxShadow(
+                  color: c.lueur,
+                  blurRadius: 16,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
       );
 
   /// Bulle de message entrante.
+  ///
+  /// Nova la rend translucide avec un liseré : posée sur le fond aurore, elle
+  /// laisse passer la lumière sans la laisser lire, et le liseré marque sa
+  /// tranche. Classique conserve sa bulle opaque.
   static BoxDecoration bulleEntrante(OmniCouleurs c) => BoxDecoration(
-        color: c.bulleEntrante,
+        color: c.estNova ? c.verre : c.bulleEntrante,
         borderRadius: OmniRayon.bulleEntrante,
-        border: Border.all(color: c.contour, width: 1),
+        border: Border.all(
+          color: c.estNova ? c.verreContour : c.contour,
+          width: 1,
+        ),
+        gradient: c.estNova ? c.verreReflet : null,
       );
 
   /// Pastille (badge, statut, étiquette).
@@ -628,11 +744,15 @@ abstract final class OmniDecor {
       );
 
   /// Feuille modale (bottom sheet).
+  ///
+  /// Une feuille recouvre du contenu : c'est le cas d'usage légitime du verre.
+  /// Nova la rend translucide, Classique la garde pleine.
   static BoxDecoration feuille(OmniCouleurs c) => BoxDecoration(
-        color: c.fondSecondaire,
+        color: c.estNova ? c.verreFlottant : c.fondSecondaire,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(OmniRayon.xl),
         ),
+        border: c.estNova ? Border(top: BorderSide(color: c.verreContour)) : null,
       );
 }
 

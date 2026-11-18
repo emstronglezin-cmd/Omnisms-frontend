@@ -3,7 +3,9 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
+
 import 'widgets/common/app_error_widget.dart';
+
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -18,7 +20,7 @@ import 'providers/groups_provider.dart';
 // Notifications
 // Sélecteur photo système Android : actif sur mobile, neutre sur le web.
 import 'services/photo_picker_natif_stub.dart'
-  if (dart.library.io) 'services/photo_picker_natif.dart';
+    if (dart.library.io) 'services/photo_picker_natif.dart';
 
 import 'services/notification_navigation.dart';
 import 'services/notification_service.dart';
@@ -28,6 +30,7 @@ import 'widgets/common/presence_cycle_de_vie.dart';
 
 // Screens — use canonical paths only
 import 'screens/splash_screen.dart';
+import 'widgets/common/liquid_glass.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/dashboard_screen.dart';
@@ -87,7 +90,9 @@ void main() async {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => ContactsProviderV2()),
-        ChangeNotifierProvider(create: (_) => ContactsProvider()), // for old screens
+        ChangeNotifierProvider(
+          create: (_) => ContactsProvider(),
+        ), // for old screens
         ChangeNotifierProvider(create: (_) => MessagingProvider()),
         ChangeNotifierProvider(create: (_) => GroupsProvider()),
         // Présence des destinataires (source : le backend, via Socket.IO).
@@ -156,35 +161,39 @@ class OmniSMSApp extends StatelessWidget {
                 NotificationNavigation.instance
                     .ouvrir(conversationId)
                     .catchError((Object e) {
-                  debugPrint('[NOTIFICATION] navigation impossible : $e');
-                });
+                      debugPrint('[NOTIFICATION] navigation impossible : $e');
+                    });
               },
-              child: child ?? const SizedBox.shrink(),
+              // Fond aurore posé derrière TOUTE la navigation : chaque écran
+              // hérite de la profondeur sans avoir à la demander. En Classique
+              // ce décor peint simplement le fond uni d'origine.
+              child: OmniFondAurore(child: child ?? const SizedBox.shrink()),
             );
           },
           // Route web publique `/privacy` : quand l'application est ouverte
           // directement sur cette URL (partage de lien, moteur de recherche),
           // la page s'affiche sans passer par le splash. En Android, la page
           // reste accessible par la route nommée '/privacy'.
-          home: (kIsWeb &&
+          home:
+              (kIsWeb &&
                   Uri.base.path.replaceAll(RegExp(r'/+$'), '') == '/privacy')
               ? const PrivacyPolicyScreen()
               : const SplashScreen(),
-            routes: {
-              '/login': (_) => const LoginScreen(),
-              '/register': (_) => const RegisterScreen(),
-              '/dashboard': (_) => const DashboardScreen(),
-              '/contacts': (_) => const ContactsScreenV2(),
-              '/groups': (_) => const GroupsScreen(),
-              '/statistics': (_) => const StatisticsScreen(),
-              '/subscription': (_) => const SubscriptionScreen(),
-              '/settings': (_) => const SettingsScreen(),
-              // Page publique : accessible sans connexion, y compris depuis
-              // le navigateur (`/privacy`) et depuis Connexion / Inscription
-              // / Paramètres.
-              '/privacy': (_) => const PrivacyPolicyScreen(),
-            },
-          );
+          routes: {
+            '/login': (_) => const LoginScreen(),
+            '/register': (_) => const RegisterScreen(),
+            '/dashboard': (_) => const DashboardScreen(),
+            '/contacts': (_) => const ContactsScreenV2(),
+            '/groups': (_) => const GroupsScreen(),
+            '/statistics': (_) => const StatisticsScreen(),
+            '/subscription': (_) => const SubscriptionScreen(),
+            '/settings': (_) => const SettingsScreen(),
+            // Page publique : accessible sans connexion, y compris depuis
+            // le navigateur (`/privacy`) et depuis Connexion / Inscription
+            // / Paramètres.
+            '/privacy': (_) => const PrivacyPolicyScreen(),
+          },
+        );
       },
     );
   }

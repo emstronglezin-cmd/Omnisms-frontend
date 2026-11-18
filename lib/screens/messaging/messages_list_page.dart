@@ -9,6 +9,7 @@ import '../../services/presence_service.dart';
 import '../../theme/omni_design.dart';
 import '../../theme/omni_motion.dart';
 import '../../theme/omni_responsive.dart';
+import '../../widgets/common/liquid_glass.dart';
 import '../../widgets/common/avatar_image.dart';
 import 'conversation_screen.dart';
 
@@ -97,86 +98,93 @@ class _MessagesListPageState extends State<MessagesListPage> {
     final estLarge = kIsWeb && MediaQuery.of(context).size.width >= 768;
 
     return Scaffold(
-      backgroundColor: c.fond,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _EnTete(
-              controller: _rechercheController,
-              onChanged: (v) => setState(() => _filtre = v.trim().toLowerCase()),
-              onEffacer: () {
-                _rechercheController.clear();
-                setState(() => _filtre = '');
-              },
-            ),
-            Expanded(
-              child: Consumer<MessagingProvider>(
-                builder: (context, provider, _) {
-                  if (provider.isLoadingConversations &&
-                      provider.conversations.isEmpty) {
-                    return const _ChargementListe();
-                  }
-
-                  if (provider.conversationsError != null &&
-                      provider.conversations.isEmpty) {
-                    return _ErreurListe(
-                      message: provider.conversationsError!,
-                      onReessayer: provider.loadConversations,
-                    );
-                  }
-
-                  final conversations = _filtrer(provider.conversations);
-
-                  if (provider.conversations.isEmpty) {
-                    return _VideListe(onRafraichir: provider.loadConversations);
-                  }
-
-                  if (conversations.isEmpty) {
-                    return _AucunResultat(filtre: _filtre);
-                  }
-
-                  // Présence réelle : suit les contacts affichés, pas plus.
-                  _suivrePresences(conversations);
-
-                  // V3 — la liste apparaît en cascade : l'œil est guidé du
-                  // haut vers le bas et l'écran semble se construire au lieu
-                  // d'apparaître d'un bloc. Le décalage est plafonné (voir
-                  // OmniApparitionEspacee) pour qu'une longue liste ne
-                  // paraisse jamais lente.
-                  return RefreshIndicator(
-                    color: c.accent,
-                    backgroundColor: c.surface,
-                    onRefresh: () => provider.loadConversations(),
-                    child: ListView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: EdgeInsets.only(
-                        bottom: estLarge ? 24 : 8,
-                        top: 4,
-                      ),
-                      itemCount: conversations.length,
-                      itemBuilder: (context, index) {
-                        final conv = conversations[index];
-                        return OmniApparitionEspacee(
-                          index: index,
-                          child: OmniPression(
-                            // La navigation reste portée par l'InkWell
-                            // interne (qui fournit aussi l'ondulation) :
-                            // l'enveloppe n'ajoute que la contraction au
-                            // toucher, sans doubler le geste.
-                            haptique: false,
-                            child: _LigneConversation(
-                              conversation: conv,
-                              onTap: () => _ouvrirConversation(context, conv),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  );
+      backgroundColor: Colors.transparent,
+      body: OmniFondAurore(
+        child: SafeArea(
+          child: Column(
+            children: [
+              _EnTete(
+                controller: _rechercheController,
+                onChanged: (v) =>
+                    setState(() => _filtre = v.trim().toLowerCase()),
+                onEffacer: () {
+                  _rechercheController.clear();
+                  setState(() => _filtre = '');
                 },
               ),
-            ),
-          ],
+              Expanded(
+                child: Consumer<MessagingProvider>(
+                  builder: (context, provider, _) {
+                    if (provider.isLoadingConversations &&
+                        provider.conversations.isEmpty) {
+                      return const _ChargementListe();
+                    }
+
+                    if (provider.conversationsError != null &&
+                        provider.conversations.isEmpty) {
+                      return _ErreurListe(
+                        message: provider.conversationsError!,
+                        onReessayer: provider.loadConversations,
+                      );
+                    }
+
+                    final conversations = _filtrer(provider.conversations);
+
+                    if (provider.conversations.isEmpty) {
+                      return _VideListe(
+                        onRafraichir: provider.loadConversations,
+                      );
+                    }
+
+                    if (conversations.isEmpty) {
+                      return _AucunResultat(filtre: _filtre);
+                    }
+
+                    // Présence réelle : suit les contacts affichés, pas plus.
+                    _suivrePresences(conversations);
+
+                    // V3 — la liste apparaît en cascade : l'œil est guidé du
+                    // haut vers le bas et l'écran semble se construire au lieu
+                    // d'apparaître d'un bloc. Le décalage est plafonné (voir
+                    // OmniApparitionEspacee) pour qu'une longue liste ne
+                    // paraisse jamais lente.
+                    return RefreshIndicator(
+                      color: c.accent,
+                      backgroundColor: c.surface,
+                      onRefresh: () => provider.loadConversations(),
+                      child: ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        // 100 en bas : la barre de navigation flottante du
+                        // dashboard recouvre le contenu (extendBody). Sans cette
+                        // marge, la dernière conversation serait masquée.
+                        padding: EdgeInsets.only(
+                          bottom: estLarge ? 24 : (c.estNova ? 100 : 8),
+                          top: 4,
+                        ),
+                        itemCount: conversations.length,
+                        itemBuilder: (context, index) {
+                          final conv = conversations[index];
+                          return OmniApparitionEspacee(
+                            index: index,
+                            child: OmniPression(
+                              // La navigation et le retour haptique sont portés
+                              // par la carte : l'enveloppe n'ajoute que la
+                              // contraction au toucher, sans doubler le geste.
+                              haptique: false,
+                              child: _LigneConversation(
+                                conversation: conv,
+                                onTap: () => _ouvrirConversation(context, conv),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -216,7 +224,8 @@ class _MessagesListPageState extends State<MessagesListPage> {
       ),
     ).then((_) {
       // La conversation n'est plus active : on libère l'état.
-      if (mounted) context.read<MessagingProvider>().setActiveConversation(null);
+      if (mounted)
+        context.read<MessagingProvider>().setActiveConversation(null);
     });
   }
 }
@@ -237,9 +246,11 @@ class _EnTete extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = OmniCouleurs.of(context);
 
+    // En Nova l'en-tête est transparent pour ne pas couper l'aurore ; en
+    // Classique il garde son fond plein d'origine.
     return Container(
       decoration: BoxDecoration(
-        color: c.fond,
+        color: c.estNova ? Colors.transparent : c.fond,
         border: Border(bottom: BorderSide(color: c.contour)),
       ),
       padding: const EdgeInsets.fromLTRB(
@@ -254,7 +265,10 @@ class _EnTete extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text('Messages', style: OmniTypo.display.copyWith(color: c.texte)),
+                child: Text(
+                  'Messages',
+                  style: OmniTypo.display.copyWith(color: c.texte),
+                ),
               ),
               Consumer<MessagingProvider>(
                 builder: (context, provider, _) {
@@ -276,7 +290,10 @@ class _EnTete extends StatelessWidget {
                                 color: c.accent,
                               ),
                             )
-                          : Icon(Icons.refresh_rounded, color: c.texteSecondaire),
+                          : Icon(
+                              Icons.refresh_rounded,
+                              color: c.texteSecondaire,
+                            ),
                       tooltip: 'Actualiser',
                     );
                   }
@@ -301,7 +318,10 @@ class _EnTete extends StatelessWidget {
                         onPressed: provider.isLoadingConversations
                             ? null
                             : provider.loadConversations,
-                        icon: Icon(Icons.refresh_rounded, color: c.texteSecondaire),
+                        icon: Icon(
+                          Icons.refresh_rounded,
+                          color: c.texteSecondaire,
+                        ),
                         tooltip: 'Actualiser',
                       ),
                     ],
@@ -328,12 +348,18 @@ class _EnTete extends StatelessWidget {
                   filled: true,
                   fillColor: c.surfaceVariante,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  prefixIcon: Icon(Icons.search_rounded,
-                      color: c.texteEstompe, size: 20),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: c.texteEstompe,
+                    size: 20,
+                  ),
                   suffixIcon: actif
                       ? IconButton(
-                          icon: Icon(Icons.close_rounded,
-                              color: c.texteEstompe, size: 18),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: c.texteEstompe,
+                            size: 18,
+                          ),
                           onPressed: onEffacer,
                           tooltip: 'Effacer',
                         )
@@ -437,114 +463,146 @@ class _LigneConversation extends StatelessWidget {
         ? conversation.lastMessage!.trim()
         : 'Aucun message pour l’instant';
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        splashColor: c.accentDoux,
-        highlightColor: c.accentDoux,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: OmniEspace.l,
-            vertical: 11,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _AvatarAvecPresence(
-                imageUrl: conversation.otherUserPhotoUrl,
-                nom: conversation.displayName,
-                uid: conversation.otherUserId,
-                estGroupe: conversation.isGroup,
-              ),
-              const SizedBox(width: OmniEspace.m),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            conversation.displayName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: OmniTypo.corpsGras.copyWith(
-                              color: c.texte,
-                              fontWeight:
-                                  nonLu ? FontWeight.w700 : FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: OmniEspace.s),
-                        Text(
-                          _formatHorodatage(conversation.lastMessageTime),
-                          style: OmniTypo.micro.copyWith(
-                            color: nonLu ? c.accent : c.texteEstompe,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Icon(
-                          _iconeCanal(conversation.channel),
-                          size: 13,
-                          color: nonLu ? c.accent : c.texteEstompe,
-                        ),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Text(
-                            apercu,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: OmniTypo.secondaire.copyWith(
-                              color: nonLu ? c.texte : c.texteSecondaire,
-                              fontWeight:
-                                  nonLu ? FontWeight.w500 : FontWeight.w400,
-                            ),
-                          ),
-                        ),
-                        if (nonLu) ...[
-                          const SizedBox(width: OmniEspace.s),
-                          Container(
-                            constraints: const BoxConstraints(minWidth: 22),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: c.accent,
-                              borderRadius: OmniRayon.pill,
-                            ),
-                            child: Text(
-                              conversation.unreadCount > 99
-                                  ? '99+'
-                                  : '${conversation.unreadCount}',
-                              textAlign: TextAlign.center,
-                              style: OmniTypo.micro.copyWith(
-                                color: c.surAccent,
-                                fontSize: 10.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    // Identité d'origine : ligne plate pleine largeur, ondulation Material.
+    if (!c.estNova) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          splashColor: c.accentDoux,
+          highlightColor: c.accentDoux,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: OmniEspace.l,
+              vertical: 11,
+            ),
+            child: _corps(context, c, nonLu, apercu),
           ),
         ),
+      );
+    }
+
+    // Chaque conversation est une carte posée sur un plan de profondeur.
+    // Une conversation non lue monte d'un plan : fond plus clair, liseré
+    // d'accent et halo. La hiérarchie se lit sans lire le texte.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        OmniEspace.m,
+        OmniEspace.xs + 1,
+        OmniEspace.m,
+        OmniEspace.xs + 1,
+      ),
+      child: OmniCarte(
+        plan: nonLu ? c.planEleve : c.planCarte,
+        accentuee: nonLu,
+        borderRadius: BorderRadius.circular(OmniRayon.l),
+        padding: const EdgeInsets.symmetric(
+          horizontal: OmniEspace.m,
+          vertical: OmniEspace.m,
+        ),
+        onTap: onTap,
+        child: _corps(context, c, nonLu, apercu),
       ),
     );
   }
 
-  
-/// Icône du canal d'origine du dernier message (donnée réelle du backend).
+  /// Corps de la ligne, partagé par les deux contenants : la variante ne
+  /// change que l'enveloppe, jamais le contenu ni les données affichées.
+  Widget _corps(
+    BuildContext context,
+    OmniCouleurs c,
+    bool nonLu,
+    String apercu,
+  ) => Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      _AvatarAvecPresence(
+        imageUrl: conversation.otherUserPhotoUrl,
+        nom: conversation.displayName,
+        uid: conversation.otherUserId,
+        estGroupe: conversation.isGroup,
+      ),
+      const SizedBox(width: OmniEspace.m),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    conversation.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: OmniTypo.corpsGras.copyWith(
+                      color: c.texte,
+                      fontWeight: nonLu ? FontWeight.w700 : FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: OmniEspace.s),
+                Text(
+                  _formatHorodatage(conversation.lastMessageTime),
+                  style: OmniTypo.micro.copyWith(
+                    color: nonLu ? c.accent : c.texteEstompe,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 3),
+            Row(
+              children: [
+                Icon(
+                  _iconeCanal(conversation.channel),
+                  size: 13,
+                  color: nonLu ? c.accent : c.texteEstompe,
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    apercu,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: OmniTypo.secondaire.copyWith(
+                      color: nonLu ? c.texte : c.texteSecondaire,
+                      fontWeight: nonLu ? FontWeight.w500 : FontWeight.w400,
+                    ),
+                  ),
+                ),
+                if (nonLu) ...[
+                  const SizedBox(width: OmniEspace.s),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 22),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: c.accent,
+                      borderRadius: OmniRayon.pill,
+                    ),
+                    child: Text(
+                      conversation.unreadCount > 99
+                          ? '99+'
+                          : '${conversation.unreadCount}',
+                      textAlign: TextAlign.center,
+                      style: OmniTypo.micro.copyWith(
+                        color: c.surAccent,
+                        fontSize: 10.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+
+  /// Icône du canal d'origine du dernier message (donnée réelle du backend).
   IconData _iconeCanal(String canal) {
     switch (canal.toLowerCase()) {
       case 'sms':
@@ -562,7 +620,11 @@ class _LigneConversation extends StatelessWidget {
   String _formatHorodatage(DateTime? date) {
     if (date == null) return '';
     final maintenant = DateTime.now();
-    final aujourdhui = DateTime(maintenant.year, maintenant.month, maintenant.day);
+    final aujourdhui = DateTime(
+      maintenant.year,
+      maintenant.month,
+      maintenant.day,
+    );
     final jourMessage = DateTime(date.year, date.month, date.day);
     final ecart = aujourdhui.difference(jourMessage).inDays;
 
@@ -628,9 +690,10 @@ class _LigneSqueletteState extends State<_LigneSquelette>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-    _animation = Tween<double>(begin: 0.35, end: 1).animate(
-      CurvedAnimation(parent: _controleur, curve: Curves.easeInOut),
-    );
+    _animation = Tween<double>(
+      begin: 0.35,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controleur, curve: Curves.easeInOut));
     Future<void>.delayed(Duration(milliseconds: widget.delai), () {
       if (mounted) _controleur.repeat(reverse: true);
     });
@@ -653,7 +716,10 @@ class _LigneSqueletteState extends State<_LigneSquelette>
         children: [
           FadeTransition(
             opacity: _animation,
-            child: CircleAvatar(radius: 28, backgroundColor: widget.couleurBase),
+            child: CircleAvatar(
+              radius: 28,
+              backgroundColor: widget.couleurBase,
+            ),
           ),
           const SizedBox(width: OmniEspace.m),
           Expanded(
@@ -798,8 +864,11 @@ class _ErreurListe extends StatelessWidget {
                 color: OmniPalette.erreur.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.wifi_off_rounded,
-                  size: 44, color: OmniPalette.erreur),
+              child: const Icon(
+                Icons.wifi_off_rounded,
+                size: 44,
+                color: OmniPalette.erreur,
+              ),
             ),
             const SizedBox(height: OmniEspace.xl),
             Text(

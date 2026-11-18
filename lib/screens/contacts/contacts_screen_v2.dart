@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../providers/contacts_provider_v2.dart';
 import '../../providers/messaging_provider.dart';
 import '../../models/models.dart';
@@ -7,6 +8,7 @@ import '../messaging/conversation_screen.dart';
 import '../../services/auth_service.dart';
 import '../../theme/omni_design.dart';
 import '../../theme/omni_motion.dart';
+import '../../widgets/common/liquid_glass.dart';
 import '../../widgets/common/avatar_image.dart';
 
 /// ContactsScreenV2 — Écran des contacts avec import et ajout
@@ -70,8 +72,7 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             Container(
@@ -80,15 +81,17 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
                 color: Theme.of(ctx).primaryColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(Icons.contacts,
-                  color: Theme.of(ctx).primaryColor, size: 28),
+              child: Icon(
+                Icons.contacts,
+                color: Theme.of(ctx).primaryColor,
+                size: 28,
+              ),
             ),
             const SizedBox(width: 12),
             const Expanded(
               child: Text(
                 'Accès aux contacts',
-                style:
-                    TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -103,35 +106,42 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
             ),
             SizedBox(height: 12),
             _PermissionReasonItem(
-                icon: Icons.message,
-                text: 'Envoyer des messages à vos contacts'),
+              icon: Icons.message,
+              text: 'Envoyer des messages à vos contacts',
+            ),
             _PermissionReasonItem(
-                icon: Icons.group,
-                text: 'Trouver vos amis sur OmniSMS'),
+              icon: Icons.group,
+              text: 'Trouver vos amis sur OmniSMS',
+            ),
             _PermissionReasonItem(
-                icon: Icons.sync,
-                text: 'Synchroniser votre carnet d\'adresses'),
+              icon: Icons.sync,
+              text: 'Synchroniser votre carnet d\'adresses',
+            ),
             SizedBox(height: 12),
             Text(
               'Vos contacts restent privés et sécurisés.',
               style: TextStyle(
-                  fontSize: 13,
-                  fontStyle: FontStyle.italic,
-                  color: Colors.grey),
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                color: Colors.grey,
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Pas maintenant',
-                style: TextStyle(color: Colors.grey[600])),
+            child: Text(
+              'Pas maintenant',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             child: const Text('Autoriser'),
           ),
@@ -150,17 +160,16 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Icon(Icons.settings,
-                color: Theme.of(ctx).primaryColor, size: 28),
+            Icon(Icons.settings, color: Theme.of(ctx).primaryColor, size: 28),
             const SizedBox(width: 12),
             const Expanded(
-              child: Text('Permission requise',
-                  style: TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold)),
+              child: Text(
+                'Permission requise',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),
@@ -171,8 +180,9 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Annuler')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuler'),
+          ),
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
@@ -180,7 +190,8 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
             },
             style: FilledButton.styleFrom(
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             child: const Text('Ouvrir paramètres'),
           ),
@@ -198,15 +209,15 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Row(
           children: [
             Icon(Icons.person_add_rounded, size: 28),
             SizedBox(width: 12),
-            Text('Ajouter un contact',
-                style:
-                    TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(
+              'Ajouter un contact',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
           ],
         ),
         content: Form(
@@ -223,7 +234,8 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
                   labelText: 'Nom complet *',
                   prefixIcon: const Icon(Icons.person_outlined),
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 validator: (v) {
                   if (v == null || v.trim().isEmpty) {
@@ -245,7 +257,8 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
                   hintText: '+22670000000',
                   prefixIcon: const Icon(Icons.phone_outlined),
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   helperText: 'Format international : +226XXXXXXXX',
                 ),
                 validator: (v) {
@@ -263,8 +276,7 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
               Text(
                 'Le contact sera ajouté à votre liste. '
                 'S\'il a un compte OmniSMS, vous pourrez lui envoyer des messages.',
-                style: TextStyle(
-                    fontSize: 12, color: Colors.grey[600]),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
             ],
           ),
@@ -272,8 +284,7 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Annuler',
-                style: TextStyle(color: Colors.grey[600])),
+            child: Text('Annuler', style: TextStyle(color: Colors.grey[600])),
           ),
           FilledButton.icon(
             onPressed: () {
@@ -285,7 +296,8 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
             label: const Text('Ajouter'),
             style: FilledButton.styleFrom(
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ],
@@ -354,8 +366,7 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
           action: SnackBarAction(
             label: 'Réessayer',
             textColor: Colors.white,
-            onPressed: () =>
-                _doAddContact(name: name, phone: phone),
+            onPressed: () => _doAddContact(name: name, phone: phone),
           ),
         ),
       );
@@ -441,9 +452,7 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
             Expanded(
               child: Text(
                 message.isEmpty
-                    ? (success
-                        ? 'Contacts importés'
-                        : "Import impossible.")
+                    ? (success ? 'Contacts importés' : "Import impossible.")
                     : message,
               ),
             ),
@@ -506,7 +515,7 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
     final baseMessage = success
         ? (provider.googleImportMessage ?? 'Contacts importés')
         : (provider.googleImportMessage ??
-            'Impossible d\'importer les contacts Google.');
+              'Impossible d\'importer les contacts Google.');
     final detail = success ? provider.googleImportDetail : '';
     final message = detail.isEmpty ? baseMessage : '$baseMessage — $detail';
 
@@ -623,8 +632,7 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
       body: Consumer<ContactsProviderV2>(
         builder: (ctx, provider, _) {
           // État permission refusée
-          if (provider.loadingState ==
-                  ContactsLoadingState.permissionDenied ||
+          if (provider.loadingState == ContactsLoadingState.permissionDenied ||
               provider.loadingState ==
                   ContactsLoadingState.permissionPermanentlyDenied) {
             return _buildPermissionDeniedView(provider);
@@ -688,8 +696,7 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
               provider.isPermissionPermanentlyDenied
                   ? 'Permission refusée'
                   : 'Permission requise',
-              style: const TextStyle(
-                  fontSize: 24, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
@@ -705,17 +712,24 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
               onPressed: () => provider.isPermissionPermanentlyDenied
                   ? provider.openSettings()
                   : _showPermissionDialog(),
-              icon: Icon(provider.isPermissionPermanentlyDenied
-                  ? Icons.settings
-                  : Icons.check_circle_outline),
-              label: Text(provider.isPermissionPermanentlyDenied
-                  ? 'Ouvrir paramètres'
-                  : 'Autoriser l\'accès'),
+              icon: Icon(
+                provider.isPermissionPermanentlyDenied
+                    ? Icons.settings
+                    : Icons.check_circle_outline,
+              ),
+              label: Text(
+                provider.isPermissionPermanentlyDenied
+                    ? 'Ouvrir paramètres'
+                    : 'Autoriser l\'accès',
+              ),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 32, vertical: 16),
+                  horizontal: 32,
+                  vertical: 16,
+                ),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
@@ -749,9 +763,10 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
           children: [
             Icon(Icons.error_outline, size: 80, color: Colors.red[300]),
             const SizedBox(height: 24),
-            const Text('Erreur',
-                style:
-                    TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const Text(
+              'Erreur',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 12),
             Text(
               provider.errorMessage ?? 'Une erreur est survenue',
@@ -765,9 +780,12 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
               label: const Text('Réessayer'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 32, vertical: 16),
+                  horizontal: 32,
+                  vertical: 16,
+                ),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
@@ -802,9 +820,12 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
               label: const Text('Ajouter un contact'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 32, vertical: 16),
+                  horizontal: 32,
+                  vertical: 16,
+                ),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -824,9 +845,12 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
                 label: const Text('Importer mes contacts'),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 32, vertical: 16),
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ),
@@ -834,8 +858,9 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
             // Import Google (même action que le menu de l'AppBar)
             Consumer<ContactsProviderV2>(
               builder: (ctx, provider, _) => OutlinedButton.icon(
-                onPressed:
-                    provider.isImportingFromGoogle ? null : _importFromGoogle,
+                onPressed: provider.isImportingFromGoogle
+                    ? null
+                    : _importFromGoogle,
                 icon: provider.isImportingFromGoogle
                     ? const SizedBox(
                         width: 18,
@@ -846,9 +871,12 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
                 label: const Text('Importer depuis Google'),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 32, vertical: 16),
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ),
@@ -882,7 +910,9 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
           filled: true,
           fillColor: Theme.of(context).cardColor,
           contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16, vertical: 12),
+            horizontal: 16,
+            vertical: 12,
+          ),
         ),
         onChanged: (value) {
           setState(() {}); // pour afficher/masquer le bouton clear
@@ -914,10 +944,14 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
 
   // ── Open or create a conversation for this contact ───────────
   Future<void> _openContactConversation(
-      BuildContext context, ContactModel contact) async {
+    BuildContext context,
+    ContactModel contact,
+  ) async {
     final authService = AuthService();
     final currentUserId = await authService.getUserId() ?? '';
-    final contactId = contact.id.isNotEmpty ? contact.id : (contact.phone ?? '');
+    final contactId = contact.id.isNotEmpty
+        ? contact.id
+        : (contact.phone ?? '');
 
     if (!mounted) return;
 
@@ -962,7 +996,8 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
   }
 
   Widget _buildContactTile(ContactModel contact) {
-    return ListTile(
+    final c = OmniCouleurs.of(context);
+    final tuile = ListTile(
       // La liste de contacts n'affichait QUE les initiales : la photo
       // renvoyée par /api/contacts (champ `avatar`, data URI) n'était jamais
       // utilisée. UserAvatar affiche le data URI, ou retombe sur
@@ -983,8 +1018,7 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
       ),
       title: Text(
         contact.name,
-        style: const TextStyle(
-            fontWeight: FontWeight.w600, fontSize: 16),
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
       ),
       subtitle: Text(
         contact.phone ?? '',
@@ -997,8 +1031,7 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
           // et Google sont dans la même liste).
           if (contact.isRegistered)
             Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
                 color: Colors.green.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(20),
@@ -1014,8 +1047,7 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
             )
           else
             Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
                 color: Colors.grey.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(20),
@@ -1039,6 +1071,22 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
       ),
       onTap: () => _openContactConversation(context, contact),
     );
+
+    // Classique : ligne plate d'origine, inchangée.
+    if (!c.estNova) return tuile;
+
+    // Nova : chaque contact est une carte posée sur un plan de profondeur.
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: OmniEspace.m,
+        vertical: OmniEspace.xs + 1,
+      ),
+      child: OmniCarte(
+        padding: EdgeInsets.zero,
+        borderRadius: BorderRadius.circular(OmniRayon.l),
+        child: tuile,
+      ),
+    );
   }
 }
 
@@ -1047,10 +1095,7 @@ class _PermissionReasonItem extends StatelessWidget {
   final IconData icon;
   final String text;
 
-  const _PermissionReasonItem({
-    required this.icon,
-    required this.text,
-  });
+  const _PermissionReasonItem({required this.icon, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -1064,12 +1109,10 @@ class _PermissionReasonItem extends StatelessWidget {
               color: Theme.of(context).primaryColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon,
-                size: 18, color: Theme.of(context).primaryColor),
+            child: Icon(icon, size: 18, color: Theme.of(context).primaryColor),
           ),
           const SizedBox(width: 12),
-          Expanded(
-              child: Text(text, style: const TextStyle(fontSize: 14))),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
         ],
       ),
     );

@@ -1,9 +1,15 @@
+import 'dart:ui';
+
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
+
 import '../../theme/omni_design.dart';
 import '../../theme/omni_motion.dart';
+import '../../widgets/common/liquid_glass.dart';
 import '../../utils/user_messages.dart';
+
 import 'package:provider/provider.dart';
+
 import '../../providers/messaging_provider.dart';
 import '../../models/models.dart';
 import '../../widgets/chat/modern_message_bubble.dart' as modern;
@@ -145,7 +151,9 @@ class _ConversationScreenState extends State<ConversationScreen>
     try {
       final provider = context.read<MessagingProvider>();
       provider.setActiveConversation(null);
-      debugPrint('[NOTIFICATION] ConversationScreen dispose — activeConv cleared');
+      debugPrint(
+        '[NOTIFICATION] ConversationScreen dispose — activeConv cleared',
+      );
     } catch (_) {}
     _textController.removeListener(_onTextChanged);
     _textController.dispose();
@@ -182,7 +190,8 @@ class _ConversationScreenState extends State<ConversationScreen>
       // avatar manquerait juste avant « Hier ».
       final suivant = i + 1 < messages.length ? messages[i + 1] : null;
       final jourSuivant = suivant == null ? null : _jourDe(suivant.timestamp);
-      final serieInterrompue = suivant == null ||
+      final serieInterrompue =
+          suivant == null ||
           suivant.isMe != message.isMe ||
           (jourSuivant != null && !_estMemeJour(jour, jourSuivant));
 
@@ -207,8 +216,12 @@ class _ConversationScreenState extends State<ConversationScreen>
 
   // ── Send text message ──────────────────────────────────────
   Future<void> _sendTextMessage(String text) async {
-    debugPrint('[DEBUG_SEND] ConversationScreen _sendTextMessage called, textLen=${text.length}, content=$text');
-    debugPrint('[DEBUG_SEND] receiverId(contactId)=${widget.contactId}, conversationId=${widget.conversationId}, isGroup=${widget.isGroup}');
+    debugPrint(
+      '[DEBUG_SEND] ConversationScreen _sendTextMessage called, textLen=${text.length}, content=$text',
+    );
+    debugPrint(
+      '[DEBUG_SEND] receiverId(contactId)=${widget.contactId}, conversationId=${widget.conversationId}, isGroup=${widget.isGroup}',
+    );
     if (text.trim().isEmpty) {
       debugPrint('[DEBUG_SEND] ConversationScreen empty text, abort');
       return;
@@ -217,13 +230,17 @@ class _ConversationScreenState extends State<ConversationScreen>
     setState(() => _isSending = true);
 
     try {
-      debugPrint('[DEBUG_SEND] ConversationScreen calling MessagingProvider.sendTextMessage');
+      debugPrint(
+        '[DEBUG_SEND] ConversationScreen calling MessagingProvider.sendTextMessage',
+      );
       final success = await context.read<MessagingProvider>().sendTextMessage(
-            receiverId: widget.contactId,
-            content: text.trim(),
-            conversationId: widget.conversationId,
-          );
-      debugPrint('[DEBUG_SEND] ConversationScreen provider returned success=$success');
+        receiverId: widget.contactId,
+        content: text.trim(),
+        conversationId: widget.conversationId,
+      );
+      debugPrint(
+        '[DEBUG_SEND] ConversationScreen provider returned success=$success',
+      );
       setState(() => _isSending = false);
 
       // Le canal réellement utilisé est annoncé, jamais supposé.
@@ -255,10 +272,12 @@ class _ConversationScreenState extends State<ConversationScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(userMessage(
-              e,
-              fallback: 'Envoi impossible. Vérifiez votre connexion.',
-            )),
+            content: Text(
+              userMessage(
+                e,
+                fallback: 'Envoi impossible. Vérifiez votre connexion.',
+              ),
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -291,12 +310,12 @@ class _ConversationScreenState extends State<ConversationScreen>
       }
 
       final success = await context.read<MessagingProvider>().sendVoiceMessage(
-            contactId: widget.contactId,
-            audioFile: audioPath,
-            duration: duration.inSeconds,
-            conversationId: widget.conversationId,
-            isGroup: widget.isGroup,
-          );
+        contactId: widget.contactId,
+        audioFile: audioPath,
+        duration: duration.inSeconds,
+        conversationId: widget.conversationId,
+        isGroup: widget.isGroup,
+      );
 
       if (!success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -310,10 +329,9 @@ class _ConversationScreenState extends State<ConversationScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(userMessage(
-              e,
-              fallback: 'Envoi du message vocal impossible.',
-            )),
+            content: Text(
+              userMessage(e, fallback: 'Envoi du message vocal impossible.'),
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -340,9 +358,7 @@ class _ConversationScreenState extends State<ConversationScreen>
           curve: Curves.easeOut,
         );
       } else {
-        _scrollController.jumpTo(
-          _scrollController.position.maxScrollExtent,
-        );
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
       }
     });
   }
@@ -355,86 +371,101 @@ class _ConversationScreenState extends State<ConversationScreen>
       builder: (context) {
         final c = OmniCouleurs.of(context);
         return Container(
-        decoration: BoxDecoration(
-          color: c.fondSecondaire,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 12, bottom: 16),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: c.texteEstompe.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
+          decoration: BoxDecoration(
+            color: c.fondSecondaire,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 16),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: c.texteEstompe.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
 
-              if (message.type == MessageType.voice)
+                if (message.type == MessageType.voice)
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: c.accentDoux,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.text_fields_rounded,
+                        size: 20,
+                        color: c.accent,
+                      ),
+                    ),
+                    title: const Text('Transcrire le message vocal'),
+                    subtitle: const Text('Convertir en texte'),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      _transcribeMessage(message);
+                    },
+                  ),
+
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                        color: c.accentDoux, shape: BoxShape.circle),
-                    child: Icon(Icons.text_fields_rounded,
-                        size: 20, color: c.accent),
+                      color: OmniPalette.avertissement.withValues(alpha: 0.14),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.emoji_emotions_rounded,
+                      size: 20,
+                      color: OmniPalette.avertissement,
+                    ),
                   ),
-                  title: const Text('Transcrire le message vocal'),
-                  subtitle: const Text('Convertir en texte'),
-                  onTap: () async {
+                  title: const Text('Réagir au message'),
+                  subtitle: const Text('Ajouter un emoji'),
+                  onTap: () {
                     Navigator.pop(context);
-                    _transcribeMessage(message);
+                    _showEmojiReactionPicker(message);
                   },
                 ),
 
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                      color: OmniPalette.avertissement.withValues(alpha: 0.14),
-                      shape: BoxShape.circle),
-                  child: const Icon(Icons.emoji_emotions_rounded,
-                      size: 20, color: OmniPalette.avertissement),
-                ),
-                title: const Text('Réagir au message'),
-                subtitle: const Text('Ajouter un emoji'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showEmojiReactionPicker(message);
-                },
-              ),
-
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
                       color: OmniPalette.erreur.withValues(alpha: 0.12),
-                      shape: BoxShape.circle),
-                  child: const Icon(Icons.delete_outline_rounded,
-                      size: 20, color: OmniPalette.erreur),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.delete_outline_rounded,
+                      size: 20,
+                      color: OmniPalette.erreur,
+                    ),
+                  ),
+                  title: const Text(
+                    'Supprimer le message',
+                    style: TextStyle(color: OmniPalette.erreur),
+                  ),
+                  subtitle: const Text('Cette action est irréversible'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final confirmed = await _confirmDelete();
+                    if (confirmed) {
+                      await context.read<MessagingProvider>().deleteMessage(
+                        widget.conversationId,
+                        message.id,
+                      );
+                    }
+                  },
                 ),
-                title: const Text('Supprimer le message',
-                    style: TextStyle(color: OmniPalette.erreur)),
-                subtitle: const Text('Cette action est irréversible'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final confirmed = await _confirmDelete();
-                  if (confirmed) {
-                    await context.read<MessagingProvider>().deleteMessage(
-                          widget.conversationId,
-                          message.id,
-                        );
-                  }
-                },
-              ),
 
-              const SizedBox(height: OmniEspace.l),
-            ],
+                const SizedBox(height: OmniEspace.l),
+              ],
+            ),
           ),
-        ),
         );
       },
     );
@@ -461,20 +492,18 @@ class _ConversationScreenState extends State<ConversationScreen>
       ),
     );
 
-    final transcription =
-        await context.read<MessagingProvider>().transcribeMessage(
-              message.id,
-              conversationId: widget.conversationId,
-            );
+    final transcription = await context
+        .read<MessagingProvider>()
+        .transcribeMessage(message.id, conversationId: widget.conversationId);
 
     if (mounted) {
       Navigator.pop(context);
       if (transcription != null && transcription.isNotEmpty) {
         context.read<MessagingProvider>().updateMessageTranscription(
-              widget.conversationId,
-              message.id,
-              transcription,
-            );
+          widget.conversationId,
+          message.id,
+          transcription,
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -513,9 +542,10 @@ class _ConversationScreenState extends State<ConversationScreen>
       context: context,
       isMe: message.isMe,
       onEmojiSelected: (emoji) async {
-        await context
-            .read<MessagingProvider>()
-            .reactToMessage(message.id, emoji);
+        await context.read<MessagingProvider>().reactToMessage(
+          message.id,
+          emoji,
+        );
       },
     );
   }
@@ -566,365 +596,395 @@ class _ConversationScreenState extends State<ConversationScreen>
     return Scaffold(
       // Avant : `Colors.grey[50]` imposé, donc écran clair y compris en thème
       // sombre. Le fond suit désormais le thème.
-      backgroundColor: c.fond,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: c.fondSecondaire,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: c.texte),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: ConversationHeader(
-          imageUrl: widget.contactImageUrl,
-          name: widget.contactName,
-          isOnline: isContactOnline,
-          lastSeen: presence.lastSeen,
-          presence: presence,
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text('Profil du contact (bientôt disponible)')),
-            );
-          },
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.call_rounded, color: c.texte),
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text('Appel vocal (bientôt disponible)')),
-            ),
-          ),
-          IconButton(
-            icon: Icon(Icons.videocam_rounded, color: c.texte),
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text('Appel vidéo (bientôt disponible)')),
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      // Body: messages list + FIXED input bar at bottom
-      body: Column(
-        children: [
-          // ── Messages area ─────────────────────────────────
-          Expanded(
-            child: Consumer<MessagingProvider>(
-              builder: (context, provider, _) {
-                final messages =
-                    provider.getMessages(widget.conversationId);
-                final isLoading =
-                    provider.isLoadingMessages(widget.conversationId);
-
-                if (isLoading && messages.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 26,
-                          height: 26,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: c.accent,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          OmniEtats.chargement,
-                          style: OmniTypo.secondaire.copyWith(
-                            color: c.texteSecondaire,
-                          ),
-                        ),
-                      ],
+      backgroundColor: c.estNova ? Colors.transparent : c.fond,
+      // Les messages passent sous l'en-tête : c'est ce qui donne au flou
+      // quelque chose à flouter, et à l'écran sa profondeur.
+      extendBodyBehindAppBar: c.estNova,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: c.verreFlou, sigmaY: c.verreFlou),
+            child: AppBar(
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              backgroundColor: c.estNova ? c.verreFlottant : c.fondSecondaire,
+              surfaceTintColor: Colors.transparent,
+              leading: IconButton(
+                icon: Icon(Icons.arrow_back_rounded, color: c.texte),
+                onPressed: () => Navigator.pop(context),
+              ),
+              title: ConversationHeader(
+                imageUrl: widget.contactImageUrl,
+                name: widget.contactName,
+                isOnline: isContactOnline,
+                lastSeen: presence.lastSeen,
+                presence: presence,
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Profil du contact (bientôt disponible)'),
                     ),
                   );
-                }
+                },
+              ),
+              actions: [
+                IconButton(
+                  icon: Icon(Icons.call_rounded, color: c.texte),
+                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Appel vocal (bientôt disponible)'),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.videocam_rounded, color: c.texte),
+                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Appel vidéo (bientôt disponible)'),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ),
+          ),
+        ),
+      ),
+      // Body: messages list + FIXED input bar at bottom
+      body: OmniFondAurore(
+        alignement: AlignmentCentre,
+        child: Column(
+          children: [
+            // ── Messages area ─────────────────────────────────
+            Expanded(
+              child: Consumer<MessagingProvider>(
+                builder: (context, provider, _) {
+                  final messages = provider.getMessages(widget.conversationId);
+                  final isLoading = provider.isLoadingMessages(
+                    widget.conversationId,
+                  );
 
-                if (messages.isEmpty) {
-                  return Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(OmniEspace.xxxl),
+                  if (isLoading && messages.isEmpty) {
+                    return Center(
                       child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            width: 92,
-                            height: 92,
-                            decoration: BoxDecoration(
-                              color: c.accentDoux,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              widget.isGroup
-                                  ? Icons.groups_rounded
-                                  : Icons.forum_rounded,
-                              size: 42,
+                          SizedBox(
+                            width: 26,
+                            height: 26,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
                               color: c.accent,
                             ),
                           ),
-                          const SizedBox(height: OmniEspace.xl),
+                          const SizedBox(height: 16),
                           Text(
-                            'Aucun message',
-                            style: OmniTypo.sousTitre.copyWith(color: c.texte),
-                          ),
-                          const SizedBox(height: OmniEspace.s),
-                          Text(
-                            'Envoyez votre premier message à ${widget.contactName}',
+                            OmniEtats.chargement,
                             style: OmniTypo.secondaire.copyWith(
                               color: c.texteSecondaire,
                             ),
-                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),
-                    ),
-                  );
-                }
-
-                // Scroll automatique UNIQUEMENT :
-                // 1. Premier chargement de l'historique
-                // 2. Nouveau message reçu/envoyé (count augmenté)
-                // NE PAS scroller à chaque rebuild (évite de bloquer
-                // l'utilisateur qui remonte dans l'historique)
-                if (!_hasScrolledToBottom) {
-                  _hasScrolledToBottom = true;
-                  _lastMessageCount = messages.length;
-                  WidgetsBinding.instance.addPostFrameCallback(
-                    (_) => _scrollToBottom(animate: false),
-                  );
-                } else if (messages.length > _lastMessageCount) {
-                  // Nouveau(x) message(s) → scroller seulement si
-                  // l'utilisateur est déjà en bas (ou proche du bas)
-                  _lastMessageCount = messages.length;
-                  final atBottom = !_scrollController.hasClients ||
-                      _scrollController.position.pixels >=
-                          _scrollController.position.maxScrollExtent - 150;
-                  if (atBottom) {
-                    WidgetsBinding.instance.addPostFrameCallback(
-                      (_) => _scrollToBottom(),
                     );
                   }
-                  // V3 — le dernier message s'animera à la prochaine image.
-                  _animerDernierMessage = true;
-                }
 
-                // V3 — la liste est découpée en entrées : un séparateur est
-                // inséré à chaque changement de jour.
-                final entrees = _construireEntrees(messages);
-
-                return Stack(
-                  children: [
-                    ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  itemCount:
-                      entrees.length + (_showTypingIndicator ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (_showTypingIndicator && index == entrees.length) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        child: Row(
+                  if (messages.isEmpty) {
+                    return Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(OmniEspace.xxxl),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            AvatarWithStatus(
-                              imageUrl: widget.contactImageUrl,
-                              name: widget.contactName,
-                              isOnline: isContactOnline,
-                              size: 32,
-                              showStatusIndicator: false,
+                            Container(
+                              width: 92,
+                              height: 92,
+                              decoration: BoxDecoration(
+                                color: c.accentDoux,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                widget.isGroup
+                                    ? Icons.groups_rounded
+                                    : Icons.forum_rounded,
+                                size: 42,
+                                color: c.accent,
+                              ),
                             ),
-                            const SizedBox(width: 8),
-                            const TypingIndicator(),
+                            const SizedBox(height: OmniEspace.xl),
+                            Text(
+                              'Aucun message',
+                              style: OmniTypo.sousTitre.copyWith(
+                                color: c.texte,
+                              ),
+                            ),
+                            const SizedBox(height: OmniEspace.s),
+                            Text(
+                              'Envoyez votre premier message à ${widget.contactName}',
+                              style: OmniTypo.secondaire.copyWith(
+                                color: c.texteSecondaire,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
                           ],
                         ),
+                      ),
+                    );
+                  }
+
+                  // Scroll automatique UNIQUEMENT :
+                  // 1. Premier chargement de l'historique
+                  // 2. Nouveau message reçu/envoyé (count augmenté)
+                  // NE PAS scroller à chaque rebuild (évite de bloquer
+                  // l'utilisateur qui remonte dans l'historique)
+                  if (!_hasScrolledToBottom) {
+                    _hasScrolledToBottom = true;
+                    _lastMessageCount = messages.length;
+                    WidgetsBinding.instance.addPostFrameCallback(
+                      (_) => _scrollToBottom(animate: false),
+                    );
+                  } else if (messages.length > _lastMessageCount) {
+                    // Nouveau(x) message(s) → scroller seulement si
+                    // l'utilisateur est déjà en bas (ou proche du bas)
+                    _lastMessageCount = messages.length;
+                    final atBottom =
+                        !_scrollController.hasClients ||
+                        _scrollController.position.pixels >=
+                            _scrollController.position.maxScrollExtent - 150;
+                    if (atBottom) {
+                      WidgetsBinding.instance.addPostFrameCallback(
+                        (_) => _scrollToBottom(),
                       );
                     }
+                    // V3 — le dernier message s'animera à la prochaine image.
+                    _animerDernierMessage = true;
+                  }
 
-                    final entree = entrees[index];
+                  // V3 — la liste est découpée en entrées : un séparateur est
+                  // inséré à chaque changement de jour.
+                  final entrees = _construireEntrees(messages);
 
-                    // Séparateur de jour : repère temporel discret.
-                    if (entree.estSeparateur) {
-                      return _SeparateurJour(date: entree.jour!);
-                    }
-
-                    final message = messages[entree.indexMessage!];
-                    final canRetry =
-                        message.isMe && provider.canRetry(message.id);
-
-                    // L'avatar est décidé lors de la construction des
-                    // entrées : une série s'interrompt au changement
-                    // d'expéditeur **et** au changement de jour.
-                    final afficherAvatar = entree.afficherAvatar;
-
-                    // V3 — la dernière bulle s'anime à l'arrivée d'un
-                    // nouveau message. Le drapeau est consommé ici puis
-                    // remis à faux : l'animation ne se rejoue pas à chaque
-                    // reconstruction de la liste.
-                    final animer = _animerDernierMessage &&
-                        entree.indexMessage == messages.length - 1;
-                    if (animer) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted) _animerDernierMessage = false;
-                      });
-                    }
-
-                    Widget bulle = Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        modern.ModernMessageBubble(
-                          message: message.content ?? '',
-                          isMe: message.isMe,
-                          timestamp: message.timestamp,
-                          type: _getModernMessageType(message.type),
-                          isRead:
-                              message.status == MessageStatus.read,
-                          // Statut serveur : jamais « remis » sans confirmation.
-                          status: message.status,
-                          onRetry: canRetry
-                              ? () => context
-                                  .read<MessagingProvider>()
-                                  .retryMessage(message.id)
-                              : null,
-                          onLongPress: () =>
-                              _showMessageOptions(message),
-                          // Nom de l'expéditeur : données réelles du backend
-                          // (`senderName`), affiché dans les groupes.
-                          senderName: widget.isGroup ? message.senderName : null,
-                          afficherAvatar: afficherAvatar,
-                          audioWidget:
-                              message.type == MessageType.voice
-                                  ? AudioPlayerWidget(
-                                      audioUrl:
-                                          message.playableAudioUrl,
-                                      duration: Duration(
-                                          seconds:
-                                              message.duration ?? 0),
-                                      transcription:
-                                          message.transcription,
-                                      isMe: message.isMe,
-                                    )
-                                  : null,
-                          imageUrl: message.type == MessageType.image
-                              ? message.mediaUrl
-                              : null,
-                        ),
-
-                        if (message.reaction != null &&
-                            message.reaction!.isNotEmpty)
-                          ReactionWidget(
-                            emoji: message.reaction!,
-                            isMe: message.isMe,
-                          ),
-
-                        // Message interne vs SMS : distinction explicite.
-                        if (message.isSms)
-                          Positioned(
-                            left: message.isMe ? null : 8,
-                            right: message.isMe ? 8 : null,
-                            bottom: -2,
-                            child: _ChannelChip(
-                              label: 'SMS',
-                              color: Colors.orange.shade700,
-                              icon: Icons.sms_outlined,
-                            ),
-                          ),
-
-                        // Envoi resté en échec : bouton de renvoi explicite.
-                        if (canRetry)
-                          Positioned(
-                            right: message.isMe ? null : 8,
-                            left: message.isMe ? 8 : null,
-                            bottom: -4,
-                            child: _RetryButton(
-                              onPressed: () async {
-                                final ok = await context
-                                    .read<MessagingProvider>()
-                                    .retryMessage(message.id);
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(ok
-                                        ? 'Message renvoyé.'
-                                        : "Échec du renvoi. Réessayez."),
-                                    backgroundColor:
-                                        ok ? Colors.green : Colors.red,
+                  return Stack(
+                    children: [
+                      ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        itemCount:
+                            entrees.length + (_showTypingIndicator ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (_showTypingIndicator && index == entrees.length) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              child: Row(
+                                children: [
+                                  AvatarWithStatus(
+                                    imageUrl: widget.contactImageUrl,
+                                    name: widget.contactName,
+                                    isOnline: isContactOnline,
+                                    size: 32,
+                                    showStatusIndicator: false,
                                   ),
-                                );
-                              },
-                            ),
-                          ),
-                      ],
-                    );
+                                  const SizedBox(width: 8),
+                                  const TypingIndicator(),
+                                ],
+                              ),
+                            );
+                          }
 
-                    if (!animer) return bulle;
-                    return OmniApparition(
-                      duree: OmniMouvement.moyen,
-                      distance: 10,
-                      child: bulle,
-                    );
-                  },
-                ),
+                          final entree = entrees[index];
 
-                    // V3 — retour au bas. Apparaît uniquement quand
-                    // l'utilisateur a remonté l'historique : sans ce repère,
-                    // un message reçu pendant la lecture d'anciens échanges
-                    // passerait inaperçu et la position serait perdue.
-                    ValueListenableBuilder<bool>(
-                      valueListenable: _loinDuBas,
-                      builder: (context, visible, _) {
-                        return AnimatedPositioned(
-                          duration: OmniMouvement.moyen,
-                          curve: OmniMouvement.arrivee,
-                          right: 16,
-                          bottom: visible ? 16 : -72,
-                          child: AnimatedOpacity(
-                            duration: OmniMouvement.court,
-                            opacity: visible ? 1 : 0,
-                            child: _BoutonRetourBas(
-                              nonLus: 0,
-                              onPressed: () => _scrollToBottom(),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
+                          // Séparateur de jour : repère temporel discret.
+                          if (entree.estSeparateur) {
+                            return _SeparateurJour(date: entree.jour!);
+                          }
 
-          // ── Acheminement annoncé (jamais deviné) ───────────
-          // Le backend décide au moment de l'envoi ; on affiche ici l'état de
-          // présence qui expliquera cette décision.
-          if (!widget.isGroup) _RoutingHint(presence: _presence),
+                          final message = messages[entree.indexMessage!];
+                          final canRetry =
+                              message.isMe && provider.canRetry(message.id);
 
-          // ── Input bar — ALWAYS VISIBLE ─────────────────────
-          Container(
-            decoration: BoxDecoration(
-              color: c.fondSecondaire,
-              border: Border(top: BorderSide(color: c.contour)),
-            ),
-            child: SafeArea(
-              child: _isRecording
-                  ? Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: VoiceRecorderWidget(
-                        onRecordingComplete: _onRecordingComplete,
-                        onCancel: _onRecordingCancel,
+                          // L'avatar est décidé lors de la construction des
+                          // entrées : une série s'interrompt au changement
+                          // d'expéditeur **et** au changement de jour.
+                          final afficherAvatar = entree.afficherAvatar;
+
+                          // V3 — la dernière bulle s'anime à l'arrivée d'un
+                          // nouveau message. Le drapeau est consommé ici puis
+                          // remis à faux : l'animation ne se rejoue pas à chaque
+                          // reconstruction de la liste.
+                          final animer =
+                              _animerDernierMessage &&
+                              entree.indexMessage == messages.length - 1;
+                          if (animer) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) _animerDernierMessage = false;
+                            });
+                          }
+
+                          Widget bulle = Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              modern.ModernMessageBubble(
+                                message: message.content ?? '',
+                                isMe: message.isMe,
+                                timestamp: message.timestamp,
+                                type: _getModernMessageType(message.type),
+                                isRead: message.status == MessageStatus.read,
+                                // Statut serveur : jamais « remis » sans confirmation.
+                                status: message.status,
+                                onRetry: canRetry
+                                    ? () => context
+                                          .read<MessagingProvider>()
+                                          .retryMessage(message.id)
+                                    : null,
+                                onLongPress: () => _showMessageOptions(message),
+                                // Nom de l'expéditeur : données réelles du backend
+                                // (`senderName`), affiché dans les groupes.
+                                senderName: widget.isGroup
+                                    ? message.senderName
+                                    : null,
+                                afficherAvatar: afficherAvatar,
+                                audioWidget: message.type == MessageType.voice
+                                    ? AudioPlayerWidget(
+                                        audioUrl: message.playableAudioUrl,
+                                        duration: Duration(
+                                          seconds: message.duration ?? 0,
+                                        ),
+                                        transcription: message.transcription,
+                                        isMe: message.isMe,
+                                      )
+                                    : null,
+                                imageUrl: message.type == MessageType.image
+                                    ? message.mediaUrl
+                                    : null,
+                              ),
+
+                              if (message.reaction != null &&
+                                  message.reaction!.isNotEmpty)
+                                ReactionWidget(
+                                  emoji: message.reaction!,
+                                  isMe: message.isMe,
+                                ),
+
+                              // Message interne vs SMS : distinction explicite.
+                              if (message.isSms)
+                                Positioned(
+                                  left: message.isMe ? null : 8,
+                                  right: message.isMe ? 8 : null,
+                                  bottom: -2,
+                                  child: _ChannelChip(
+                                    label: 'SMS',
+                                    color: Colors.orange.shade700,
+                                    icon: Icons.sms_outlined,
+                                  ),
+                                ),
+
+                              // Envoi resté en échec : bouton de renvoi explicite.
+                              if (canRetry)
+                                Positioned(
+                                  right: message.isMe ? null : 8,
+                                  left: message.isMe ? 8 : null,
+                                  bottom: -4,
+                                  child: _RetryButton(
+                                    onPressed: () async {
+                                      final ok = await context
+                                          .read<MessagingProvider>()
+                                          .retryMessage(message.id);
+                                      if (!context.mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            ok
+                                                ? 'Message renvoyé.'
+                                                : "Échec du renvoi. Réessayez.",
+                                          ),
+                                          backgroundColor: ok
+                                              ? Colors.green
+                                              : Colors.red,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                            ],
+                          );
+
+                          if (!animer) return bulle;
+                          return OmniApparition(
+                            duree: OmniMouvement.moyen,
+                            distance: 10,
+                            child: bulle,
+                          );
+                        },
                       ),
-                    )
-                  : ModernMessageInput(
-                      onSendMessage: _sendTextMessage,
-                      onStartRecording: _startRecording,
-                    ),
+
+                      // V3 — retour au bas. Apparaît uniquement quand
+                      // l'utilisateur a remonté l'historique : sans ce repère,
+                      // un message reçu pendant la lecture d'anciens échanges
+                      // passerait inaperçu et la position serait perdue.
+                      ValueListenableBuilder<bool>(
+                        valueListenable: _loinDuBas,
+                        builder: (context, visible, _) {
+                          return AnimatedPositioned(
+                            duration: OmniMouvement.moyen,
+                            curve: OmniMouvement.arrivee,
+                            right: 16,
+                            bottom: visible ? 16 : -72,
+                            child: AnimatedOpacity(
+                              duration: OmniMouvement.court,
+                              opacity: visible ? 1 : 0,
+                              child: _BoutonRetourBas(
+                                nonLus: 0,
+                                onPressed: () => _scrollToBottom(),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+
+            // ── Acheminement annoncé (jamais deviné) ───────────
+            // Le backend décide au moment de l'envoi ; on affiche ici l'état de
+            // présence qui expliquera cette décision.
+            if (!widget.isGroup) _RoutingHint(presence: _presence),
+
+            // ── Input bar — ALWAYS VISIBLE ─────────────────────
+            Container(
+              // Barre de saisie translucide : elle flotte au-dessus du fil.
+              decoration: BoxDecoration(
+                color: c.estNova ? c.verreFlottant : c.fondSecondaire,
+                border: Border(
+                  top: BorderSide(
+                    color: c.estNova ? c.verreContour : c.contour,
+                  ),
+                ),
+              ),
+              child: SafeArea(
+                child: _isRecording
+                    ? Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: VoiceRecorderWidget(
+                          onRecordingComplete: _onRecordingComplete,
+                          onCancel: _onRecordingCancel,
+                        ),
+                      )
+                    : ModernMessageInput(
+                        onSendMessage: _sendTextMessage,
+                        onStartRecording: _startRecording,
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -954,20 +1014,20 @@ class _RoutingHint extends StatelessWidget {
   Widget build(BuildContext context) {
     final (String text, Color color, IconData icon) = switch (presence.state) {
       PresenceState.online => (
-          'Destinataire connecté : message OmniSMS (sans frais SMS).',
-          Colors.green.shade700,
-          Icons.flash_on_rounded,
-        ),
+        'Destinataire connecté : message OmniSMS (sans frais SMS).',
+        Colors.green.shade700,
+        Icons.flash_on_rounded,
+      ),
       PresenceState.offline => (
-          'Destinataire hors ligne : le serveur enverra un SMS.',
-          Colors.orange.shade700,
-          Icons.sms_outlined,
-        ),
+        'Destinataire hors ligne : le serveur enverra un SMS.',
+        Colors.orange.shade700,
+        Icons.sms_outlined,
+      ),
       PresenceState.unknown => (
-          'Présence inconnue : le serveur choisira OmniSMS ou SMS à l\'envoi.',
-          Colors.grey.shade700,
-          Icons.help_outline_rounded,
-        ),
+        'Présence inconnue : le serveur choisira OmniSMS ou SMS à l\'envoi.',
+        Colors.grey.shade700,
+        Icons.help_outline_rounded,
+      ),
     };
 
     return Container(
@@ -979,10 +1039,7 @@ class _RoutingHint extends StatelessWidget {
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              text,
-              style: TextStyle(fontSize: 11.5, color: color),
-            ),
+            child: Text(text, style: TextStyle(fontSize: 11.5, color: color)),
           ),
         ],
       ),
@@ -1046,14 +1103,16 @@ class _RetryButton extends StatelessWidget {
         onTap: onPressed,
         child: Padding(
           padding: const EdgeInsets.all(4),
-          child: Icon(Icons.refresh_rounded,
-              size: 16, color: Colors.red.shade700),
+          child: Icon(
+            Icons.refresh_rounded,
+            size: 16,
+            color: Colors.red.shade700,
+          ),
         ),
       ),
     );
   }
 }
-
 
 // ─── V3 · Entrées de liste, séparateurs de jour, retour au bas ──────────────
 
@@ -1063,11 +1122,11 @@ class _RetryButton extends StatelessWidget {
 /// d'affichage de l'avatar, calculée une seule fois).
 class _EntreeListe {
   const _EntreeListe.separateur(this.jour)
-      : indexMessage = null,
-        afficherAvatar = false;
+    : indexMessage = null,
+      afficherAvatar = false;
 
   const _EntreeListe.message(this.indexMessage, {required this.afficherAvatar})
-      : jour = null;
+    : jour = null;
 
   final DateTime? jour;
   final int? indexMessage;
@@ -1089,8 +1148,11 @@ class _SeparateurJour extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = OmniCouleurs.of(context);
     final maintenant = DateTime.now();
-    final aujourdhui =
-        DateTime(maintenant.year, maintenant.month, maintenant.day);
+    final aujourdhui = DateTime(
+      maintenant.year,
+      maintenant.month,
+      maintenant.day,
+    );
     final hier = aujourdhui.subtract(const Duration(days: 1));
     final jour = DateTime(date.year, date.month, date.day);
 
@@ -1102,7 +1164,13 @@ class _SeparateurJour extends StatelessWidget {
     } else if (maintenant.difference(jour).inDays < 7) {
       // À moins d'une semaine, le nom du jour est plus parlant que la date.
       const noms = [
-        'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'
+        'lundi',
+        'mardi',
+        'mercredi',
+        'jeudi',
+        'vendredi',
+        'samedi',
+        'dimanche',
       ];
       libelle = noms[date.weekday - 1];
     } else {

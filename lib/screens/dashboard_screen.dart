@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+
 import '../services/notification_navigation.dart';
+
 import 'package:provider/provider.dart';
+
 import '../providers/auth_provider.dart';
 import '../providers/contacts_provider_v2.dart';
 import '../providers/groups_provider.dart';
@@ -9,6 +12,7 @@ import '../providers/messaging_provider.dart';
 import '../theme/omni_design.dart';
 import '../theme/omni_motion.dart';
 import '../theme/omni_responsive.dart';
+import '../widgets/common/liquid_glass.dart';
 import 'contacts/contacts_screen_v2.dart';
 import 'groups/groups_screen.dart';
 import 'settings/settings_screen.dart';
@@ -40,19 +44,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // conversation était en attente que l'interface existe. On l'ouvre ici,
     // une fois l'utilisateur authentifié et le tableau de bord monté.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      NotificationNavigation.instance
-          .traiterConversationEnAttente()
-          .catchError((Object e) {
-        debugPrint('[Notification] ouverture différée impossible : $e');
-      });
+      NotificationNavigation.instance.traiterConversationEnAttente().catchError(
+        (Object e) {
+          debugPrint('[Notification] ouverture différée impossible : $e');
+        },
+      );
     });
   }
 
   final List<_NavItem> _navItems = const [
-    _NavItem(icon: Icons.chat_bubble_outline_rounded, activeIcon: Icons.chat_bubble_rounded, label: 'Messages'),
-    _NavItem(icon: Icons.contacts_outlined, activeIcon: Icons.contacts, label: 'Contacts'),
-    _NavItem(icon: Icons.group_outlined, activeIcon: Icons.group, label: 'Groupes'),
-    _NavItem(icon: Icons.settings_outlined, activeIcon: Icons.settings, label: 'Paramètres'),
+    _NavItem(
+      icon: Icons.chat_bubble_outline_rounded,
+      activeIcon: Icons.chat_bubble_rounded,
+      label: 'Messages',
+    ),
+    _NavItem(
+      icon: Icons.contacts_outlined,
+      activeIcon: Icons.contacts,
+      label: 'Contacts',
+    ),
+    _NavItem(
+      icon: Icons.group_outlined,
+      activeIcon: Icons.group,
+      label: 'Groupes',
+    ),
+    _NavItem(
+      icon: Icons.settings_outlined,
+      activeIcon: Icons.settings,
+      label: 'Paramètres',
+    ),
   ];
 
   Widget _buildPage(int index) {
@@ -93,7 +113,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // effet sur les appareils qui n'en ont pas besoin.
     final bottomPadding = MediaQuery.of(context).viewPadding.bottom;
 
+    final c = OmniCouleurs.of(context);
+
     return Scaffold(
+      backgroundColor: c.estNova
+          ? Colors.transparent
+          : Theme.of(context).colorScheme.surface,
+      // Le contenu passe sous la barre flottante : c'est ce qui rend le flou
+      // utile, puisqu'il y a réellement quelque chose à flouter dessous.
+      extendBody: c.estNova,
       body: IndexedStack(
         index: _selectedIndex,
         children: List.generate(4, _buildPage),
@@ -101,23 +129,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          NavigationBar(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-            // L'élévation et les couleurs viennent du thème (design system) :
-            // plus d'ombre portée héritée de l'ancien thème Material 2.
-            elevation: 0,
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            surfaceTintColor: Colors.transparent,
-            destinations: _navItems.map((item) => NavigationDestination(
-              icon: Icon(item.icon),
-              selectedIcon: Icon(item.activeIcon),
-              label: item.label,
-            )).toList(),
-          ),
+          // Barre en verre détachée des bords. Le pouce n'atteint pas le haut
+          // d'un écran de 6,7 pouces : les destinations restent en bas, et
+          // l'onglet actif est peint dans le dégradé de la variante courante.
+          c.estNova
+              ? OmniBarreFlottante(
+                  index: _selectedIndex,
+                  onTap: (i) => setState(() => _selectedIndex = i),
+                  inclureZoneSur: false,
+                  onglets: _navItems
+                      .map(
+                        (item) => OmniOnglet(
+                          icone: item.icon,
+                          iconeActive: item.activeIcon,
+                          libelle: item.label,
+                        ),
+                      )
+                      .toList(),
+                )
+              : NavigationBar(
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: (i) =>
+                      setState(() => _selectedIndex = i),
+                  elevation: 0,
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  surfaceTintColor: Colors.transparent,
+                  destinations: _navItems
+                      .map(
+                        (item) => NavigationDestination(
+                          icon: Icon(item.icon),
+                          selectedIcon: Icon(item.activeIcon),
+                          label: item.label,
+                        ),
+                      )
+                      .toList(),
+                ),
           // Padding safe-area pour Safari iPhone (browser chrome en bas)
-          if (bottomPadding > 0)
-            SizedBox(height: bottomPadding),
+          if (bottomPadding > 0) SizedBox(height: bottomPadding),
         ],
       ),
     );
@@ -138,7 +186,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Expanded(
             child: Column(
               children: [
-                _WebHeaderWidget(selectedIndex: _selectedIndex, navItems: _navItems),
+                _WebHeaderWidget(
+                  selectedIndex: _selectedIndex,
+                  navItems: _navItems,
+                ),
                 Expanded(
                   child: IndexedStack(
                     index: _selectedIndex,
@@ -159,7 +210,11 @@ class _NavItem {
   final IconData icon;
   final IconData activeIcon;
   final String label;
-  const _NavItem({required this.icon, required this.activeIcon, required this.label});
+  const _NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+  });
 }
 
 // ─── Web Sidebar ──────────────────────────────────────────────────────────────
@@ -197,7 +252,11 @@ class _WebSidebarWidget extends StatelessWidget {
                     ),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.sms_rounded, color: Colors.white, size: 18),
+                  child: const Icon(
+                    Icons.sms_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 const Text(
@@ -225,7 +284,9 @@ class _WebSidebarWidget extends StatelessWidget {
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
                 border: isSelected
-                    ? Border.all(color: const Color(0xFF00D4FF).withOpacity(0.3))
+                    ? Border.all(
+                        color: const Color(0xFF00D4FF).withOpacity(0.3),
+                      )
                     : null,
               ),
               child: ListTile(
@@ -242,13 +303,17 @@ class _WebSidebarWidget extends StatelessWidget {
                     color: isSelected
                         ? const Color(0xFFe8edf5)
                         : const Color(0xFF6b7a96),
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
                     fontSize: 14,
                   ),
                 ),
                 onTap: () => onSelect(i),
                 dense: true,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             );
           }),
@@ -270,7 +335,9 @@ class _WebSidebarWidget extends StatelessWidget {
                   }
                 },
                 dense: true,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
           ),
@@ -286,10 +353,7 @@ class _WebHeaderWidget extends StatelessWidget {
   final int selectedIndex;
   final List<_NavItem> navItems;
 
-  const _WebHeaderWidget({
-    required this.selectedIndex,
-    required this.navItems,
-  });
+  const _WebHeaderWidget({required this.selectedIndex, required this.navItems});
 
   @override
   Widget build(BuildContext context) {
@@ -313,7 +377,10 @@ class _WebHeaderWidget extends StatelessWidget {
               const Spacer(),
               // Online dot
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.green.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -322,15 +389,18 @@ class _WebHeaderWidget extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 8, height: 8,
+                      width: 8,
+                      height: 8,
                       decoration: const BoxDecoration(
                         color: Colors.green,
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 6),
-                    const Text('En ligne',
-                        style: TextStyle(color: Colors.green, fontSize: 12)),
+                    const Text(
+                      'En ligne',
+                      style: TextStyle(color: Colors.green, fontSize: 12),
+                    ),
                   ],
                 ),
               ),
@@ -413,14 +483,17 @@ class _VueWebInchangee extends StatelessWidget {
             Text(
               'Actions rapides',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFFe8edf5),
-                  ),
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFFe8edf5),
+              ),
             ),
             const SizedBox(height: 16),
             _buildQuickAction(
-              context, 'Nouveau message', Icons.add_comment,
-              const Color(0xFF00D4FF), isWeb,
+              context,
+              'Nouveau message',
+              Icons.add_comment,
+              const Color(0xFF00D4FF),
+              isWeb,
               () => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -434,8 +507,11 @@ class _VueWebInchangee extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _buildQuickAction(
-              context, 'Créer un groupe', Icons.group_add,
-              const Color(0xFF0066FF), isWeb,
+              context,
+              'Créer un groupe',
+              Icons.group_add,
+              const Color(0xFF0066FF),
+              isWeb,
               () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const CreateGroupScreen()),
@@ -443,8 +519,11 @@ class _VueWebInchangee extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _buildQuickAction(
-              context, 'Transcription vocale', Icons.mic,
-              Colors.orange, isWeb,
+              context,
+              'Transcription vocale',
+              Icons.mic,
+              Colors.orange,
+              isWeb,
               () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const TranscriptionScreen()),
@@ -452,8 +531,11 @@ class _VueWebInchangee extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _buildQuickAction(
-              context, 'Statistiques', Icons.bar_chart,
-              Colors.purple, isWeb,
+              context,
+              'Statistiques',
+              Icons.bar_chart,
+              Colors.purple,
+              isWeb,
               () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const StatisticsScreen()),
@@ -461,8 +543,11 @@ class _VueWebInchangee extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _buildQuickAction(
-              context, 'Abonnement', Icons.workspace_premium,
-              const Color(0xFFFFD700), isWeb,
+              context,
+              'Abonnement',
+              Icons.workspace_premium,
+              const Color(0xFFFFD700),
+              isWeb,
               () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
@@ -527,27 +612,53 @@ class _VueWebInchangee extends StatelessWidget {
     if (isWeb) {
       return Row(
         children: stats
-            .map((s) => Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 16),
-                    child: _buildStatCard(context, s.$1, s.$2, s.$3, s.$4, isWeb),
-                  ),
-                ))
+            .map(
+              (s) => Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: _buildStatCard(context, s.$1, s.$2, s.$3, s.$4, isWeb),
+                ),
+              ),
+            )
             .toList(),
       );
     }
 
     return Row(
       children: [
-        Expanded(child: _buildStatCard(context, stats[0].$1, stats[0].$2, stats[0].$3, stats[0].$4, isWeb)),
+        Expanded(
+          child: _buildStatCard(
+            context,
+            stats[0].$1,
+            stats[0].$2,
+            stats[0].$3,
+            stats[0].$4,
+            isWeb,
+          ),
+        ),
         const SizedBox(width: 12),
-        Expanded(child: _buildStatCard(context, stats[1].$1, stats[1].$2, stats[1].$3, stats[1].$4, isWeb)),
+        Expanded(
+          child: _buildStatCard(
+            context,
+            stats[1].$1,
+            stats[1].$2,
+            stats[1].$3,
+            stats[1].$4,
+            isWeb,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildStatCard(BuildContext context, String title, String value,
-      IconData icon, Color color, bool isWeb) {
+  Widget _buildStatCard(
+    BuildContext context,
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+    bool isWeb,
+  ) {
     return Card(
       color: isWeb ? const Color(0xFF0f1520) : null,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -579,8 +690,14 @@ class _VueWebInchangee extends StatelessWidget {
     );
   }
 
-  Widget _buildQuickAction(BuildContext context, String title, IconData icon,
-      Color color, bool isWeb, VoidCallback onTap) {
+  Widget _buildQuickAction(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Color color,
+    bool isWeb,
+    VoidCallback onTap,
+  ) {
     return Card(
       color: isWeb ? const Color(0xFF0f1520) : null,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -610,8 +727,10 @@ class _VueWebInchangee extends StatelessWidget {
                   ),
                 ),
               ),
-              Icon(Icons.chevron_right,
-                  color: isWeb ? const Color(0xFF6b7a96) : Colors.grey),
+              Icon(
+                Icons.chevron_right,
+                color: isWeb ? const Color(0xFF6b7a96) : Colors.grey,
+              ),
             ],
           ),
         ),
@@ -640,23 +759,25 @@ class _AccueilMobileV3 extends StatelessWidget {
     final c = OmniCouleurs.of(context);
 
     return Scaffold(
-      backgroundColor: c.fond,
-      body: SafeArea(
-        child: OmniContenuCentre(
-          child: ListView(
-            padding: const EdgeInsets.only(
-              top: OmniEspace.l,
-              bottom: OmniEspace.xxxl,
+      backgroundColor: Colors.transparent,
+      body: OmniFondAurore(
+        child: SafeArea(
+          child: OmniContenuCentre(
+            child: ListView(
+              padding: const EdgeInsets.only(
+                top: OmniEspace.l,
+                bottom: OmniEspace.xxxl,
+              ),
+              children: const [
+                _CarteAccueil(),
+                SizedBox(height: OmniEspace.xl),
+                _GrilleCompteurs(),
+                SizedBox(height: OmniEspace.xxl),
+                _TitreSection(titre: 'Actions rapides'),
+                SizedBox(height: OmniEspace.m),
+                _ActionsRapides(),
+              ],
             ),
-            children: const [
-              _CarteAccueil(),
-              SizedBox(height: OmniEspace.xl),
-              _GrilleCompteurs(),
-              SizedBox(height: OmniEspace.xxl),
-              _TitreSection(titre: 'Actions rapides'),
-              SizedBox(height: OmniEspace.m),
-              _ActionsRapides(),
-            ],
           ),
         ),
       ),
@@ -673,10 +794,7 @@ class _TitreSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = OmniCouleurs.of(context);
-    return Text(
-      titre,
-      style: OmniTypo.sousTitre.copyWith(color: c.texte),
-    );
+    return Text(titre, style: OmniTypo.sousTitre.copyWith(color: c.texte));
   }
 }
 
@@ -696,7 +814,9 @@ class _CarteAccueil extends StatelessWidget {
         return OmniApparition(
           child: Container(
             decoration: BoxDecoration(
-              gradient: c.degradeAccent,
+              gradient:
+                  Theme.of(context).extension<OmniJetons>()?.degradeAurore ??
+                  c.degradeAurore,
               borderRadius: OmniRayon.carte,
               boxShadow: [
                 BoxShadow(
@@ -776,7 +896,7 @@ class _GrilleCompteurs extends StatelessWidget {
                         final colonnes = contraintes.maxWidth >= 520 ? 4 : 2;
                         final largeur =
                             (contraintes.maxWidth - (colonnes - 1) * 12) /
-                                colonnes;
+                            colonnes;
 
                         return Wrap(
                           spacing: 12,
@@ -947,7 +1067,11 @@ class _ActionsRapides extends StatelessWidget {
                           color: c.accentDoux,
                           borderRadius: OmniRayon.champ,
                         ),
-                        child: Icon(actions[i].icone, color: c.accent, size: 22),
+                        child: Icon(
+                          actions[i].icone,
+                          color: c.accent,
+                          size: 22,
+                        ),
                       ),
                       const SizedBox(width: OmniEspace.m),
                       Expanded(
@@ -956,14 +1080,16 @@ class _ActionsRapides extends StatelessWidget {
                           children: [
                             Text(
                               actions[i].titre,
-                              style: OmniTypo.corpsGras
-                                  .copyWith(color: c.texte),
+                              style: OmniTypo.corpsGras.copyWith(
+                                color: c.texte,
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               actions[i].sousTitre,
-                              style: OmniTypo.micro
-                                  .copyWith(color: c.texteSecondaire),
+                              style: OmniTypo.micro.copyWith(
+                                color: c.texteSecondaire,
+                              ),
                             ),
                           ],
                         ),
@@ -997,4 +1123,3 @@ class _ActionRapide {
   final IconData icone;
   final VoidCallback onTap;
 }
-

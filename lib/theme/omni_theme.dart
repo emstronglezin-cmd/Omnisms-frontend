@@ -132,7 +132,9 @@ abstract final class OmniTheme {
         showDragHandle: true,
         dragHandleColor: c.texteEstompe.withValues(alpha: 0.5),
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(OmniRayon.xl)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(OmniRayon.xl),
+          ),
         ),
       ),
 
@@ -151,11 +153,7 @@ abstract final class OmniTheme {
         ),
         shape: RoundedRectangleBorder(borderRadius: OmniRayon.champ),
       ),
-      dividerTheme: DividerThemeData(
-        color: c.contour,
-        thickness: 1,
-        space: 1,
-      ),
+      dividerTheme: DividerThemeData(color: c.contour, thickness: 1, space: 1),
 
       // ── Saisie ──────────────────────────────────────────────────────────
       inputDecorationTheme: InputDecorationTheme(
@@ -264,7 +262,9 @@ abstract final class OmniTheme {
       // ── Retours d'information ───────────────────────────────────────────
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: c.estSombre ? c.surfaceVariante : const Color(0xFF101828),
+        backgroundColor: c.estSombre
+            ? c.surfaceVariante
+            : const Color(0xFF101828),
         contentTextStyle: OmniTypo.corps.copyWith(color: Colors.white),
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: OmniRayon.champ),
@@ -277,10 +277,14 @@ abstract final class OmniTheme {
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (etats) => etats.contains(WidgetState.selected) ? Colors.white : c.texteEstompe,
+          (etats) => etats.contains(WidgetState.selected)
+              ? Colors.white
+              : c.texteEstompe,
         ),
         trackColor: WidgetStateProperty.resolveWith(
-          (etats) => etats.contains(WidgetState.selected) ? c.accent : c.surfaceVariante,
+          (etats) => etats.contains(WidgetState.selected)
+              ? c.accent
+              : c.surfaceVariante,
         ),
         trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
       ),
@@ -302,8 +306,8 @@ abstract final class OmniTheme {
         hoverElevation: 0,
         highlightElevation: 0,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(OmniRayon.m),
-          ),
+          borderRadius: BorderRadius.circular(OmniRayon.m),
+        ),
         extendedTextStyle: OmniTypo.corpsGras.copyWith(color: c.surAccent),
       ),
       tooltipTheme: TooltipThemeData(
