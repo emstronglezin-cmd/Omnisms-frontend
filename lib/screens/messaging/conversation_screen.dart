@@ -1226,7 +1226,7 @@ class _BoutonRetourBas extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            gradient: c.degradeAccent,
+            gradient: c.degradeAurore,
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(

@@ -236,7 +236,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: 84, height: 84,
                           margin: const EdgeInsets.only(bottom: 18),
                           decoration: BoxDecoration(
-                            gradient: OmniCouleurs.of(context).degradeAccent,
+                            gradient: OmniCouleurs.of(context).degradeAurore,
                             borderRadius: BorderRadius.circular(26),
                             boxShadow: [
                               BoxShadow(
@@ -402,7 +402,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               // distingue immédiatement des actions
                               // secondaires.
                               decoration: BoxDecoration(
-                                gradient: OmniCouleurs.of(context).degradeAccent,
+                                gradient: OmniCouleurs.of(context).degradeAurore,
                                 borderRadius: BorderRadius.circular(OmniRayon.m),
                               ),
                               child: Center(

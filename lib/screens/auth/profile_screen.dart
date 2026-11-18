@@ -276,7 +276,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        gradient: OmniCouleurs.of(context).degradeAccent,
+                        gradient: OmniCouleurs.of(context).degradeAurore,
                         borderRadius: OmniRayon.carte,
                         boxShadow: [
                           BoxShadow(

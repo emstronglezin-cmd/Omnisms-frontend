@@ -227,7 +227,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           height: 64,
                           margin: const EdgeInsets.only(bottom: 16),
                           decoration: BoxDecoration(
-                            gradient: OmniCouleurs.of(context).degradeAccent,
+                            gradient: OmniCouleurs.of(context).degradeAurore,
                             borderRadius: OmniRayon.carte,
                           ),
                           child: Icon(Icons.sms_rounded,

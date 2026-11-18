@@ -108,7 +108,7 @@ class OmniEtatVide extends StatelessWidget {
                         vertical: OmniEspace.m,
                       ),
                       decoration: BoxDecoration(
-                        gradient: c.degradeAccent,
+                        gradient: c.degradeAurore,
                         borderRadius: OmniRayon.pill,
                       ),
                       child: Text(

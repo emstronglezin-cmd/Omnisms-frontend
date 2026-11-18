@@ -156,9 +156,11 @@ abstract final class OmniTheme {
       dividerTheme: DividerThemeData(color: c.contour, thickness: 1, space: 1),
 
       // ── Saisie ──────────────────────────────────────────────────────────
+      // Nova : les champs sont en verre, posés sur le fond aurore. Le liseré
+      // devient celui du verre ; Classique garde son champ plein d'origine.
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: c.surfaceVariante,
+        fillColor: c.estNova ? c.verre : c.surfaceVariante,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: OmniEspace.l,
           vertical: 14,
@@ -167,8 +169,8 @@ abstract final class OmniTheme {
         labelStyle: OmniTypo.corps.copyWith(color: c.texteSecondaire),
         prefixIconColor: c.texteSecondaire,
         suffixIconColor: c.texteSecondaire,
-        border: _champ(c.contour),
-        enabledBorder: _champ(c.contour),
+        border: _champ(c.estNova ? c.verreContour : c.contour),
+        enabledBorder: _champ(c.estNova ? c.verreContour : c.contour),
         focusedBorder: _champ(c.accent, largeur: 1.6),
         errorBorder: _champ(OmniPalette.erreur),
         focusedErrorBorder: _champ(OmniPalette.erreur, largeur: 1.6),

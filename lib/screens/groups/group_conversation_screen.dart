@@ -398,7 +398,7 @@ class _GroupConversationScreenState extends State<GroupConversationScreen> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  gradient: c.degradeAccent,
+                  gradient: c.degradeAurore,
                   shape: BoxShape.circle,
                 ),
                 child: AnimatedSwitcher(

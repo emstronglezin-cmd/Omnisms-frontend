@@ -85,7 +85,7 @@ class _TypingIndicatorState extends State<TypingIndicator>
                       height: 32,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: c.degradeAccent,
+                        gradient: c.degradeAurore,
                       ),
                       child: const Center(
                         child: Icon(

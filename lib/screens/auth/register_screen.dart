@@ -430,7 +430,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               // principale porte le dégradé de marque, seul
                               // élément de l'écran qui appelle l'utilisateur.
                               decoration: BoxDecoration(
-                                gradient: OmniCouleurs.of(context).degradeAccent,
+                                gradient: OmniCouleurs.of(context).degradeAurore,
                                 borderRadius: BorderRadius.circular(OmniRayon.m),
                               ),
                               child: Center(

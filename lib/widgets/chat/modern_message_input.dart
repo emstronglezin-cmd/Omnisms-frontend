@@ -198,7 +198,7 @@ class _BoutonMorph extends StatelessWidget {
         decoration: BoxDecoration(
           // Le dégradé de marque n'apparaît qu'en mode envoi : c'est le
           // signal « cette action va produire quelque chose ».
-          gradient: modeEnvoi ? c.degradeAccent : null,
+          gradient: modeEnvoi ? c.degradeAurore : null,
           color: modeEnvoi ? null : c.surfaceVariante,
           shape: BoxShape.circle,
           border: modeEnvoi ? null : Border.all(color: c.contour),

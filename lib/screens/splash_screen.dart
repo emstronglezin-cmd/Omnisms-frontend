@@ -184,7 +184,7 @@ class _LogoV3 extends StatelessWidget {
       width: 120,
       height: 120,
       decoration: BoxDecoration(
-        gradient: couleurs.degradeAccent,
+        gradient: couleurs.degradeAurore,
         borderRadius: BorderRadius.circular(OmniRayon.xl),
         boxShadow: [
           BoxShadow(
