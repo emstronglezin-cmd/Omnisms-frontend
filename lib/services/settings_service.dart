@@ -13,7 +13,7 @@ class SettingsService {
   static const String _soundsKey = 'sounds_enabled';
   static const String _alertsKey = 'alerts_enabled';
   static const String _themeKey = 'theme_mode'; // 'light', 'dark', 'system'
-  static const String _varianteKey = 'variante_visuelle'; // 'classique' | 'nova'
+  static const String _varianteKey = 'variante_visuelle'; // 'nova' | 'classique'
 
   // Get user statistics
   Future<Map<String, dynamic>> getStatistics() async {
@@ -125,7 +125,9 @@ class SettingsService {
   /// que revenir à l'identité d'origine reste immédiat.
   Future<String> getVariante() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_varianteKey) ?? 'classique';
+    // Aucune préférence enregistrée (installation neuve) : le nouveau
+    // frontend. Un choix explicite de l'utilisateur est toujours respecté.
+    return prefs.getString(_varianteKey) ?? 'nova';
   }
 
   Future<void> setVariante(String variante) async {

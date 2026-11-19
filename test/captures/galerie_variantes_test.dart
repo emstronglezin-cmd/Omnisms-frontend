@@ -14,6 +14,8 @@ import 'package:omnisms/services/presence_service.dart';
 import 'package:omnisms/services/realtime_service.dart';
 import 'package:omnisms/theme/omni_motion.dart';
 import 'package:omnisms/theme/omni_theme.dart';
+import 'package:omnisms/providers/theme_provider.dart';
+import 'package:omnisms/widgets/common/liquid_glass.dart';
 
 /// Taille d'écran de téléphone (logique) utilisée pour les captures.
 const double kLargeurEcran = 411;
@@ -345,6 +347,108 @@ void main() {
         nom: 'conversation_nova',
         theme: OmniTheme.novaSombre(),
       );
+    });
+  });
+
+  /// Boutons du bas : les widgets RÉELS des deux identités, mêmes onglets.
+  Future<void> barre(
+    WidgetTester tester, {
+    required String nom,
+    required bool nova,
+  }) async {
+    tester.view.physicalSize = const Size(822, 560);
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.reset);
+
+    final theme = nova ? OmniTheme.novaSombre() : OmniTheme.sombre();
+    const onglets = <(IconData, IconData, String)>[
+      (Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'Messages'),
+      (Icons.contacts_outlined, Icons.contacts, 'Contacts'),
+      (Icons.group_outlined, Icons.group, 'Groupes'),
+      (Icons.settings_outlined, Icons.settings, 'Paramètres'),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: Scaffold(
+          backgroundColor:
+              nova ? Colors.transparent : theme.scaffoldBackgroundColor,
+          extendBody: nova,
+          body: OmniFondAurore(
+            child: ListView(
+              children: [
+                for (var i = 0; i < 6; i++)
+                  Container(
+                    height: 64,
+                    margin: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: nova
+                          ? const Color(0xFF152043)
+                          : const Color(0xFF171C27),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          bottomNavigationBar: nova
+              ? OmniBarreFlottante(
+                  index: 0,
+                  onTap: (_) {},
+                  onglets: [
+                    for (final o in onglets)
+                      OmniOnglet(
+                        icone: o.$1,
+                        iconeActive: o.$2,
+                        libelle: o.$3,
+                      ),
+                  ],
+                )
+              : NavigationBar(
+                  selectedIndex: 0,
+                  onDestinationSelected: (_) {},
+                  elevation: 0,
+                  backgroundColor: theme.colorScheme.surface,
+                  surfaceTintColor: Colors.transparent,
+                  destinations: [
+                    for (final o in onglets)
+                      NavigationDestination(
+                        icon: Icon(o.$1),
+                        selectedIcon: Icon(o.$2),
+                        label: o.$3,
+                      ),
+                  ],
+                ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+
+    if (comparerAuPixel) {
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/galerie/$nom.png'),
+      );
+    }
+  }
+
+  group('Galerie — boutons du bas', () {
+    testWidgets('ancien widget (ce que vous voyiez)', (tester) async {
+      await barre(tester, nom: 'barre_avant', nova: false);
+    });
+
+    testWidgets('nouveau widget (Nova)', (tester) async {
+      await barre(tester, nom: 'barre_apres', nova: true);
+    });
+  });
+
+  group('Galerie — défaut d’une installation neuve', () {
+    testWidgets('ce que montre l’APK au premier lancement', (tester) async {
+      // ThemeProvider sans lecture de préférences : c'est le défaut réel de
+      // l'application, celui qu'obtient une installation neuve.
+      await liste(tester, nom: 'defaut_frais', theme: ThemeProvider().darkTheme);
     });
   });
 }

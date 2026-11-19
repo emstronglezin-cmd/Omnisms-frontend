@@ -4,6 +4,7 @@ import 'package:omnisms/providers/theme_provider.dart';
 import 'package:omnisms/theme/omni_design.dart';
 import 'package:omnisms/theme/omni_motion.dart';
 import 'package:omnisms/theme/omni_theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Tests du système à deux identités visuelles.
 ///
@@ -11,6 +12,11 @@ import 'package:omnisms/theme/omni_theme.dart';
 /// l'ancienne **reste intacte et sélectionnable**. Un changement d'identité
 /// qu'on ne peut pas annuler n'est pas un choix, c'est une contrainte.
 void main() {
+  // ThemeProvider lit les préférences : sans mémoire simulée, l'appel
+  // asynchrone remonterait une erreur après la fin du test.
+  TestWidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences.setMockInitialValues({});
+
   setUp(() => OmniMouvementTest.desactivees = true);
   tearDown(() => OmniMouvementTest.desactivees = false);
 
@@ -37,10 +43,13 @@ void main() {
   }
 
   group('Variante classique — l’identité d’origine', () {
-    testWidgets('reste le défaut', (tester) async {
+    testWidgets('le thème historique reste classique', (tester) async {
+      // Le thème d'origine doit rester exactement lui-même : c'est lui qui
+      // sert de retour arrière. (Le DÉFAUT de l'app est désormais Nova,
+      // voir le groupe « Bascule entre variantes ».)
       final c = await resoudre(tester, OmniTheme.sombre());
       expect(c.estNova, isFalse,
-          reason: 'La variante par défaut doit rester l’identité d’origine.');
+          reason: 'OmniTheme.sombre() doit rester l’identité d’origine.');
     });
 
     testWidgets('conserve ses couleurs historiques', (tester) async {
@@ -131,10 +140,18 @@ void main() {
       expect(j2!.variante, OmniVariante.nova);
     });
 
-    test('le fournisseur démarre sur l’identité d’origine', () {
-      // Sans lecture de préférences, le défaut doit rester « classique ».
+    test('le fournisseur démarre sur le nouveau frontend', () {
+      // V4 approuvée : sans préférence enregistrée, c'est la nouvelle
+      // identité qui s'affiche. L'ancienne reste un choix explicite.
       final fournisseur = ThemeProvider();
-      expect(fournisseur.variante, OmniVariante.classique);
+      expect(fournisseur.variante, OmniVariante.nova);
+    });
+
+    test('l’identité d’origine reste disponible et verrouillée', () {
+      expect(OmniVariante.values, contains(OmniVariante.classique));
+      final jetons = OmniTheme.sombre().extension<OmniJetons>();
+      expect(jetons!.variante, OmniVariante.classique);
+      expect(jetons.couleurs.fond, const Color(0xFF08090F));
     });
   });
 }

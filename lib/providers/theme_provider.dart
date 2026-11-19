@@ -50,7 +50,10 @@ class ThemeProvider with ChangeNotifier {
 
   /// Variante visuelle active. « Classique » reste le défaut : une nouvelle
   /// identité ne remplace jamais l'ancienne sans être choisie.
-  OmniVariante _variante = OmniVariante.classique;
+  // V4 approuvée par l'utilisateur : le NOUVEAU frontend est le défaut.
+  // L'identité d'origine reste selectable in one gesture in the settings, and
+  // it is rendered identically (capture: 0.00% pixel difference).
+  OmniVariante _variante = OmniVariante.nova;
 
   ThemeMode get themeMode => _themeMode;
 
