@@ -254,8 +254,8 @@ void main() {
       expect(
         contenu.contains('<key>NSPrivacyTracking</key>\n\t<false/>'),
         isTrue,
-        reason: 'Le SDK Start.io est lié mais jamais initialisé : aucun suivi '
-            'n\'a lieu. Toute déclaration contraire serait inexacte.',
+        reason: 'Aucune régie publicitaire ni aucun suivi n\'est intégré : '
+            'toute déclaration contraire serait inexacte.',
       );
       expect(contenu.contains('NSPrivacyTrackingDomains'), isTrue);
     });
@@ -333,13 +333,16 @@ void main() {
     });
   });
 
-  group('Publicités — aucune initialisation hors Android', () {
-    test('le service publicitaire est limité à Android dans le code source',
-        () {
-      final source = _read('lib/services/ads_service.dart');
-      expect(source.contains('!kIsWeb && Platform.isAndroid'), isTrue,
-          reason: 'Sur iOS, le SDK Start.io ne doit jamais être initialisé : '
-              'cette garde protège le binaire de tout appel publicitaire.');
+  group('Publicités — intégration Start.io retirée', () {
+    test('ni dépendance ni service publicitaire ne subsistent', () {
+      final pubspec = _read('pubspec.yaml');
+      expect(pubspec.contains('startapp_sdk'), isFalse,
+          reason: 'La dépendance Start.io doit rester retirée du pubspec.');
+      expect(File('lib/services/ads_service.dart').existsSync(), isFalse,
+          reason: 'Le service publicitaire doit rester supprimé.');
+      final manifest = _read('android/app/src/main/AndroidManifest.xml');
+      expect(manifest.contains('com.startapp.sdk.APPLICATION_ID'), isFalse,
+          reason: 'La métadonnée Start.io doit rester retirée du manifest.');
     });
   });
 }

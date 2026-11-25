@@ -10,14 +10,9 @@
     3. l'absence de suivi publicitaire (pas d'IDFA, pas de domaine de suivi).
 
   ⚠️ À COMPLÉTER APRÈS LE PREMIER ARCHIVAGE SUR MAC
-  Le SDK Start.io (startapp_sdk) est lié au binaire iOS, même si les
-  publicités ne sont jamais affichées sur iPhone (le service est désactivé
-  côté Dart pour tout ce qui n'est pas Android). S'il utilise d'autres API
-  sensibles (SystemBootTime, DiskSpace…), elles devront être ajoutées ici.
   Procédure : Xcode → Product → Archive → Organizer → Generate Privacy
   Report ; le rapport liste exactement les API détectées et les fichiers à
-  compléter. Les deux motifs correspondants sont déjà prêts ci-dessous, il
-  suffit de les activer si le rapport les réclame.
+  compléter si une dépendance en utilise d'autres.
 -->
 <plist version="1.0">
 <dict>
@@ -44,17 +39,6 @@
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array>
 				<string>C617.1</string>
-			</array>
-		</dict>
-		<!-- Déclaré pour le SDK Start.io : mesure de la durée écoulée depuis
-		     le démarrage de l'appareil (télémétrie du SDK publicitaire).
-		     À RETIRER si startapp_sdk est retiré du projet. -->
-		<dict>
-			<key>NSPrivacyAccessedAPIType</key>
-			<string>NSPrivacyAccessedAPITypeSystemBootTime</string>
-			<key>NSPrivacyAccessedAPITypeReasons</key>
-			<array>
-				<string>35F9.1</string>
 			</array>
 		</dict>
 		<!-- Déclaré pour la gestion du cache : espace disque disponible avant

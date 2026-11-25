@@ -105,8 +105,7 @@
             "Infobip : opérateur utilisé pour envoyer un SMS vers un numéro qui n'utilise pas l'application.",
             "Render : hébergement du serveur de l'application.",
             "Vercel : hébergement de cette version web accessible depuis un navigateur.",
-            "Leekpay et SaaSPay : traitement des paiements et recharges de crédits.",
-            "Start.io : régie publicitaire, uniquement sur Android."
+            "Leekpay et SaaSPay : traitement des paiements et recharges de crédits."
           ]},
           { type: 'note', text: "Point important à comprendre : lorsqu'un message est envoyé à un numéro qui n'utilise pas OmniSMS, il quitte l'application et transite par un opérateur de téléphonie (Infobip). Il est donc techniquement impossible de promettre qu'un message ne sort jamais de nos systèmes." }
         ]
@@ -159,8 +158,7 @@
       {
         title: 'Publicité',
         blocks: [
-          { type: 'p', text: "Un module publicitaire est intégré à l'application Android (Start.io). Il est désactivé pour les comptes premium, et il n'est initialisé ni sur iPhone ni sur la version web : aucune donnée publicitaire ne peut donc y être collectée." },
-          { type: 'todo', text: "EMPLACEMENT À COMPLÉTER AVANT ACTIVATION : identifiant d'application Start.io, base légale du ciblage publicitaire, et mention d'un éventuel identifiant publicitaire collecté par la régie. En l'état, le module est présent mais non configuré." }
+          { type: 'p', text: "L'application n'intègre aucune régie publicitaire, n'affiche aucune publicité et ne collecte aucun identifiant publicitaire." }
         ]
       },
       {

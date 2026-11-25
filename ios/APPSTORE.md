@@ -16,7 +16,7 @@ Environnement de préparation : Linux (aucun Mac, aucun Xcode) → rien n'a ét�
 | 1.2 | Politique de confidentialité dans App Store Connect | ⚠️ | Même URL à coller dans le champ *App Privacy → Privacy Policy URL*. |
 | 1.3 | Déclaration exacte des données collectées | ✅ | `ios/Runner/PrivacyInfo.xcprivacy` : téléphone, e-mail, nom, contacts, contenu utilisateur, identifiant, historique d'achat — tous en finalité « fonctionnement de l'app », non liés à l'identité, non utilisés pour le suivi. |
 | 1.4 | API à motif requis déclarées | ✅ | Même fichier : `UserDefaults` (CA92.1), horodatage de fichiers (C617.1), temps de démarrage (35F9.1) et espace disque (E174.1) pour le SDK publicitaire lié. **À confirmer** par le rapport de confidentialité Xcode après le premier archivage. |
-| 1.5 | Aucun suivi publicitaire | ✅ | `NSPrivacyTracking = false`, aucun domaine de suivi. Le SDK Start.io est lié mais **jamais initialisé** sur iOS (garde `Platform.isAndroid`). |
+| 1.5 | Aucun suivi publicitaire | ✅ | `NSPrivacyTracking = false`, aucun domaine de suivi. Aucune régie publicitaire n’est intégrée. |
 | 1.6 | Collecte minimale | ✅ | Aucun analytics, aucun SDK de mesure publicitaire actif, aucune collecte de localisation. |
 | 1.7 | Suppression des données | ✅ | Suppression de compte depuis l'app (Paramètres → Supprimer mon compte) → `POST /api/account/delete` (scrub PII + audit côté serveur). |
 
@@ -70,7 +70,7 @@ Environnement de préparation : Linux (aucun Mac, aucun Xcode) → rien n'a ét�
 
 | # | Exigence | Statut | Détail |
 |---|---|---|---|
-| 7.1 | Publicités Start.io | ⚠️ | `YOUR_START_IO_APP_ID` est un **placeholder** : le service n'est pas configuré et donc jamais actif, sur Android comme sur iOS. Sur iOS, il est de plus désactivé par conception. À configurer ou à retirer avant soumission (une fonctionnalité morte peut être relevée en revue). |
+| 7.1 | Publicités | ✅ | Aucune régie publicitaire intégrée : dépendance, service, métadonnée Android et déclarations iOS retirés. |
 | 7.2 | Envoi de SMS | ✅ | Aucune promesse d'envoi par la SIM : l'application envoie via le backend, qui route en interne ou via Infobip. Aucune API SMS Android n'est utilisée — donc rien à reproduire sur iOS, et aucun faux statut d'envoi. |
 | 7.3 | Messagerie, groupes, audio, transcription | ✅ | Tout passe par le backend (HTTP/multipart) : identique sur iOS. |
 | 7.4 | Compte de démonstration pour la revue | ⚠️ | **À fournir** : identifiants d'un compte de test fonctionnel + numéro de téléphone vérifiable. L'application exige une connexion : sans compte de démonstration, la revue est impossible. |

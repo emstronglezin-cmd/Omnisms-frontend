@@ -141,7 +141,9 @@ void main() {
           .expand((s) => s.blocks)
           .where((b) => b.kind == PrivacyBlockKind.placeholder)
           .toList();
-      expect(placeholders.length, greaterThanOrEqualTo(6));
+      // Six emplacements avant le retrait de la publicité Start.io ; il en
+      // reste cinq, tous explicites. Le seuil suit le contenu réel.
+      expect(placeholders.length, greaterThanOrEqualTo(5));
       for (final p in placeholders) {
         expect(p.text.toUpperCase(), contains('COMPLÉTER'));
       }

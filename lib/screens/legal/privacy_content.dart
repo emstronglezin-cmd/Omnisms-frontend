@@ -74,7 +74,6 @@ class PrivacySection {
 ///   - `routes/contacts.v2.js`              → synchronisation du carnet
 ///   - `services/messageRouter.js`, `services/infobip.js` → SMS sortants
 ///   - `routes/accountDeletion.js`          → suppression de compte (30 jours)
-///   - `lib/services/ads_service.dart`      → publicité Start.io (Android)
 ///   - `android/app/src/main/AndroidManifest.xml`, `ios/Runner/Info.plist`
 ///                                          → permissions demandées
 class PrivacyContentFr implements PrivacyContent {
@@ -187,7 +186,6 @@ class PrivacyContentFr implements PrivacyContent {
             "Render : hébergement du serveur de l'application.",
             "Vercel : hébergement de la version web accessible depuis un navigateur.",
             "Leekpay et SaaSPay : traitement des paiements et recharges de crédits.",
-            "Start.io : régie publicitaire, uniquement sur Android.",
           ]),
           PrivacyBlock.note(
             "Point important à comprendre : lorsqu'un message est envoyé à un "
@@ -271,17 +269,9 @@ class PrivacyContentFr implements PrivacyContent {
 
         PrivacySection(title: 'Publicité', blocks: [
           PrivacyBlock.paragraph(
-            "Un module publicitaire est intégré à l'application Android "
-                '(Start.io). Il est désactivé pour les comptes premium, et il '
-                "n'est initialisé ni sur iPhone ni sur la version web : aucune "
-                'donnée publicitaire ne peut donc y être collectée.',
-          ),
-          PrivacyBlock.placeholder(
-            "EMPLACEMENT À COMPLÉTER AVANT ACTIVATION : identifiant "
-                "d'application Start.io, base légale du ciblage publicitaire, "
-                "et mention d'un éventuel identifiant publicitaire (AAID) "
-                "collecté par la régie. En l'état, le module est présent mais "
-                "non configuré : aucune publicité n'est diffusée.",
+            "L'application n'intègre aucune régie publicitaire, n'affiche "
+                'aucune publicité et ne collecte aucun identifiant '
+                'publicitaire.',
           ),
         ]),
 
