@@ -85,7 +85,9 @@ test('les emplacements à compléter sont présents et marqués', () => {
   const todos = c.sections
     .flatMap((s) => s.blocks)
     .filter((b) => b.type === 'todo');
-  assert.ok(todos.length >= 6, `emplacements trouvés : ${todos.length}`);
+  // Six emplacements avant le retrait de la publicité Start.io ; il en reste
+  // cinq, tous marqués. Le seuil suit le contenu réel de la politique.
+  assert.ok(todos.length >= 5, `emplacements trouvés : ${todos.length}`);
   todos.forEach((t) => assert.match(t.text.toUpperCase(), /COMPLÉTER/));
 });
 
