@@ -469,12 +469,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           child: const Text('Déjà un compte ? Se connecter'),
                         ),
 
-                        // ── Politique de confidentialité ───────────
+                        // ── Pages légales ──────────────────────────
                         TextButton(
                           onPressed: () =>
                               Navigator.of(context).pushNamed('/privacy'),
                           child: Text(
                             'Politique de confidentialité',
+                            style: OmniTypo.secondaire.copyWith(
+                              color: OmniCouleurs.of(context).texteSecondaire,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(context).pushNamed('/terms'),
+                          child: Text(
+                            "Conditions générales d'utilisation",
                             style: OmniTypo.secondaire.copyWith(
                               color: OmniCouleurs.of(context).texteSecondaire,
                             ),

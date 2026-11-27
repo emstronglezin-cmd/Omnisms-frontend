@@ -517,7 +517,7 @@ class _ContactsScreenV2State extends State<ContactsScreenV2> {
         : (provider.googleImportMessage ??
               'Impossible d\'importer les contacts Google.');
     final detail = success ? provider.googleImportDetail : '';
-    final message = detail.isEmpty ? baseMessage : '$baseMessage — $detail';
+    final message = detail.isEmpty ? baseMessage : '$baseMessage : $detail';
 
     messenger.showSnackBar(
       SnackBar(

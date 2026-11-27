@@ -281,7 +281,7 @@ class ContactsProviderV2 with ChangeNotifier {
       if (result['success'] == true) {
         final omni = result['registeredOnOmniSms'] ?? 0;
         final smsOnly = result['smsOnly'] ?? 0;
-        _deviceImportMessage = '✓ $omni OmniSMS · $smsOnly SMS uniquement';
+        _deviceImportMessage = '$omni OmniSMS · $smsOnly SMS uniquement';
         return {
           'success': true,
           'message': _deviceImportMessage,
@@ -426,7 +426,7 @@ class ContactsProviderV2 with ChangeNotifier {
       }
 
       debugPrint(
-          '✅ Sync complete: ${_allContacts.length} total, ${registered.length} OmniSMS');
+          'Synchronisation terminée : ${_allContacts.length} contacts, ${registered.length} OmniSMS');
     } catch (e) {
       _loadingState = ContactsLoadingState.error;
       _errorMessage = 'Erreur synchronisation : $e';
@@ -571,7 +571,7 @@ class ContactsProviderV2 with ChangeNotifier {
       notifyListeners();
 
       debugPrint(
-          '✅ Google Contacts import terminé: ${GoogleContactsMessages.summary(result)}');
+          'Import Google terminé : ${GoogleContactsMessages.summary(result)}');
       return result;
     } catch (e) {
       debugPrint('❌ importFromGoogle: $e');
@@ -635,7 +635,7 @@ class ContactsProviderV2 with ChangeNotifier {
         _searchQuery,
       );
       debugPrint(
-          '🔍 Search "$_searchQuery": ${_filteredContacts.length} results');
+          'Recherche « $_searchQuery » : ${_filteredContacts.length} résultats');
     }
     notifyListeners();
   }

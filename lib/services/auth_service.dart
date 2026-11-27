@@ -555,7 +555,7 @@ class AuthService {
       final code = (data is Map ? data['code'] : null)?.toString();
       String message;
       if (code == 'USERNAME_EXISTS') {
-        message = "Nom d'utilisateur déjà utilisé — choisissez-en un autre";
+        message = "Nom d'utilisateur déjà utilisé : choisissez-en un autre";
       } else if (code == 'INVALID_USERNAME') {
         message = usernameHint();
       } else {

@@ -94,7 +94,7 @@ class SettingsScreen extends StatelessWidget {
                             ),
                           ),
                           child: Text(
-                            '💎 Premium actif',
+                            'Premium actif',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
@@ -108,7 +108,7 @@ class SettingsScreen extends StatelessWidget {
                         const Padding(
                           padding: EdgeInsets.only(top: 6),
                           child: Text(
-                            '⚠️ Téléphone non renseigné',
+                            'Téléphone non renseigné',
                             style: TextStyle(
                               fontSize: 12,
                               color: OmniPalette.avertissement,
@@ -196,6 +196,17 @@ class SettingsScreen extends StatelessWidget {
               'Données traitées, finalités, destinataires et vos droits',
             ),
             onTap: () => Navigator.of(context).pushNamed('/privacy'),
+          ),
+
+          // Même principe que la confidentialité : la page est intégrée à
+          // l'application, donc accessible immédiatement et hors ligne.
+          ListTile(
+            leading: const Icon(Icons.description_outlined),
+            title: const Text("Conditions générales d'utilisation"),
+            subtitle: const Text(
+              'Service, compte, abonnement Premium et limites connues',
+            ),
+            onTap: () => Navigator.of(context).pushNamed('/terms'),
           ),
 
           // ── Version web publiée ─────────────────────────────
@@ -304,7 +315,6 @@ class SettingsScreen extends StatelessWidget {
                   const Text('Messagerie sécurisée et moderne'),
                   const SizedBox(height: 16),
                   // SÉCURITÉ : ne pas afficher l'URL/IP du backend dans l'UI
-                  const Text('🔥 Crashlytics: Activé'),
                 ],
               );
             },
@@ -372,7 +382,7 @@ class SettingsScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Supprimer mon compte'),
         content: const Text(
-          '⚠️ Cette action est irréversible.\n\n'
+          'Cette action est irréversible.\n\n'
           '• Votre profil (nom, e-mail, photo, numéro) est effacé ou anonymisé.\n'
           '• Vos contacts et vos conversations sont supprimés.\n'
           '• Vos crédits restants sont perdus : ils ne sont pas remboursables.\n'

@@ -582,7 +582,7 @@ class _VueWebInchangee extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Bienvenue${auth.currentUser?.name != null ? ", ${auth.currentUser!.name}" : ""} 👋',
+                'Bienvenue${auth.currentUser?.name != null ? ", ${auth.currentUser!.name}" : ""}',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 20,
@@ -591,7 +591,7 @@ class _VueWebInchangee extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                'OmniSMS — Messagerie sécurisée et moderne',
+                'OmniSMS : messagerie sécurisée et moderne',
                 style: TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ],
@@ -971,7 +971,7 @@ class _CarteCompteur extends StatelessWidget {
             )
           else
             // Aucune donnée : on l'affiche, on n'invente pas un zéro.
-            Text('—', style: OmniTypo.titre.copyWith(color: c.texteEstompe)),
+            Text('…', style: OmniTypo.titre.copyWith(color: c.texteEstompe)),
           const SizedBox(height: 2),
           Text(
             donnee.titre,

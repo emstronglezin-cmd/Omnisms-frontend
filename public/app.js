@@ -1,8 +1,46 @@
-// OmniSMS PWA v5.0.0 — Interface premium V5 (design uniquement, logique v4.3.0 inchangée)
+// OmniSMS PWA v5.0.0 : Interface premium V5 (design uniquement, logique v4.3.0 inchangée)
 // Architecture Conversations-First (WhatsApp)
-// v5.0.0 : refonte visuelle dark/futuriste — zéro changement logique/API/Socket.IO
+// v5.0.0 : refonte visuelle dark/futuriste : zéro changement logique/API/Socket.IO
 
 const API_BASE = 'https://omnisms-backend.onrender.com';
+
+// ─── ICÔNES SVG (Material Icons, Apache-2.0) ────────────────────────────────
+// Même famille d'icônes que l'application mobile Flutter (Icons.*), pour une
+// identité cohérente entre la PWA et l'app. Les tracés sont inline : aucune
+// requête réseau, aucune dépendance ajoutée. La couleur hérite du texte
+// (currentColor) et la taille suit le font-size du conteneur (1em), donc le
+// design existant n'est pas modifié.
+const OMNI_ICONS = {
+  warning: "M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z",
+  chat: "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z",
+  person: "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z",
+  group: "M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z",
+  check_circle: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z",
+  construction: "M17.5,10c1.93,0,3.5-1.57,3.5-3.5c0-0.58-0.16-1.12-0.41-1.6l-2.7,2.7L16.4,6.11l2.7-2.7C18.62,3.16,18.08,3,17.5,3 C15.57,3,14,4.57,14,6.5c0,0.41,0.08,0.8,0.21,1.16l-1.85,1.85l-1.78-1.78l0.71-0.71L9.88,5.61L12,3.49 c-1.17-1.17-3.07-1.17-4.24,0L4.22,7.03l1.41,1.41H2.81L2.1,9.15l3.54,3.54l0.71-0.71V9.15l1.41,1.41l0.71-0.71l1.78,1.78 l-7.41,7.41l2.12,2.12L16.34,9.79C16.7,9.92,17.09,10,17.5,10z",
+  workspace_premium: "M9.68,13.69L12,11.93l2.31,1.76l-0.88-2.85L15.75,9h-2.84L12,6.19L11.09,9H8.25l2.31,1.84L9.68,13.69z M20,10 c0-4.42-3.58-8-8-8s-8,3.58-8,8c0,2.03,0.76,3.87,2,5.28V23l6-2l6,2v-7.72C19.24,13.87,20,12.03,20,10z M12,4c3.31,0,6,2.69,6,6 s-2.69,6-6,6s-6-2.69-6-6S8.69,4,12,4z",
+  install_mobile: "M17,18H7V6h7V1H7C5.9,1,5,1.9,5,3v18c0,1.1,0.9,2,2,2h10c1.1,0,2-0.9,2-2v-5h-2V18z",
+  cloud_download: "M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z",
+  phone_android: "M16 1H8C6.34 1 5 2.34 5 4v16c0 1.66 1.34 3 3 3h8c1.66 0 3-1.34 3-3V4c0-1.66-1.34-3-3-3zm-2 20h-4v-1h4v1zm3.25-3H6.75V4h10.5v14z",
+  description: "M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z",
+  play_arrow: "M8 5v14l11-7z",
+  pause: "M6 19h4V5H6v14zm8-14v14h4V5h-4z",
+  stop: "M6 6h12v12H6z",
+  mic: "M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z",
+  delete: "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z",
+  done: "M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z",
+  done_all: "M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z",
+  lock: "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z",
+  logout: "M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z",
+  photo_camera: "M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z",
+  edit: "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+};
+
+/** Retourne le markup SVG d'une icône (chaîne vide si le nom est inconnu). */
+function omniIcon(name) {
+  const d = OMNI_ICONS[name];
+  if (!d) return '';
+  return '<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="' + d + '"/></svg>';
+}
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 const State = {
@@ -23,7 +61,7 @@ const State = {
   isRecording:      false,
   // Anti-race : empêche les requêtes bg de rappeler logout après une déconnexion volontaire
   _loggedOut:       false,
-  // Flux Google (connexion + import contacts) — anti double-clic et suivi du retour
+  // Flux Google (connexion + import contacts) : anti double-clic et suivi du retour
   _googleBusy:          false,
   _googleWin:           null,
   _googleWatcher:       null,
@@ -45,7 +83,7 @@ const API = {
   ],
 
   // Contrat backend (docs/GOOGLE_AUTH_FLUTTER.md) : « Aucun Bearer sur
-  // /api/auth/google ni /api/auth/google/exchange ». Correspondance EXACTE —
+  // /api/auth/google ni /api/auth/google/exchange ». Correspondance EXACTE :
   // `/api/auth/google` ne doit surtout pas englober ses sous-routes :
   // `/api/auth/google/contacts/authorize` exige le Bearer OmniSMS.
   _exactPublicRoutes: ['/api/auth/google', '/api/auth/google/exchange'],
@@ -72,9 +110,9 @@ const API = {
   // - Ne jamais déclencher logout si on est déjà déconnecté (_loggedOut)
   // - Ne jamais afficher "Session expirée" sur les écrans login/register
   _handle401(path) {
-    if (State._loggedOut) return;   // Déjà déconnecté — ignorer les 401 résiduels
+    if (State._loggedOut) return;   // Déjà déconnecté : ignorer les 401 résiduels
     const isPublic = this._isPublicRoute(path);
-    if (isPublic) return;           // Route publique — jamais de logout automatique
+    if (isPublic) return;           // Route publique : jamais de logout automatique
     if (this._noLogoutOn401.some(r => path.startsWith(r))) return;
     logout();
   },
@@ -116,7 +154,7 @@ const API = {
       if (ctrl && ctrl.signal.aborted) {
         return { ok: false, status: 0, timedOut: true, data: { code: 'TIMEOUT' } };
       }
-      return { ok: false, status: 0, data: { message: 'Erreur réseau — serveur en cours de démarrage...' } };
+      return { ok: false, status: 0, data: { message: 'Erreur réseau : serveur en cours de démarrage...' } };
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -183,7 +221,7 @@ async function login(identifier, password) {
       // Afficher le panneau settings avec message d'avertissement
       setTimeout(() => {
         switchTab('settings');
-        showToast('⚠️ Merci d\'ajouter votre numéro de téléphone dans Paramètres.');
+        showToast('Merci d\'ajouter votre numéro de téléphone dans Paramètres.');
       }, 800);
     } else {
       initDashboard();
@@ -244,7 +282,7 @@ async function register(name, phone, email, password) {
 
 
 // ─── VÉRIFICATION DU TÉLÉPHONE PAR OTP ────────────────────────────────────────
-// Logique métier : public/otp.js (contrat backend réel — voir son en-tête).
+// Logique métier : public/otp.js (contrat backend réel : voir son en-tête).
 // Ici, uniquement le câblage avec les conventions existantes de la PWA :
 // API.post pour le transport, showScreen/showError pour l'affichage,
 // initDashboard pour l'ouverture de session.
@@ -255,7 +293,7 @@ const otpFlow = Otp.createOtpFlow({
     request: (path, body) => API.post(path, body),
   }),
   store: Otp.createPendingStore(window.localStorage),
-  // OUVERTURE DE SESSION — appelée SEULEMENT quand le serveur a confirmé la
+  // OUVERTURE DE SESSION : appelée SEULEMENT quand le serveur a confirmé la
   // vérification et renvoyé un jeton d'accès.
   onSession: ({ token, user }) => {
     State.token = token;
@@ -309,7 +347,7 @@ function renderOtpScreen(state) {
   if (submitBtn) submitBtn.disabled = !!state.verifying;
 }
 
-/** Soumission du code — le code ne quitte pas cette fonction. */
+/** Soumission du code : le code ne quitte pas cette fonction. */
 async function otpSubmitCode() {
   const input   = document.getElementById('otp-code');
   const code    = (input && input.value ? input.value : '').trim();
@@ -410,7 +448,7 @@ function initDashboard() {
     const s = document.createElement('script');
     s.src = `${API_BASE}/socket.io/socket.io.js`;
     s.onload = () => initSocketIO();
-    s.onerror = () => console.warn('[Socket.IO] Script non chargé — polling uniquement');
+    s.onerror = () => console.warn('[Socket.IO] Script non chargé : polling uniquement');
     document.head.appendChild(s);
   }
 }
@@ -434,7 +472,7 @@ async function refreshUserProfile() {
     // Si les paramètres sont ouverts, re-rendre pour afficher les nouvelles valeurs
     if (State.currentTab === 'settings') renderSettings();
   } catch (_) {
-    // Silently fail — stale local data is acceptable
+    // Silently fail : stale local data is acceptable
   }
 }
 
@@ -483,7 +521,7 @@ function startPolling() {
 }
 
 function initSocketIO() {
-  // Socket.IO CDN — chargé dynamiquement
+  // Socket.IO CDN : chargé dynamiquement
   if (typeof io === 'undefined') return;
   if (_socket && _socket.connected) return;
 
@@ -506,7 +544,7 @@ function initSocketIO() {
     });
 
     _socket.on('disconnect', () => {
-      console.log('[Socket.IO] Déconnecté — repli sur polling 10s');
+      console.log('[Socket.IO] Déconnecté : repli sur polling 10s');
       startPolling();
     });
 
@@ -575,7 +613,7 @@ function initSocketIO() {
         msg.transcription       = data.text;
         msg.transcriptionStatus = 'done';
         renderMessages();
-        showToast('Transcription terminée ✓');
+        showToast('Transcription terminée');
       } else if (data.status === 'processing') {
         msg.transcriptionStatus = 'processing';
         renderMessages();
@@ -583,7 +621,7 @@ function initSocketIO() {
         msg.transcriptionStatus = 'error';
         msg.transcriptionError  = data.error;
         renderMessages();
-        showToast('Transcription indisponible — ' + (data.error || 'erreur inconnue'));
+        showToast('Transcription indisponible : ' + (data.error || 'erreur inconnue'));
       }
     });
 
@@ -600,11 +638,11 @@ function initSocketIO() {
       // Rafraîchir la liste des groupes pour voir le nouveau groupe
       loadGroups();
       if (data?.groupName) {
-        showToast(`Vous avez été ajouté au groupe "${data.groupName}" ✓`);
+        showToast(`Vous avez été ajouté au groupe "${data.groupName}"`);
       }
     });
 
-    // P7 FIX — Confirmation paiement LeekPay en temps réel
+    // P7 FIX : Confirmation paiement LeekPay en temps réel
     _socket.on('payment:success', (data) => {
       console.log('[Payment] payment:success reçu via Socket.IO', data);
       // Mettre à jour l'état utilisateur immédiatement (source de vérité = backend)
@@ -625,7 +663,7 @@ function initSocketIO() {
       if (banner) banner.style.display = 'none';
       // Toast de confirmation
       const amount = data?.amount ? ` (${data.amount} ${data.currency || 'XOF'})` : '';
-      showToast(`✅ Paiement confirmé${amount} — OmniSMS Premium activé 🎉`);
+      showToast(`Paiement confirmé${amount} : OmniSMS Premium activé`);
       // Rafraîchir le profil pour synchroniser l'état premium
       setTimeout(() => loadProfile && loadProfile(), 1500);
     });
@@ -662,15 +700,15 @@ function extractLastMessage(conv) {
   if (typeof lm === 'string') return lm;
   if (typeof lm === 'object') {
     // C'est un objet message Firestore
-    if (lm.type === 'audio') return '🎤 Message vocal';
-    if (lm.type === 'image') return '📷 Photo';
-    if (lm.type === 'file')  return '📎 Fichier';
+    if (lm.type === 'audio') return 'Message vocal';
+    if (lm.type === 'image') return 'Photo';
+    if (lm.type === 'file')  return 'Fichier';
     return lm.content || lm.text || lm.body || lm.message || '';
   }
   return String(lm);
 }
 
-// ─── MESSAGES — LISTE DES CONVERSATIONS ──────────────────────────────────────
+// ─── MESSAGES : LISTE DES CONVERSATIONS ──────────────────────────────────────
 async function loadConversations(silent = false) {
   // Ne rien faire si déconnecté ou sans token
   if (!State.token || State._loggedOut) return;
@@ -693,7 +731,7 @@ async function loadConversations(silent = false) {
       const listEl = document.getElementById('conversations-list') || document.getElementById('conv-list');
       if (listEl) listEl.innerHTML =
         `<div class="empty-state">
-          <div class="empty-icon">⚠️</div>
+          <div class="empty-icon">${omniIcon('warning')}</div>
           <p>Impossible de charger les messages</p>
           <button class="btn-primary" onclick="loadConversations()">Réessayer</button>
         </div>`;
@@ -719,7 +757,7 @@ function renderConversationList() {
   if (State.conversations.length === 0) {
     list.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">💬</div>
+        <div class="empty-icon">${omniIcon('chat')}</div>
         <h3>Aucune conversation</h3>
         <p>Ajoutez un contact et envoyez votre premier message.</p>
       </div>`;
@@ -749,7 +787,7 @@ function renderConversationList() {
 
     const convAvatarHtml = otherAvatar && !isGroup
       ? `<div class="conv-avatar"><img src="${escHtml(otherAvatar)}" alt="${escHtml(name)}"></div>`
-      : `<div class="conv-avatar" style="background:${isGroup ? 'linear-gradient(135deg,#1a3a6c,#0d2040)' : 'linear-gradient(135deg,#0a3d28,#1a6040)'}">${isGroup ? '👥' : escHtml(initials)}</div>`;
+      : `<div class="conv-avatar" style="background:${isGroup ? 'linear-gradient(135deg,#1a3a6c,#0d2040)' : 'linear-gradient(135deg,#0a3d28,#1a6040)'}">${isGroup ? omniIcon('group') : escHtml(initials)}</div>`;
 
     return `
       <div class="conv-item ${unread > 0 ? 'conv-unread' : ''}"
@@ -782,7 +820,7 @@ function openConversation(conversationId, contactId, contactName, isGroup = fals
   if (!screen) return;
 
   document.getElementById('conv-screen-name').textContent  = contactName;
-  // Back button id changed in new UI — support both
+  // Back button id changed in new UI : support both
   const backBtn = document.getElementById('conv-back-btn') || document.getElementById('conv-screen-back');
   if (backBtn) backBtn.onclick = closeConversation;
   document.getElementById('conv-msg-input').value = '';
@@ -795,7 +833,11 @@ function openConversation(conversationId, contactId, contactName, isGroup = fals
     if (avatar && !isGroup) {
       appbarAvatar.innerHTML = `<img src="${escHtml(avatar)}" alt="${escHtml(contactName)}">`;
     } else {
-      appbarAvatar.textContent = isGroup ? '\uD83D\uDC65' : getInitials(contactName);
+      if (isGroup) {
+        appbarAvatar.innerHTML = omniIcon('group');
+      } else {
+        appbarAvatar.textContent = getInitials(contactName);
+      }
       appbarAvatar.style.background = isGroup
         ? 'linear-gradient(135deg,#1a3a6c,#0d2040)'
         : 'linear-gradient(135deg,#0a3d28,#1a6040)';
@@ -857,7 +899,7 @@ function renderMessages() {
   if (State.activeConvMsgs.length === 0) {
     container.innerHTML = `
       <div class="empty-state" style="height:100%;justify-content:center">
-        <div class="empty-icon">\ud83d\udcac</div>
+        <div class="empty-icon">${omniIcon('chat')}</div>
         <p>Aucun message. Envoyez le premier !</p>
       </div>`;
   } else {
@@ -891,9 +933,9 @@ function renderMessages() {
 }
 
 function renderMsgStatus(status) {
-  if (status === 'seen')      return '<span style="color:#4fc3f7">\u2713\u2713</span>';
-  if (status === 'delivered') return '<span style="color:rgba(255,255,255,0.5)">\u2713\u2713</span>';
-  if (status === 'sent')      return '<span style="color:rgba(255,255,255,0.5)">\u2713</span>';
+  if (status === 'seen')      return '<span style="color:#4fc3f7">' + omniIcon('done_all') + '</span>';
+  if (status === 'delivered') return '<span style="color:rgba(255,255,255,0.5)">' + omniIcon('done_all') + '</span>';
+  if (status === 'sent')      return '<span style="color:rgba(255,255,255,0.5)">' + omniIcon('done') + '</span>';
   if (status === 'sending')   return '<span style="opacity:0.4">\u2022</span>';
   return '';
 }
@@ -942,7 +984,7 @@ function renderAudioMessage(m) {
           <span class="audio-duration" id="cur-${safeId}">0:00</span>
           <span class="audio-duration" id="dur-${safeId}">${escHtml(durFmt)}</span>
           <div style="display:flex;gap:6px;align-items:center">
-            ${msgId && tStatus !== 'done' ? `<button class="transcription-btn" id="transcbtn-${safeId}" onclick="requestTranscription('${safeId}')">&#128221; Transcrire</button>` : ''}
+            ${msgId && tStatus !== 'done' ? `<button class="transcription-btn" id="transcbtn-${safeId}" onclick="requestTranscription('${safeId}')"">${omniIcon('description')} Transcrire</button>` : ''}
             ${audioUrl ? `<a class="transcription-btn" href="${safeUrl}" download title="T\u00e9l\u00e9charger">\u2913</a>` : ''}
           </div>
         </div>
@@ -951,7 +993,7 @@ function renderAudioMessage(m) {
           : tStatus === 'processing'
             ? `<div class="transcription-block"><p class="transcription-text" style="opacity:.6">\u23f3 Transcription en cours\u2026</p></div>`
             : tStatus === 'error'
-              ? `<div class="transcription-block"><p class="transcription-text" style="opacity:.5;color:var(--error)">\u26a0 Transcription indisponible</p></div>`
+              ? `<div class="transcription-block"><p class="transcription-text" style="opacity:.5;color:var(--error)">${omniIcon('warning')} Transcription indisponible</p></div>`
               : ''
         }
         <div class="msg-meta" style="margin-top:6px">
@@ -982,18 +1024,18 @@ function toggleAudioWA(id) {
   if (!audio || !btn) return;
   if (audio.paused) {
     document.querySelectorAll('audio').forEach(a => { if (a !== audio) { a.pause(); a.currentTime=0; } });
-    document.querySelectorAll('.audio-play-btn').forEach(b => { if (b.id !== 'playbtn-'+id) b.innerHTML='&#9654;'; });
+    document.querySelectorAll('.audio-play-btn').forEach(b => { if (b.id !== 'playbtn-'+id) b.innerHTML=omniIcon('play_arrow'); });
     audio.play().catch(()=>{});
-    btn.innerHTML = '&#9646;&#9646;';
+    btn.innerHTML = omniIcon('pause');
   } else {
     audio.pause();
-    btn.innerHTML = '&#9654;';
+    btn.innerHTML = omniIcon('play_arrow');
   }
 }
 function onAudioEnded(id) {
   const btn  = document.getElementById('playbtn-'+id);
   const prog = document.getElementById('prog-'+id);
-  if (btn)  btn.innerHTML  = '&#9654;';
+  if (btn)  btn.innerHTML  = omniIcon('play_arrow');
   if (prog) prog.value     = 0;
   const cur = document.getElementById('cur-'+id);
   if (cur)  cur.textContent = '0:00';
@@ -1036,13 +1078,13 @@ async function requestTranscription(msgId) {
     showToast('Impossible de lancer la transcription.');
     if (msg) { msg.transcriptionStatus = 'pending'; renderMessages(); }
     const btn2 = document.querySelector(`#transcbtn-${msgId}`);
-    if (btn2) { btn2.textContent = '📝'; btn2.disabled = false; }
+    if (btn2) { btn2.innerHTML = omniIcon('description') + ' Transcrire'; btn2.disabled = false; }
     return;
   }
 
   showToast('Transcription en cours…');
 
-  // Polling de résultat — max 40 tentatives × 3s = 120s max
+  // Polling de résultat : max 40 tentatives × 3s = 120s max
   // Le Socket.IO peut aussi livrer le résultat en temps réel
   let attempts = 0;
   const MAX_ATTEMPTS = 40;   // 120s total
@@ -1080,7 +1122,7 @@ async function requestTranscription(msgId) {
     if (isError) {
       clearInterval(poll);
       if (msg) { msg.transcriptionStatus = 'error'; renderMessages(); }
-      showToast('Transcription indisponible — ' + (audioData?.transcriptionError || 'erreur'));
+      showToast('Transcription indisponible : ' + (audioData?.transcriptionError || 'erreur'));
       return;
     }
 
@@ -1092,7 +1134,7 @@ async function requestTranscription(msgId) {
         msg.transcriptionStatus = 'done';
       }
       renderMessages();
-      showToast('Transcription terminée ✓');
+      showToast('Transcription terminée');
     }
   }, POLL_INTERVAL);
 }
@@ -1219,7 +1261,7 @@ async function startRecording() {
 
     // Update mic button
     const micBtn = document.getElementById('mic-btn');
-    if (micBtn) { micBtn.textContent = '⏹'; micBtn.classList.add('recording'); }
+    if (micBtn) { micBtn.innerHTML = omniIcon('stop'); micBtn.classList.add('recording'); }
 
     // Timer
     State.recordingSeconds = 0;
@@ -1249,7 +1291,7 @@ function stopRecording(send = true) {
 
   const micBtn  = document.getElementById('mic-btn');
   const timerEl = document.getElementById('recording-timer');
-  if (micBtn)  { micBtn.textContent = '🎤'; micBtn.classList.remove('recording'); }
+  if (micBtn)  { micBtn.innerHTML = omniIcon('mic'); micBtn.classList.remove('recording'); }
   if (timerEl) { timerEl.style.display = 'none'; timerEl.textContent = '0:00'; }
 
   if (!State.mediaRecorder) return;
@@ -1388,7 +1430,7 @@ function renderContacts(contacts) {
   if (contacts.length === 0) {
     list.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">👤</div>
+        <div class="empty-icon">${omniIcon('person')}</div>
         <h3>Aucun contact</h3>
         <p>Ajoutez votre premier contact ou importez vos contacts.</p>
       </div>`;
@@ -1404,7 +1446,7 @@ function renderContacts(contacts) {
     const uid   = c.userId || c.registeredUserId || '';
     const avatar= c.avatar || null;
     const isOmni = !!(c.isOnOmniSms || uid);
-    // v3.3 : TOUS les contacts sont ouverts — le frontend ne bloque jamais
+    // v3.3 : TOUS les contacts sont ouverts : le frontend ne bloque jamais
     // Si OmniSMS → ouvrir par uid, sinon → ouvrir par téléphone (backend décide du canal)
     const onclick = isOmni
       ? `openContactConversation('${escHtml(uid)}', '${escHtml(name)}')`
@@ -1422,18 +1464,18 @@ function renderContacts(contacts) {
         </div>
         <div class="contact-actions">
           ${isOmni ? '<span class="badge-registered">OmniSMS</span>' : '<span class="badge-sms">SMS</span>'}
-          <button class="btn-icon" onclick="event.stopPropagation();confirmDeleteContact('${escHtml(phone)}','${escHtml(name)}')" title="Supprimer" style="font-size:0.9rem;opacity:0.6">\uD83D\uDDD1\uFE0F</button>
+          <button class="btn-icon" onclick="event.stopPropagation();confirmDeleteContact('${escHtml(phone)}','${escHtml(name)}')" title="Supprimer" aria-label="Supprimer le contact" style="font-size:0.9rem;opacity:0.6">${omniIcon('delete')}</button>
         </div>
       </div>`;
   }
 
   let html = '';
   if (omniContacts.length > 0) {
-    html += `<div class="contacts-section-header">OmniSMS — ${omniContacts.length} utilisateur(s)</div>`;
+    html += `<div class="contacts-section-header">OmniSMS : ${omniContacts.length} utilisateur(s)</div>`;
     html += omniContacts.map(contactItem).join('');
   }
   if (smsContacts.length > 0) {
-    html += `<div class="contacts-section-header contacts-section-sms">SMS — ${smsContacts.length} contact(s)</div>`;
+    html += `<div class="contacts-section-header contacts-section-sms">SMS : ${smsContacts.length} contact(s)</div>`;
     html += smsContacts.map(contactItem).join('');
   }
 
@@ -1452,7 +1494,7 @@ function openContactConversation(otherUserId, contactName) {
   openConversation(conversationId, otherUserId, contactName, false);
 }
 
-// v4.4 — P0 FIX: Résoudre phone→UID avant de construire le conversationId.
+// v4.4 : P0 FIX: Résoudre phone→UID avant de construire le conversationId.
 // Le conversationId DOIT toujours être sort([UID_A, UID_B]).join('-').
 // Utiliser /api/contacts/check/:phone pour obtenir l'UID réel de B.
 // Si B n'est pas sur OmniSMS : utiliser Infobip SMS (contactId = phone E.164).
@@ -1473,7 +1515,7 @@ async function openContactByPhone(phone, contactName) {
       return;
     }
   } catch (_) {
-    // Silencieux — continuer vers le fallback SMS
+    // Silencieux : continuer vers le fallback SMS
   }
 
   // B n'est pas sur OmniSMS (ou erreur réseau) → SMS Infobip
@@ -1530,7 +1572,7 @@ async function importWithContactPicker() {
       await syncContacts(contacts);
     } catch(e) {
       if (e.name !== 'AbortError') {
-        // Fallback silencieux vers VCF — pas de message d'erreur
+        // Fallback silencieux vers VCF : pas de message d'erreur
         triggerVcfImport();
       }
     }
@@ -1584,7 +1626,7 @@ function handleVCFFile(file) {
   reader.onload = async e => {
     const contacts = parseVCF(e.target.result);
     if (contacts.length === 0) { showToast('Aucun contact trouvé dans le fichier VCF'); return; }
-    showToast(`${contacts.length} contact(s) trouvé(s) — synchronisation...`);
+    showToast(`${contacts.length} contact(s) trouvé(s) : synchronisation...`);
     await syncContacts(contacts);
   };
   reader.readAsText(file);
@@ -1599,7 +1641,7 @@ async function syncContacts(contacts) {
     const d = res.data;
     const omni = d.registeredOnOmniSms || 0;
     const sms  = d.smsOnly || 0;
-    showToast(`✓ ${omni} OmniSMS · ${sms} SMS uniquement`);
+    showToast(`${omni} OmniSMS · ${sms} SMS uniquement`);
     if (d.contacts && d.contacts.length > 0) {
       State.contacts = d.contacts;
       renderContacts(State.contacts);
@@ -1753,7 +1795,7 @@ async function _finishGoogleLogin(code) {
 
   // Retour navigateur : l'écran de connexion n'est plus visible, on affiche
   // donc un état de traitement explicite (le backend Render peut mettre
-  // jusqu'à ~50 s à réveiller — jamais de splash sans indication).
+  // jusqu'à ~50 s à réveiller : jamais de splash sans indication).
   _showGoogleCallbackScreen('Connexion Google en cours…');
   _setGoogleLoginLoading(true, 'Connexion en cours…');
 
@@ -1789,7 +1831,7 @@ async function _finishGoogleLogin(code) {
     if (State.user.needsPhone || !State.user.phone) {
       setTimeout(() => {
         switchTab('settings');
-        showToast('⚠️ Merci d\'ajouter votre numéro de téléphone dans Paramètres.');
+        showToast('Merci d\'ajouter votre numéro de téléphone dans Paramètres.');
       }, 800);
     }
     return true;
@@ -1865,7 +1907,7 @@ async function _runGoogleContactsImport() {
     // serveur, on ne fusionne rien localement.
     await loadContacts();
     const detail = googleImportSummary(res.data);
-    showToast(detail ? `✓ Contacts importés — ${detail}` : '✓ Contacts importés', 5000);
+    showToast(detail ? `Contacts importés : ${detail}` : 'Contacts importés', 5000);
     return { ok: true };
   }
 
@@ -1958,7 +2000,7 @@ async function handleGoogleCallback() {
 /// Couvre le cas où le flux Google a bien été lancé (l'onglet est parti vers
 /// le backend) mais où le retour n'a jamais livré `?code=` / `?error=`
 /// (retour interrompu, cible de redirection non ouvrable, bouton précédent…).
-/// Sans cela l'utilisateur revenait sur un écran de connexion muet — ou, si
+/// Sans cela l'utilisateur revenait sur un écran de connexion muet : ou, si
 /// l'échange avait été lancé, sur un bouton bloqué en « chargement ».
 /// Retourne true si un flux interrompu a été signalé.
 function checkPendingGoogleFlow() {
@@ -2010,7 +2052,7 @@ function _renderGoogleCallbackTab(cb) {
                 background:#08090f;color:#e4eaf5;font-family:Inter,system-ui,sans-serif;
                 text-align:center;padding:24px">
       <div>
-        <div style="font-size:3rem;margin-bottom:12px">${ok ? '✅' : '⚠️'}</div>
+        <div style="font-size:3rem;margin-bottom:12px;color:${ok ? '#4caf50' : '#ffb020'}">${ok ? omniIcon('check_circle') : omniIcon('warning')}</div>
         <h1 style="font-size:1.05rem;margin-bottom:8px">
           ${ok ? 'Autorisation Google enregistrée' : 'Autorisation Google annulée'}
         </h1>
@@ -2107,7 +2149,7 @@ function renderGroups() {
   if (State.groups.length === 0) {
     list.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">👥</div>
+        <div class="empty-icon">${omniIcon('group')}</div>
         <h3>Aucun groupe</h3>
         <p>Créez votre premier groupe.</p>
       </div>`;
@@ -2124,12 +2166,12 @@ function renderGroups() {
     return `
       <div class="conv-item" onclick="openGroupConversation('${escHtml(gid)}', '${escHtml(name)}')">
         <div class="conv-avatar" style="background:linear-gradient(135deg,#1a3a6c,#0d2040)">
-          ${img ? `<img src="${escHtml(img)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : '<span>\uD83D\uDC65</span>'}
+          ${img ? `<img src="${escHtml(img)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : '<span>' + omniIcon('group') + '</span>'}
         </div>
         <div class="conv-content">
           <div class="conv-header">
             <span class="conv-name">${escHtml(name)}</span>
-            ${isOwner ? `<button class="btn-icon" style="font-size:0.85rem;opacity:0.7" onclick="event.stopPropagation();openEditGroupModal('${escHtml(gid)}','${escHtml(name)}','${escHtml(g.description||'')}','${escHtml(img||'')}')">&#9998;</button>` : ''}
+            ${isOwner ? `<button class="btn-icon" style="font-size:0.85rem;opacity:0.7" onclick="event.stopPropagation();openEditGroupModal('${escHtml(gid)}','${escHtml(name)}','${escHtml(g.description||'')}','${escHtml(img||'')}')">${omniIcon('edit')}</button>` : ''}
           </div>
           <div class="conv-footer">
             <span class="conv-last-msg">${members} membre(s)${g.description ? ' \u00b7 ' + escHtml(g.description) : ''}</span>
@@ -2156,7 +2198,7 @@ function openEditGroupModal(gid, name, description, image) {
     if (image && image.startsWith('http')) {
       preview.innerHTML = `<img src="${escHtml(image)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" alt="photo">`;
     } else {
-      preview.innerHTML = '👥';
+      preview.innerHTML = omniIcon('group');
     }
   }
   // Réinitialiser le fichier sélectionné
@@ -2170,7 +2212,7 @@ function openEditGroupModal(gid, name, description, image) {
   openModal('modal-edit-group');
 }
 
-// P4 — Ajouter un membre au groupe depuis le modal d'édition
+// P4 : Ajouter un membre au groupe depuis le modal d'édition
 // Accepte : numéro de téléphone, @username, ou UID direct
 async function addMemberFromEditModal() {
   const gid      = document.getElementById('edit-group-id')?.value;
@@ -2193,7 +2235,7 @@ async function addMemberFromEditModal() {
     const res = await API.post(`/groups/${gid}/members`, { identifier });
 
     if (res.ok) {
-      if (resultEl) { resultEl.style.color = '#4caf50'; resultEl.textContent = '✓ Membre ajouté avec succès.'; }
+      if (resultEl) { resultEl.style.color = '#4caf50'; resultEl.textContent = 'Membre ajouté avec succès.'; }
       if (input) input.value = '';
       // Rafraîchir la liste des groupes en arrière-plan
       loadGroups();
@@ -2242,7 +2284,7 @@ async function saveGroupEdits() {
       showToast(uploadRes.data?.error || "Échec de l'upload de la photo");
       return;
     }
-    // La photo est sauvegardée — continuer pour mettre à jour les autres champs
+    // La photo est sauvegardée : continuer pour mettre à jour les autres champs
   }
 
   const body = {};
@@ -2260,7 +2302,7 @@ async function saveGroupEdits() {
   }
 
   closeModal('modal-edit-group');
-  showToast('Groupe mis à jour ✓');
+  showToast('Groupe mis à jour');
   loadGroups();
 }
 
@@ -2343,7 +2385,7 @@ async function openGroupMembersModal(gid, gname) {
   const contactMap = {};
   State.contacts.forEach(c=>{ if(c.userId||c.registeredUserId) contactMap[c.userId||c.registeredUserId]={name:c.name||c.phone,phone:c.phone}; });
 
-  let html = `<h4 style="margin-bottom:12px">Membres — ${escHtml(gname)}</h4>`;
+  let html = `<h4 style="margin-bottom:12px">Membres : ${escHtml(gname)}</h4>`;
   html += members.map(m => {
     const uid  = m.uid;
     const info = contactMap[uid] || {};
@@ -2368,7 +2410,7 @@ async function openGroupMembersModal(gid, gname) {
   }).join('');
 
   if (isOwner) {
-    // Add member section — members is now array of objects with uid field
+    // Add member section : members is now array of objects with uid field
     const memberUids = members.map(m => m.uid);
     const notInGroup = State.contacts.filter(c=>{
       const cuid=c.userId||c.registeredUserId; return cuid && !memberUids.includes(cuid);
@@ -2404,21 +2446,21 @@ async function openGroupMembersModal(gid, gname) {
 
 async function addMember(gid, uid, name) {
   const res = await API.post('/groups/'+gid+'/members', { members:[uid] });
-  if (res.ok) { showToast(name+' ajouté(e) ✓'); loadGroups(); closeModal('modal-group-members'); }
+  if (res.ok) { showToast(name+' ajouté(e)'); loadGroups(); closeModal('modal-group-members'); }
   else         showToast(res.data?.error||'Erreur ajout membre');
 }
 
 async function removeMember(gid, uid, name) {
   if (!confirm('Retirer '+name+' du groupe ?')) return;
   const res = await API.delete('/groups/'+gid+'/members/'+uid);
-  if (res.ok) { showToast(name+' retiré(e) ✓'); loadGroups(); closeModal('modal-group-members'); }
+  if (res.ok) { showToast(name+' retiré(e)'); loadGroups(); closeModal('modal-group-members'); }
   else         showToast(res.data?.error||'Erreur suppression membre');
 }
 
 async function transferAdmin(gid, uid, name) {
   if (!confirm('Transférer l\'admin à '+name+' ?')) return;
   const res = await API.put('/groups/'+gid+'/admin', { newOwner: uid });
-  if (res.ok) { showToast('Admin transféré à '+name+' ✓'); loadGroups(); closeModal('modal-group-members'); }
+  if (res.ok) { showToast('Admin transféré à '+name); loadGroups(); closeModal('modal-group-members'); }
   else         showToast(res.data?.error||'Erreur transfert admin');
 }
 
@@ -2436,7 +2478,7 @@ function openPrivacy() {
     try { history.pushState({}, '', '/privacy'); } catch (_) {}
   }
   window.scrollTo(0, 0);
-  const scroller = document.querySelector('.privacy-scroll');
+  const scroller = document.querySelector('#screen-privacy .privacy-scroll');
   if (scroller) scroller.scrollTop = 0;
 }
 
@@ -2444,6 +2486,30 @@ function closePrivacy() {
   // Arrivé directement sur /privacy : retour à l'accueil de la PWA plutôt
   // qu'à un historique inexistant.
   if (window.OmniSmsPrivacy && window.OmniSmsPrivacy.isRoute() && history.length <= 1) {
+    location.assign('/');
+    return;
+  }
+  history.back();
+}
+
+// ── PAGE PUBLIQUE « CONDITIONS GÉNÉRALES D'UTILISATION » (/terms) ────────────
+// Même mécanisme que /privacy : l'URL est servie par la réécriture Vercel /
+// Firebase Hosting (voir vercel.json et firebase.json), le contenu vit dans
+// public/terms.js et la page reste accessible sans compte ni session.
+function openTerms() {
+  const el = document.getElementById('terms-content');
+  if (window.OmniSmsTerms) window.OmniSmsTerms.render(el, 'fr');
+  showScreen('screen-terms');
+  if (window.OmniSmsTerms && !window.OmniSmsTerms.isRoute()) {
+    try { history.pushState({}, '', '/terms'); } catch (_) {}
+  }
+  window.scrollTo(0, 0);
+  const scroller = document.querySelector('#screen-terms .privacy-scroll');
+  if (scroller) scroller.scrollTop = 0;
+}
+
+function closeTerms() {
+  if (window.OmniSmsTerms && window.OmniSmsTerms.isRoute() && history.length <= 1) {
     location.assign('/');
     return;
   }
@@ -2468,14 +2534,14 @@ function renderSettings() {
           ? `<img src="${escHtml(avatar)}" class="settings-avatar-img" alt="Photo de profil">`
           : `<div class="settings-avatar">${getInitials(name || email)}</div>`
         }
-        <div class="settings-avatar-overlay">\uD83D\uDCF7</div>
+        <div class="settings-avatar-overlay">${omniIcon('photo_camera')}</div>
       </div>
       <input id="avatar-upload-input" type="file" accept="image/*" style="display:none"
              onchange="uploadAvatar(this.files[0])">
       <h3>${escHtml(name || email)}</h3>
       ${username ? `<p class="text-muted">@${escHtml(username)}</p>` : ''}
-      ${phone ? `<p class="text-muted">${escHtml(phone)}</p>` : '<p style="color:var(--warning);font-size:0.8rem">\u26a0\ufe0f T\u00e9l\u00e9phone non renseign\u00e9</p>'}
-      ${isPremium ? `<span style="display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,rgba(0,200,255,0.15),rgba(0,87,255,0.2));border:1px solid var(--accent-soft);border-radius:var(--radius-full);padding:4px 14px;font-size:0.78rem;font-weight:700;color:var(--accent);margin-top:4px">\uD83D\uDC8E Premium actif</span>` : ''}
+      ${phone ? `<p class="text-muted">${escHtml(phone)}</p>` : '<p style="color:var(--warning);font-size:0.8rem;display:flex;align-items:center;gap:6px;justify-content:center">' + omniIcon('warning') + ' Téléphone non renseigné</p>'}
+      ${isPremium ? `<span style="display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,rgba(0,200,255,0.15),rgba(0,87,255,0.2));border:1px solid var(--accent-soft);border-radius:var(--radius-full);padding:4px 14px;font-size:0.78rem;font-weight:700;color:var(--accent);margin-top:4px">${omniIcon('verified')} Premium actif</span>` : ''}
     </div>
 
     <div class="settings-section">
@@ -2501,14 +2567,14 @@ function renderSettings() {
         <input id="settings-password" type="password" class="form-input" placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022 (laisser vide pour ne pas changer)" minlength="8">
       </div>
       <button class="btn-primary" style="width:100%;margin-top:12px" onclick="saveProfile()">
-        \u2705 Mettre \u00e0 jour
+        ${omniIcon('check_circle')} Mettre à jour
       </button>
     </div>
 
     <div class="settings-section">
       <h4>Abonnement</h4>
       <div class="subscribe-banner" onclick="handleSubscription()" id="subscribe-banner">
-        <div class="subscribe-banner-icon">\uD83D\uDC8E</div>
+        <div class="subscribe-banner-icon">${omniIcon('workspace_premium')}</div>
         <div class="subscribe-banner-text">
           <div class="subscribe-banner-title">Passer \u00e0 Premium</div>
           <div class="subscribe-banner-sub">SMS illimit\u00e9s, vocaux, transcriptions</div>
@@ -2520,22 +2586,25 @@ function renderSettings() {
     <div class="settings-section">
       <h4>Compte</h4>
       <button class="btn-ghost" style="width:100%;margin-bottom:10px;justify-content:flex-start;gap:10px" onclick="logout()">
-        \uD83D\uDEAA Se d\u00e9connecter
+        ${omniIcon('logout')} Se déconnecter
       </button>
       <button class="btn-ghost" style="width:100%;color:var(--error);border-color:rgba(255,69,101,0.3);justify-content:flex-start;gap:10px" onclick="deleteAccount()">
-        \uD83D\uDDD1\uFE0F Supprimer mon compte
+        ${omniIcon('delete')} Supprimer mon compte
       </button>
     </div>
     <div class="settings-section">
       <h4>Informations légales</h4>
       <button class="btn-ghost" style="width:100%;justify-content:flex-start;gap:10px" onclick="openPrivacy()">
-        &#x1F512; Politique de confidentialité
+        ${omniIcon('lock')} Politique de confidentialité
+      </button>
+      <button class="btn-ghost" style="width:100%;justify-content:flex-start;gap:10px;margin-top:8px" onclick="openTerms()">
+        ${omniIcon('description')} Conditions générales d'utilisation
       </button>
     </div>
     <div class="settings-section">
       <h4>Application</h4>
       <div class="settings-row">
-        <span>&#x1F4F1; Version</span>
+        <span>Version</span>
         <span class="text-muted">5.0.0</span>
       </div>
     </div>`;
@@ -2564,7 +2633,7 @@ async function saveProfile() {
 
   const res = await API.put('/api/me/profile', body);
 
-  if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '✅ Mettre à jour'; }
+  if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Mettre à jour'; }
 
   if (res.ok) {
     // Si le backend renvoie l'utilisateur mis à jour, l'utiliser directement
@@ -2580,15 +2649,15 @@ async function saveProfile() {
     localStorage.setItem('user_data', JSON.stringify(State.user));
     renderUserInfo();
     renderSettings();
-    showToast('Profil mis à jour ✓');
+    showToast('Profil mis à jour');
     // Rafraîchir depuis le serveur pour confirmer la persistance
     await refreshUserProfile();
   } else {
     const errCode = res.data?.code;
     if (errCode === 'USERNAME_EXISTS') {
-      showToast(`❌ Nom d'utilisateur déjà utilisé — choisissez-en un autre`);
+      showToast(`Nom d'utilisateur déjà utilisé : choisissez-en un autre`);
     } else if (errCode === 'INVALID_USERNAME') {
-      showToast('❌ Nom d\'utilisateur invalide (lettres, chiffres, _ . - seulement)');
+      showToast('Nom d\'utilisateur invalide (lettres, chiffres, _ . - seulement)');
     } else {
       showToast(res.data?.error || 'Erreur lors de la sauvegarde');
     }
@@ -2597,7 +2666,7 @@ async function saveProfile() {
 
 async function deleteAccount() {
   const confirmed = confirm(
-    '⚠️ Supprimer définitivement votre compte ?\n\n' +
+    'Supprimer définitivement votre compte ?\n\n' +
     'Cette action est irréversible. Votre compte sera désactivé et vos données anonymisées.\n\n' +
     'Cliquez OK pour confirmer la suppression.'
   );
@@ -2664,7 +2733,7 @@ async function uploadAvatar(file) {
     localStorage.setItem('user_data', JSON.stringify(State.user));
     renderUserInfo();
     renderSettings();
-    showToast('Photo de profil mise à jour ✓');
+    showToast('Photo de profil mise à jour');
     // Resynchroniser depuis le serveur pour confirmer la persistance
     await refreshUserProfile();
   } else {
@@ -2679,10 +2748,10 @@ async function loadPremiumStatus(userId) {
     const banner = document.getElementById('subscribe-banner');
     if (banner) {
       banner.innerHTML = `
-        <div class="subscribe-banner-icon">💎</div>
+        <div class="subscribe-banner-icon">${omniIcon('workspace_premium')}</div>
         <div class="subscribe-banner-text">
           <div class="subscribe-banner-title">Abonnement Premium</div>
-          <div class="subscribe-banner-sub" style="color:var(--accent)">ACTIF ✓</div>
+          <div class="subscribe-banner-sub" style="color:var(--accent)">ACTIF</div>
         </div>`;
       banner.style.cursor = 'default';
     }
@@ -2719,11 +2788,11 @@ async function handleSubscription() {
       // Lancer le polling : si le webhook n'est pas reçu, on poll manuellement
       if (checkoutId) startLeekPayPolling(checkoutId, userId);
     } else {
-      showToast('URL de paiement manquante — contactez le support');
+      showToast('URL de paiement manquante : contactez le support');
     }
   } else {
     if (res.data?.code === 'ALREADY_SUBSCRIBED') {
-      showToast('Vous êtes déjà abonné OmniSMS Premium ✨');
+      showToast('Vous êtes déjà abonné OmniSMS Premium');
     } else if (res.data?.code === 'LEEKPAY_NOT_CONFIGURED') {
       showToast('Service de paiement temporairement indisponible');
     } else {
@@ -2737,12 +2806,12 @@ async function handleSubscription() {
 // Utilisé en fallback si le webhook n'est pas reçu dans les 30s
 function startLeekPayPolling(checkoutId, userId, maxAttempts = 15) {
   let attempts = 0;
-  showToast('Paiement en attente — ne fermez pas la page...');
+  showToast('Paiement en attente : ne fermez pas la page...');
 
   const poll = async () => {
     attempts++;
     if (attempts > maxAttempts) {
-      showToast('Délai expiré — si vous avez payé, votre compte sera activé sous 24h.');
+      showToast('Délai expiré : si vous avez payé, votre compte sera activé sous 24h.');
       localStorage.removeItem('leekpay_pending');
       return;
     }
@@ -2752,7 +2821,7 @@ function startLeekPayPolling(checkoutId, userId, maxAttempts = 15) {
       if (res.ok) {
         if (res.data?.isPaid || res.data?.status === 'paid') {
           localStorage.removeItem('leekpay_pending');
-          showToast('✅ Paiement confirmé ! Abonnement Premium activé.', 6000);
+          showToast('Paiement confirmé : abonnement Premium activé.', 6000);
           // Rafraîchir le profil utilisateur
           if (State.user) { State.user.isSubscribed = true; State.user.premium = true; }
           localStorage.setItem('user_data', JSON.stringify(State.user));
@@ -2874,7 +2943,7 @@ function showToast(msg, duration = 3000) {
 }
 
 // ─── INSTALL / DISTRIBUTION ───────────────────────────────────────────────────
-// URL de l'APK Android — laisser vide jusqu'à ce que l'APK soit disponible
+// URL de l'APK Android : laisser vide jusqu'à ce que l'APK soit disponible
 // Pour activer le téléchargement : renseigner l'URL publique du fichier .apk
 // Exemple : const ANDROID_APK_URL = 'https://example.com/omnisms.apk';
 const ANDROID_APK_URL = '';
@@ -2896,7 +2965,7 @@ window.addEventListener('appinstalled', () => {
   _pwaInstallPrompt = null;
   const btn = document.getElementById('topbar-install-btn');
   if (btn) btn.classList.remove('install-btn--ready');
-  showToast('OmniSMS installé avec succès ! 🎉');
+  showToast('OmniSMS installé avec succès');
 });
 
 // ─── Détection de la plateforme (lecture seule, ne bloque jamais l'utilisateur)
@@ -2960,7 +3029,7 @@ function _renderAndroidInstallContent() {
                 if(_pwaInstallPrompt) _pwaInstallPrompt.userChoice.then(()=>{_pwaInstallPrompt=null;});
                 closeModal('modal-install');
               ">
-        🤖 Installer OmniSMS (PWA)
+        ${omniIcon('install_mobile')} Installer OmniSMS (PWA)
       </button>
       <p style="font-size:0.75rem;color:var(--text-muted);margin-top:16px;text-align:center">
         Ou téléchargez l'APK si vous préférez une application native.
@@ -2970,7 +3039,7 @@ function _renderAndroidInstallContent() {
          class="btn-ghost"
          style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;margin-top:8px"
          onclick="closeModal('modal-install')">
-        📥 Télécharger l'APK
+        ${omniIcon('cloud_download')} Télécharger l'APK
       </a>` : ''}
     `;
     return;
@@ -2983,21 +3052,21 @@ function _renderAndroidInstallContent() {
         L'application Android OmniSMS est prête au téléchargement.
       </p>
       <div style="background:rgba(255,176,32,0.08);border:1px solid rgba(255,176,32,0.2);border-radius:var(--radius-sm);padding:12px 14px;font-size:0.78rem;color:var(--warning);margin-bottom:16px">
-        ⚠️ Vous devrez peut-être <strong>autoriser l'installation depuis des sources inconnues</strong>
+        ${omniIcon('warning')} Vous devrez peut-être <strong>autoriser l'installation depuis des sources inconnues</strong>
         dans les paramètres Android (Paramètres → Sécurité → Sources inconnues).
       </div>
       <a href="${escHtml(ANDROID_APK_URL)}" download
          class="btn-primary"
          style="display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none"
          onclick="closeModal('modal-install')">
-        🤖 Télécharger l'APK Android
+        ${omniIcon('phone_android')} Télécharger l'APK Android
       </a>
     `;
   } else {
-    // Cas 3 : APK pas encore disponible — "coming soon"
+    // Cas 3 : APK pas encore disponible : "coming soon"
     el.innerHTML = `
       <div style="text-align:center;padding:24px 8px">
-        <div style="font-size:3rem;margin-bottom:16px">🚧</div>
+        <div style="font-size:3rem;margin-bottom:16px;color:#ffb020">${omniIcon('construction')}</div>
         <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:8px">
           Application Android bientôt disponible
         </h3>
@@ -3053,10 +3122,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // onglet → le signaler explicitement au lieu d'un écran muet / d'un spinner.
   checkPendingGoogleFlow();
 
-  // Route publique /privacy : traitée avant toute logique d'authentification,
-  // pour rester accessible sans compte (exigence : page publique).
+  // Routes publiques /privacy et /terms : traitées avant toute logique
+  // d'authentification, pour rester accessibles sans compte (exigence :
+  // pages légales publiques).
   if (window.OmniSmsPrivacy && window.OmniSmsPrivacy.isRoute()) {
     openPrivacy();
+    return;
+  }
+  if (window.OmniSmsTerms && window.OmniSmsTerms.isRoute()) {
+    openTerms();
     return;
   }
 

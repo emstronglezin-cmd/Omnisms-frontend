@@ -141,7 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              "⚠️ Merci d'ajouter votre numéro de téléphone dans Paramètres.",
+              "Merci d'ajouter votre numéro de téléphone dans Paramètres.",
             ),
             backgroundColor: OmniPalette.avertissement,
             duration: Duration(seconds: 8),
@@ -467,13 +467,23 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
 
-                        // ── Politique de confidentialité ───────────
+                        // ── Pages légales ──────────────────────────
                         const SizedBox(height: 8),
                         TextButton(
                           onPressed: () =>
                               Navigator.of(context).pushNamed('/privacy'),
                           child: Text(
                             'Politique de confidentialité',
+                            style: OmniTypo.secondaire.copyWith(
+                              color: OmniCouleurs.of(context).texteSecondaire,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(context).pushNamed('/terms'),
+                          child: Text(
+                            "Conditions générales d'utilisation",
                             style: OmniTypo.secondaire.copyWith(
                               color: OmniCouleurs.of(context).texteSecondaire,
                             ),

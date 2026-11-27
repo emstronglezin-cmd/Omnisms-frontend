@@ -8,7 +8,7 @@ import 'auth_service.dart';
 /// PaymentService — Connexion réelle au backend OmniSMS / SaaSPay
 ///
 /// Routes utilisées :
-///   POST /api/payment/leekpay            → crée un checkout SaaSPay, retourne checkout_url
+///   POST /api/payment/leekpay            → crée un checkout SaaSPay, retourne payment_url
 ///   GET  /api/payment/user-status        → vérifie si l'user est Premium
 ///   GET  /api/payment/status/:id         → statut d'un paiement
 class PaymentService {
@@ -65,7 +65,15 @@ class PaymentService {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
 
       if (response.statusCode == 200 && data['success'] == true) {
-        final checkoutUrl = data['checkout_url'] as String?;
+        // Le champ officiel renvoyé par LeekPay est `payment_url` ;
+        // `checkout_url`, `checkoutUrl` et `paymentUrl` sont des alias de
+        // compatibilité. Même ordre de repli que la PWA (public/app.js),
+        // pour qu'un changement de nom de champ côté backend ne casse pas
+        // l'application mobile.
+        final checkoutUrl = (data['payment_url'] ??
+            data['checkout_url'] ??
+            data['checkoutUrl'] ??
+            data['paymentUrl']) as String?;
         if (checkoutUrl == null || checkoutUrl.isEmpty) {
           return {
             'success': false,
@@ -75,7 +83,7 @@ class PaymentService {
         return {
           'success': true,
           'checkoutUrl': checkoutUrl,
-          'checkoutId': data['checkout_id'],
+          'checkoutId': data['checkout_id'] ?? data['checkoutId'],
           'orderId': data['orderId'],
           'amount': data['amount'],
           'currency': data['currency'],
@@ -88,7 +96,11 @@ class PaymentService {
           'error': data['error'] ?? 'Vous êtes déjà abonné Premium.',
         };
       } else if (response.statusCode == 503 &&
-          data['code'] == 'LEEKPAY_NOT_CONFIGURED' || data['code'] == 'SAASPAY_NOT_CONFIGURED') {
+          (data['code'] == 'LEEKPAY_NOT_CONFIGURED' ||
+              data['code'] == 'SAASPAY_NOT_CONFIGURED')) {
+        // CORRECTION : la précédence était (503 && LEEKPAY) || SAASPAY, ce
+        // qui faisait entrer n'importe quel code HTTP accompagné de
+        // SAASPAY_NOT_CONFIGURED dans cette branche.
         return {
           'success': false,
           'error':

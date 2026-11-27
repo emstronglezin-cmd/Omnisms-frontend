@@ -1,5 +1,5 @@
 /* ============================================================================
- * OmniSMS — Politique de confidentialité (PWA)
+ * OmniSMS : Politique de confidentialité (PWA)
  * ----------------------------------------------------------------------------
  * Même contenu que `lib/screens/legal/privacy_content.dart` (application
  * Flutter). Deux bases de code distinctes, un seul texte : toute modification
@@ -196,7 +196,7 @@
       return '<div class="privacy-note">' + escapeHtml(b.text) + '</div>';
     }
     if (b.type === 'todo') {
-      return '<div class="privacy-todo"><strong>À compléter</strong> — ' +
+      return '<div class="privacy-todo"><strong>À compléter</strong> : ' +
         escapeHtml(b.text) + '</div>';
     }
     if (b.type === 'ul') {

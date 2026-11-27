@@ -252,7 +252,7 @@ class PushService {
     switch (_etat) {
       case EtatPush.jetonObtenu:
         return _enAttenteServeur
-            ? 'Jeton prêt — en attente d’un endpoint serveur pour '
+            ? 'Jeton prêt : en attente d’un endpoint serveur pour '
                 'l’enregistrer.'
             : 'Notifications à distance actives.';
       case EtatPush.configurationAbsente:

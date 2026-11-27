@@ -7,9 +7,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="OmniSMS">
-  <meta name="description" content="OmniSMS — Messagerie premium intelligente">
+  <meta name="description" content="OmniSMS : messagerie sécurisée et moderne">
   <title>OmniSMS</title>
   <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/Icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/icons/Icon-512.png">
+  <link rel="apple-touch-icon" href="/icons/Icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -22,7 +25,7 @@
      ═══════════════════════════════════════════════════════════ -->
 <div id="screen-splash" class="screen active">
   <div class="splash-container">
-    <div class="splash-logo">💬</div>
+    <div class="splash-logo"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg></div>
     <div class="splash-brand">OmniSMS</div>
     <div class="splash-tagline">Messagerie intelligente · SMS & OmniSMS</div>
     <div class="splash-spinner"></div>
@@ -30,13 +33,13 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
-     GOOGLE CALLBACK SCREEN — route web /auth/google/callback
+     GOOGLE CALLBACK SCREEN : route web /auth/google/callback
      Écoute le retour OAuth (GET ?code=… / ?error=…) et affiche l'état
      de traitement de POST /api/auth/google/exchange. Aucun jeton ici.
      ═══════════════════════════════════════════════════════════ -->
 <div id="screen-google-callback" class="screen">
   <div class="splash-container">
-    <div class="splash-logo">🔐</div>
+    <div class="splash-logo"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg></div>
     <div class="gcb-title" id="gcb-step">Connexion Google en cours…</div>
     <div class="gcb-sub">Validation de votre compte Google auprès d'OmniSMS</div>
     <div class="splash-spinner"></div>
@@ -49,7 +52,7 @@
 <div id="screen-login" class="screen">
   <div class="auth-card">
     <div class="auth-header">
-      <div class="auth-logo">💬</div>
+      <div class="auth-logo"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg></div>
       <h1 class="auth-title">Connexion</h1>
       <p class="auth-subtitle">Bienvenue sur OmniSMS</p>
     </div>
@@ -94,6 +97,8 @@
     </div>
     <div class="auth-legal">
       <a href="/privacy" onclick="event.preventDefault(); openPrivacy();">Politique de confidentialité</a>
+      <span class="auth-legal-sep" aria-hidden="true">·</span>
+      <a href="/terms" onclick="event.preventDefault(); openTerms();">Conditions générales d'utilisation</a>
     </div>
   </div>
 </div>
@@ -104,7 +109,7 @@
 <div id="screen-register" class="screen">
   <div class="auth-card">
     <div class="auth-header">
-      <div class="auth-logo">✨</div>
+      <div class="auth-logo"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/></svg></div>
       <h1 class="auth-title">Inscription</h1>
       <p class="auth-subtitle">Créez votre compte OmniSMS</p>
     </div>
@@ -147,17 +152,19 @@
     </div>
     <div class="auth-legal">
       <a href="/privacy" onclick="event.preventDefault(); openPrivacy();">Politique de confidentialité</a>
+      <span class="auth-legal-sep" aria-hidden="true">·</span>
+      <a href="/terms" onclick="event.preventDefault(); openTerms();">Conditions générales d'utilisation</a>
     </div>
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
-     OTP VERIFICATION SCREEN — vérification du numéro à l'inscription
+     OTP VERIFICATION SCREEN : vérification du numéro à l'inscription
      ═══════════════════════════════════════════════════════════ -->
 <div id="screen-otp" class="screen">
   <div class="auth-card">
     <div class="auth-header">
-      <div class="auth-logo">📲</div>
+      <div class="auth-logo"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17,18H7V6h7V1H7C5.9,1,5,1.9,5,3v18c0,1.1,0.9,2,2,2h10c1.1,0,2-0.9,2-2v-5h-2V18z"/></svg></div>
       <h1 class="auth-title">Vérification</h1>
       <p class="auth-subtitle">Saisissez le code reçu par SMS</p>
     </div>
@@ -167,7 +174,7 @@
         <label class="form-label" for="otp-code">Code à 6 chiffres</label>
         <input id="otp-code" type="text" class="form-input otp-input"
                inputmode="numeric" pattern="[0-9]*" maxlength="6"
-               placeholder="——————" autocomplete="one-time-code"
+               placeholder="______" autocomplete="one-time-code"
                aria-label="Code de vérification à six chiffres">
         <p class="otp-phone-line">Envoyé au <strong id="otp-phone">…</strong></p>
       </div>
@@ -200,10 +207,10 @@
     <span class="topbar-brand">OmniSMS</span>
     <div class="topbar-actions">
       <button class="install-btn" id="topbar-install-btn" onclick="openInstallModal()" title="Installer l'application" aria-label="Installer OmniSMS">
-        ⬇️ Installer
+        <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5,20h14v-2H5V20z M19,9h-4V3H9v6H5l7,7L19,9z"/></svg> Installer
       </button>
-      <button class="icon-btn" id="topbar-search-btn" title="Rechercher" style="display:none">🔍</button>
-      <button id="user-avatar" class="avatar-btn" onclick="switchTab('settings')" title="Profil">?</button>
+      <button class="icon-btn" id="topbar-search-btn" title="Rechercher" aria-label="Rechercher" style="display:none"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></button>
+      <button id="user-avatar" class="avatar-btn" onclick="switchTab('settings')" title="Profil"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></button>
     </div>
   </header>
 
@@ -214,7 +221,7 @@
     <div id="tab-messages" class="tab-pane active">
       <div class="tab-header">
         <span class="tab-title">Messages</span>
-        <button class="tab-action-btn" onclick="openModal('modal-add-contact')" title="Nouvelle conversation">✏️</button>
+        <button class="tab-action-btn" onclick="openModal('modal-add-contact')" title="Nouvelle conversation"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
       </div>
       <div id="conversations-list" class="conv-list">
         <div class="loading-state">
@@ -232,13 +239,13 @@
       </div>
       <div class="contacts-actions">
         <button class="btn-ghost" onclick="importWithContactPicker()">
-          📱 Importer contacts
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15.01l1.41 1.41L11 14.84V19h2v-4.16l1.59 1.59L16 15.01 12.01 11z"/></svg> Importer contacts
         </button>
         <button class="btn-ghost" onclick="openModal('modal-add-contact')">
-          ➕ Ajouter
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg> Ajouter
         </button>
         <button class="btn-ghost" onclick="openVcfGuideModal()" style="font-size:0.82rem;opacity:0.85">
-          ❓ Comment obtenir un VCF ?
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg> Comment obtenir un VCF ?
         </button>
       </div>
       <!-- Import Google Contacts (backend : /api/auth/google/contacts/authorize
@@ -259,12 +266,12 @@
       </div>
       <!-- VCF Guide small card (discrete but visible) -->
       <div id="vcf-guide-card" class="vcf-guide-card" onclick="openVcfGuideModal()">
-        <div class="vcf-guide-card-icon">💡</div>
+        <div class="vcf-guide-card-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21c0 .5.4 1 1 1h4c.6 0 1-.5 1-1v-1H9v1zm3-19C8.1 2 5 5.1 5 9c0 2.4 1.2 4.5 3 5.7V17c0 .5.4 1 1 1h6c.6 0 1-.5 1-1v-2.3c1.8-1.3 3-3.4 3-5.7 0-3.9-3.1-7-7-7z"/></svg></div>
         <div class="vcf-guide-card-text">
           <span class="vcf-guide-card-title">Besoin d'aide pour le fichier VCF ?</span>
           <span class="vcf-guide-card-sub">Guide rapide iPhone & Android</span>
         </div>
-        <span class="vcf-guide-card-arrow">›</span>
+        <span class="vcf-guide-card-arrow"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></span>
       </div>
       <!-- Hidden VCF input -->
       <input id="vcf-import-input" type="file" accept=".vcf,text/vcard"
@@ -306,19 +313,19 @@
   <!-- Bottom navigation -->
   <nav class="bottom-nav">
     <button class="nav-btn active" onclick="switchTab('messages')" id="nav-messages" data-tab="messages">
-      <span class="nav-icon">💬</span>
+      <span class="nav-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg></span>
       <span>Messages</span>
     </button>
     <button class="nav-btn" onclick="switchTab('contacts')" id="nav-contacts" data-tab="contacts">
-      <span class="nav-icon">👤</span>
+      <span class="nav-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></span>
       <span>Contacts</span>
     </button>
     <button class="nav-btn" onclick="switchTab('groups')" id="nav-groups" data-tab="groups">
-      <span class="nav-icon">👥</span>
+      <span class="nav-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg></span>
       <span>Groupes</span>
     </button>
     <button class="nav-btn" onclick="switchTab('settings')" id="nav-settings" data-tab="settings">
-      <span class="nav-icon">⚙️</span>
+      <span class="nav-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg></span>
       <span>Profil</span>
     </button>
   </nav>
@@ -332,14 +339,14 @@
 
   <!-- App bar -->
   <header class="conv-appbar">
-    <button class="conv-back-btn" onclick="closeConversation()" aria-label="Retour">←</button>
+    <button class="conv-back-btn" onclick="closeConversation()" aria-label="Retour"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
     <div class="conv-appbar-avatar" id="conv-appbar-avatar">?</div>
     <div class="conv-appbar-info">
       <span id="conv-screen-name">Conversation</span>
       <span id="conv-screen-sub"></span>
     </div>
     <div class="conv-appbar-actions">
-      <button class="icon-btn" id="conv-members-btn" style="display:none" title="Membres">👥</button>
+      <button class="icon-btn" id="conv-members-btn" style="display:none" title="Membres"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg></button>
     </div>
   </header>
 
@@ -349,14 +356,14 @@
   <!-- Input bar -->
   <div class="conv-input-bar">
     <div class="conv-input-wrap">
-      <button id="mic-btn" class="mic-btn-inner" onclick="startRecording()" type="button" title="Message vocal">🎤</button>
+      <button id="mic-btn" class="mic-btn-inner" onclick="startRecording()" type="button" title="Message vocal"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg></button>
       <textarea id="conv-msg-input" class="conv-input" placeholder="Message…"
                 rows="1"
                 onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}"
                 oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
       <span id="recording-timer">0:00</span>
     </div>
-    <button class="send-btn" onclick="sendMessage()" title="Envoyer" aria-label="Envoyer">➤</button>
+    <button class="send-btn" onclick="sendMessage()" title="Envoyer" aria-label="Envoyer"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
   </div>
 
 </div><!-- /#screen-conversation -->
@@ -370,7 +377,7 @@
   <div class="modal-sheet">
     <div class="modal-header">
       <span class="modal-title">Ajouter un contact</span>
-      <button class="modal-close-btn" onclick="closeModal('modal-add-contact')">✕</button>
+      <button class="modal-close-btn" onclick="closeModal('modal-add-contact')"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <div class="modal-body">
       <form onsubmit="event.preventDefault(); addContact(document.getElementById('contact-name').value, document.getElementById('contact-phone').value)">
@@ -395,7 +402,7 @@
   <div class="modal-sheet">
     <div class="modal-header">
       <span class="modal-title">Créer un groupe</span>
-      <button class="modal-close-btn" onclick="closeModal('modal-create-group')">✕</button>
+      <button class="modal-close-btn" onclick="closeModal('modal-create-group')"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <div class="modal-body">
       <form onsubmit="event.preventDefault(); createGroup(document.getElementById('group-name').value, document.getElementById('group-desc').value)">
@@ -426,7 +433,7 @@
   <div class="modal-sheet">
     <div class="modal-header">
       <span class="modal-title">Membres du groupe</span>
-      <button class="modal-close-btn" onclick="closeModal('modal-group-members')">✕</button>
+      <button class="modal-close-btn" onclick="closeModal('modal-group-members')"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <div class="modal-body">
       <!-- Populated by JS -->
@@ -439,11 +446,11 @@
   <div class="modal-sheet">
     <div class="modal-header">
       <span class="modal-title">Modifier le groupe</span>
-      <button class="modal-close-btn" onclick="closeModal('modal-edit-group')">✕</button>
+      <button class="modal-close-btn" onclick="closeModal('modal-edit-group')"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="edit-group-id">
-      <div id="edit-group-photo-preview" onclick="document.getElementById('edit-group-photo-input').click()">👥</div>
+      <div id="edit-group-photo-preview" onclick="document.getElementById('edit-group-photo-input').click()"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg></div>
       <input id="edit-group-photo-input" type="file" accept="image/*"
              onchange="previewGroupPhoto(this)">
       <div class="form-group">
@@ -481,8 +488,8 @@
 <div id="modal-payment" class="modal">
   <div class="modal-sheet" style="border-radius:var(--radius-xl);margin:20px;max-width:420px;align-self:center">
     <div class="modal-header">
-      <span class="modal-title">💎 OmniSMS Premium</span>
-      <button class="modal-close-btn" onclick="closeModal('modal-payment')">✕</button>
+      <span class="modal-title"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.68,13.69L12,11.93l2.31,1.76l-0.88-2.85L15.75,9h-2.84L12,6.19L11.09,9H8.25l2.31,1.84L9.68,13.69z M20,10 c0-4.42-3.58-8-8-8s-8,3.58-8,8c0,2.03,0.76,3.87,2,5.28V23l6-2l6,2v-7.72C19.24,13.87,20,12.03,20,10z M12,4c3.31,0,6,2.69,6,6 s-2.69,6-6,6s-6-2.69-6-6S8.69,4,12,4z"/></svg> OmniSMS Premium</span>
+      <button class="modal-close-btn" onclick="closeModal('modal-payment')"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <div class="modal-body" id="modal-payment-body">
       <!-- Populated by JS when payment initiated -->
@@ -496,8 +503,8 @@
 <div id="modal-install" class="modal">
   <div class="modal-sheet">
     <div class="modal-header">
-      <span class="modal-title">📲 Installer OmniSMS</span>
-      <button class="modal-close-btn" onclick="closeModal('modal-install')">✕</button>
+      <span class="modal-title"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17,18H7V6h7V1H7C5.9,1,5,1.9,5,3v18c0,1.1,0.9,2,2,2h10c1.1,0,2-0.9,2-2v-5h-2V18z"/></svg> Installer OmniSMS</span>
+      <button class="modal-close-btn" onclick="closeModal('modal-install')"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <div id="install-modal-body" class="install-modal-content">
       <!-- Vue principale : choix de plateforme -->
@@ -506,7 +513,7 @@
           Installez OmniSMS sur votre appareil pour une expérience native.
         </p>
         <button class="install-choice-btn" onclick="showInstallView('ios')">
-          <div class="install-choice-icon">🍎</div>
+          <div class="install-choice-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 1h-8C6.12 1 5 2.12 5 3.5v17C5 21.88 6.12 23 7.5 23h8c1.38 0 2.5-1.12 2.5-2.5v-17C18 2.12 16.88 1 15.5 1zm-4 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4.5-4H7V4h9v14z"/></svg></div>
           <div class="install-choice-info">
             <span class="install-choice-title">iPhone / iPad</span>
             <span class="install-choice-sub">Ajouter à l'écran d'accueil via Safari</span>
@@ -514,7 +521,7 @@
           <span style="color:var(--text-muted);font-size:1.2rem">›</span>
         </button>
         <button class="install-choice-btn" onclick="showInstallView('android')">
-          <div class="install-choice-icon">🤖</div>
+          <div class="install-choice-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 1H8C6.34 1 5 2.34 5 4v16c0 1.66 1.34 3 3 3h8c1.66 0 3-1.34 3-3V4c0-1.66-1.34-3-3-3zm-2 20h-4v-1h4v1zm3.25-3H6.75V4h10.5v14z"/></svg></div>
           <div class="install-choice-info">
             <span class="install-choice-title">Android</span>
             <span class="install-choice-sub">Télécharger l'application Android (APK)</span>
@@ -526,10 +533,10 @@
       <!-- Vue iOS : instructions étape par étape -->
       <div id="install-view-ios" style="display:none">
         <button class="btn-ghost" onclick="showInstallView('main')" style="margin-bottom:16px;padding:8px 14px;font-size:0.8rem">
-          ← Retour
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg> Retour
         </button>
         <div class="safari-tip">
-          ⚠️ Ces instructions nécessitent le navigateur <strong>Safari</strong> sur iPhone/iPad.
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg> Ces instructions nécessitent le navigateur <strong>Safari</strong> sur iPhone/iPad.
         </div>
         <div class="install-guide" style="margin-top:16px">
           <div class="install-guide-step">
@@ -538,7 +545,7 @@
               <span class="step-title">Ouvrir dans Safari</span>
               <span class="step-desc">Ouvre OmniSMS dans Safari (pas Chrome ni Firefox).<br>URL : <strong style="color:var(--accent)">omnisms.vercel.app</strong></span>
             </div>
-            <span class="step-icon">🌐</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg></span>
           </div>
           <div class="install-guide-step">
             <div class="step-number">2</div>
@@ -546,7 +553,7 @@
               <span class="step-title">Appuyer sur Partager</span>
               <span class="step-desc">Appuie sur l'icône <strong>Partager</strong> en bas de Safari (carré avec flèche vers le haut).</span>
             </div>
-            <span class="step-icon">⬆️</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5l-1.42 1.42-1.59-1.59V16h-1.98V4.83L9.42 6.42 8 5l4-4 4 4zm4 5v11c0 1.1-.9 2-2 2H6c-1.11 0-2-.9-2-2V10c0-1.11.89-2 2-2h3v2H6v11h12V10h-3V8h3c1.1 0 2 .89 2 2z"/></svg></span>
           </div>
           <div class="install-guide-step">
             <div class="step-number">3</div>
@@ -554,7 +561,7 @@
               <span class="step-title">Faire défiler les options</span>
               <span class="step-desc">Fais défiler la liste d'options vers le bas jusqu'à voir <strong>« Sur l'écran d'accueil »</strong>.</span>
             </div>
-            <span class="step-icon">📋</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg></span>
           </div>
           <div class="install-guide-step">
             <div class="step-number">4</div>
@@ -562,15 +569,15 @@
               <span class="step-title">Appuyer sur « Sur l'écran d'accueil »</span>
               <span class="step-desc">Appuie sur cette option, puis confirme le nom <strong>OmniSMS</strong>.</span>
             </div>
-            <span class="step-icon">📱</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg></span>
           </div>
           <div class="install-guide-step">
             <div class="step-number">5</div>
             <div class="step-content">
               <span class="step-title">Appuyer sur « Ajouter »</span>
-              <span class="step-desc">Confirme en appuyant sur <strong>Ajouter</strong> en haut à droite. OmniSMS apparaît sur ton écran d'accueil ! 🎉</span>
+              <span class="step-desc">Confirme en appuyant sur <strong>Ajouter</strong> en haut à droite. OmniSMS apparaît sur ton écran d'accueil.</span>
             </div>
-            <span class="step-icon">✅</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></span>
           </div>
         </div>
       </div>
@@ -578,7 +585,7 @@
       <!-- Vue Android : APK ou "coming soon" -->
       <div id="install-view-android" style="display:none">
         <button class="btn-ghost" onclick="showInstallView('main')" style="margin-bottom:16px;padding:8px 14px;font-size:0.8rem">
-          ← Retour
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg> Retour
         </button>
         <div id="android-install-content">
           <!-- Contenu injecté par JS selon ANDROID_APK_URL -->
@@ -594,8 +601,8 @@
 <div id="modal-vcf-guide" class="modal">
   <div class="modal-sheet">
     <div class="modal-header">
-      <span class="modal-title">📇 Comment obtenir un fichier VCF ?</span>
-      <button class="modal-close-btn" onclick="closeModal('modal-vcf-guide')">✕</button>
+      <span class="modal-title"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 0H4v2h16V0zM4 24h16v-2H4v2zM20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 2.75c1.24 0 2.25 1.01 2.25 2.25s-1.01 2.25-2.25 2.25S9.75 10.24 9.75 9 10.76 6.75 12 6.75zM17 17H7v-1.5c0-1.67 3.33-2.5 5-2.5s5 .83 5 2.5V17z"/></svg> Comment obtenir un fichier VCF ?</span>
+      <button class="modal-close-btn" onclick="closeModal('modal-vcf-guide')"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <div id="vcf-modal-body" class="install-modal-content">
       <!-- Vue principale : choix iPhone / Android -->
@@ -604,7 +611,7 @@
           Le fichier <strong style="color:var(--text-primary)">.VCF</strong> contient vos contacts. Choisissez votre téléphone pour voir les étapes.
         </p>
         <button class="install-choice-btn" onclick="showVcfView('ios')">
-          <div class="install-choice-icon">🍎</div>
+          <div class="install-choice-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 1h-8C6.12 1 5 2.12 5 3.5v17C5 21.88 6.12 23 7.5 23h8c1.38 0 2.5-1.12 2.5-2.5v-17C18 2.12 16.88 1 15.5 1zm-4 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4.5-4H7V4h9v14z"/></svg></div>
           <div class="install-choice-info">
             <span class="install-choice-title">iPhone / iOS</span>
             <span class="install-choice-sub">Exporter depuis Contacts ou iCloud</span>
@@ -612,7 +619,7 @@
           <span style="color:var(--text-muted);font-size:1.2rem">›</span>
         </button>
         <button class="install-choice-btn" onclick="showVcfView('android')">
-          <div class="install-choice-icon">🤖</div>
+          <div class="install-choice-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 1H8C6.34 1 5 2.34 5 4v16c0 1.66 1.34 3 3 3h8c1.66 0 3-1.34 3-3V4c0-1.66-1.34-3-3-3zm-2 20h-4v-1h4v1zm3.25-3H6.75V4h10.5v14z"/></svg></div>
           <div class="install-choice-info">
             <span class="install-choice-title">Android</span>
             <span class="install-choice-sub">Exporter depuis Google Contacts</span>
@@ -620,17 +627,17 @@
           <span style="color:var(--text-muted);font-size:1.2rem">›</span>
         </button>
         <div style="margin-top:16px;padding:12px 14px;background:rgba(0,200,255,0.06);border:1px solid rgba(0,200,255,0.15);border-radius:var(--radius-sm);font-size:0.78rem;color:var(--text-secondary);line-height:1.5">
-          💡 Une fois le fichier <strong>.vcf</strong> obtenu, revenez ici et cliquez sur <strong>📱 Importer contacts</strong> pour le sélectionner.
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21c0 .5.4 1 1 1h4c.6 0 1-.5 1-1v-1H9v1zm3-19C8.1 2 5 5.1 5 9c0 2.4 1.2 4.5 3 5.7V17c0 .5.4 1 1 1h6c.6 0 1-.5 1-1v-2.3c1.8-1.3 3-3.4 3-5.7 0-3.9-3.1-7-7-7z"/></svg> Une fois le fichier <strong>.vcf</strong> obtenu, revenez ici et cliquez sur <strong>Importer contacts</strong> pour le sélectionner.
         </div>
       </div>
 
       <!-- Vue iPhone -->
       <div id="vcf-view-ios" style="display:none">
         <button class="btn-ghost" onclick="showVcfView('main')" style="margin-bottom:16px;padding:8px 14px;font-size:0.8rem">
-          ← Retour
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg> Retour
         </button>
         <div class="safari-tip">
-          🍎 <strong>iPhone</strong> — 2 méthodes selon vos besoins
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 1h-8C6.12 1 5 2.12 5 3.5v17C5 21.88 6.12 23 7.5 23h8c1.38 0 2.5-1.12 2.5-2.5v-17C18 2.12 16.88 1 15.5 1zm-4 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4.5-4H7V4h9v14z"/></svg> <strong>iPhone</strong> : 2 méthodes selon vos besoins
         </div>
 
         <h4 style="margin:16px 0 8px;font-size:0.9rem;color:var(--text-primary)">Méthode 1 : Un seul contact (rapide)</h4>
@@ -641,7 +648,7 @@
               <span class="step-title">Ouvrir Contacts</span>
               <span class="step-desc">Ouvrez l'app <strong>Contacts</strong> sur votre iPhone.</span>
             </div>
-            <span class="step-icon">👤</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 0H4v2h16V0zM4 24h16v-2H4v2zM20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 2.75c1.24 0 2.25 1.01 2.25 2.25s-1.01 2.25-2.25 2.25S9.75 10.24 9.75 9 10.76 6.75 12 6.75zM17 17H7v-1.5c0-1.67 3.33-2.5 5-2.5s5 .83 5 2.5V17z"/></svg></span>
           </div>
           <div class="install-guide-step">
             <div class="step-number">2</div>
@@ -649,7 +656,7 @@
               <span class="step-title">Choisir le contact</span>
               <span class="step-desc">Touchez le contact que vous voulez exporter.</span>
             </div>
-            <span class="step-icon">👆</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></span>
           </div>
           <div class="install-guide-step">
             <div class="step-number">3</div>
@@ -657,7 +664,7 @@
               <span class="step-title">Partager le contact</span>
               <span class="step-desc">Faites défiler vers le bas → <strong>Partager le contact</strong> → Enregistrez le fichier <strong>.vcf</strong> dans Fichiers.</span>
             </div>
-            <span class="step-icon">📤</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15.01l1.41 1.41L11 14.84V19h2v-4.16l1.59 1.59L16 15.01 12.01 11z"/></svg></span>
           </div>
         </div>
 
@@ -669,7 +676,7 @@
               <span class="step-title">Aller sur iCloud.com</span>
               <span class="step-desc">Sur un ordinateur, ouvrez <strong>iCloud.com</strong> et connectez-vous avec votre Apple ID.</span>
             </div>
-            <span class="step-icon">💻</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20,18c1.1,0,2-0.9,2-2V6c0-1.1-0.9-2-2-2H4C2.9,4,2,4.9,2,6v10c0,1.1,0.9,2,2,2H0v2h24v-2H20z M4,6h16v10H4V6z"/></svg></span>
           </div>
           <div class="install-guide-step">
             <div class="step-number">2</div>
@@ -677,7 +684,7 @@
               <span class="step-title">Ouvrir Contacts</span>
               <span class="step-desc">Cliquez sur <strong>Contacts</strong>.</span>
             </div>
-            <span class="step-icon">📇</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 0H4v2h16V0zM4 24h16v-2H4v2zM20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 2.75c1.24 0 2.25 1.01 2.25 2.25s-1.01 2.25-2.25 2.25S9.75 10.24 9.75 9 10.76 6.75 12 6.75zM17 17H7v-1.5c0-1.67 3.33-2.5 5-2.5s5 .83 5 2.5V17z"/></svg></span>
           </div>
           <div class="install-guide-step">
             <div class="step-number">3</div>
@@ -685,38 +692,38 @@
               <span class="step-title">Tout sélectionner</span>
               <span class="step-desc">Appuyez sur <strong>Ctrl + A</strong> (Windows) ou <strong>Cmd + A</strong> (Mac) pour tout sélectionner.</span>
             </div>
-            <span class="step-icon">✅</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></span>
           </div>
           <div class="install-guide-step">
             <div class="step-number">4</div>
             <div class="step-content">
               <span class="step-title">Exporter vCard</span>
-              <span class="step-desc">Cliquez sur l'engrenage ⚙️ en bas à gauche → <strong>Exporter vCard</strong>. Le fichier <strong>.vcf</strong> est téléchargé.</span>
+              <span class="step-desc">Cliquez sur l'icône Paramètres en bas à gauche → <strong>Exporter vCard</strong>. Le fichier <strong>.vcf</strong> est téléchargé.</span>
             </div>
-            <span class="step-icon">💾</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/></svg></span>
           </div>
           <div class="install-guide-step">
             <div class="step-number">5</div>
             <div class="step-content">
               <span class="step-title">Importer dans OmniSMS</span>
-              <span class="step-desc">Revenez dans OmniSMS → <strong>Contacts → 📱 Importer contacts</strong> → choisissez le fichier.</span>
+              <span class="step-desc">Revenez dans OmniSMS → <strong>Contacts → Importer contacts</strong> → choisissez le fichier.</span>
             </div>
-            <span class="step-icon">🎉</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M23,12l-2.44-2.79l0.34-3.69l-3.61-0.82L15.4,1.5L12,2.96L8.6,1.5L6.71,4.69L3.1,5.5L3.44,9.2L1,12l2.44,2.79l-0.34,3.7 l3.61,0.82L8.6,22.5l3.4-1.47l3.4,1.46l1.89-3.19l3.61-0.82l-0.34-3.69L23,12z M10.09,16.72l-3.8-3.81l1.48-1.48l2.32,2.33 l5.85-5.87l1.48,1.48L10.09,16.72z"/></svg></span>
           </div>
         </div>
 
         <div style="margin-top:16px;padding:10px 12px;background:rgba(255,176,32,0.06);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--text-muted);line-height:1.5">
-          ℹ️ Selon votre version iOS, les noms de menus peuvent varier légèrement. Vous pouvez aussi utiliser l'app gratuite <strong>My Contacts Backup</strong> sur l'App Store.
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg> Selon votre version iOS, les noms de menus peuvent varier légèrement. Vous pouvez aussi utiliser l'app gratuite <strong>My Contacts Backup</strong> sur l'App Store.
         </div>
       </div>
 
       <!-- Vue Android -->
       <div id="vcf-view-android" style="display:none">
         <button class="btn-ghost" onclick="showVcfView('main')" style="margin-bottom:16px;padding:8px 14px;font-size:0.8rem">
-          ← Retour
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg> Retour
         </button>
         <div class="safari-tip" style="background:rgba(76,175,80,0.08);border-color:rgba(76,175,80,0.2);color:#6fbf73">
-          🤖 <strong>Android</strong> — via Google Contacts
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 1H8C6.34 1 5 2.34 5 4v16c0 1.66 1.34 3 3 3h8c1.66 0 3-1.34 3-3V4c0-1.66-1.34-3-3-3zm-2 20h-4v-1h4v1zm3.25-3H6.75V4h10.5v14z"/></svg> <strong>Android</strong> : via Google Contacts
         </div>
 
         <div class="install-guide" style="margin-top:16px">
@@ -726,15 +733,15 @@
               <span class="step-title">Ouvrir Contacts</span>
               <span class="step-desc">Ouvrez l'app <strong>Contacts</strong> ou <strong>Google Contacts</strong> sur votre téléphone.</span>
             </div>
-            <span class="step-icon">📇</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 0H4v2h16V0zM4 24h16v-2H4v2zM20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 2.75c1.24 0 2.25 1.01 2.25 2.25s-1.01 2.25-2.25 2.25S9.75 10.24 9.75 9 10.76 6.75 12 6.75zM17 17H7v-1.5c0-1.67 3.33-2.5 5-2.5s5 .83 5 2.5V17z"/></svg></span>
           </div>
           <div class="install-guide-step">
             <div class="step-number">2</div>
             <div class="step-content">
               <span class="step-title">Ouvrir le menu</span>
-              <span class="step-desc">Appuyez sur votre photo de profil en haut à droite ou sur les <strong>3 lignes ☰</strong> → <strong>Paramètres</strong>.</span>
+              <span class="step-desc">Appuyez sur votre photo de profil en haut à droite ou sur les <strong>3 lignes du menu</strong> → <strong>Paramètres</strong>.</span>
             </div>
-            <span class="step-icon">☰</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></span>
           </div>
           <div class="install-guide-step">
             <div class="step-number">3</div>
@@ -742,7 +749,7 @@
               <span class="step-title">Exporter</span>
               <span class="step-desc">Faites défiler vers le bas → <strong>Exporter</strong> ou <strong>Exporter les contacts</strong>.</span>
             </div>
-            <span class="step-icon">📤</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15.01l1.41 1.41L11 14.84V19h2v-4.16l1.59 1.59L16 15.01 12.01 11z"/></svg></span>
           </div>
           <div class="install-guide-step">
             <div class="step-number">4</div>
@@ -750,20 +757,20 @@
               <span class="step-title">Choisir et enregistrer</span>
               <span class="step-desc">Sélectionnez le compte (si demandé) → Appuyez sur <strong>Exporter vers fichier .vcf</strong> → Enregistrez dans <strong>Téléchargements</strong>.</span>
             </div>
-            <span class="step-icon">💾</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/></svg></span>
           </div>
           <div class="install-guide-step">
             <div class="step-number">5</div>
             <div class="step-content">
               <span class="step-title">Importer dans OmniSMS</span>
-              <span class="step-desc">Revenez dans OmniSMS → <strong>Contacts → 📱 Importer contacts</strong> → choisissez le fichier <strong>.vcf</strong> depuis Téléchargements.</span>
+              <span class="step-desc">Revenez dans OmniSMS → <strong>Contacts → Importer contacts</strong> → choisissez le fichier <strong>.vcf</strong> depuis Téléchargements.</span>
             </div>
-            <span class="step-icon">🎉</span>
+            <span class="step-icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M23,12l-2.44-2.79l0.34-3.69l-3.61-0.82L15.4,1.5L12,2.96L8.6,1.5L6.71,4.69L3.1,5.5L3.44,9.2L1,12l2.44,2.79l-0.34,3.7 l3.61,0.82L8.6,22.5l3.4-1.47l3.4,1.46l1.89-3.19l3.61-0.82l-0.34-3.69L23,12z M10.09,16.72l-3.8-3.81l1.48-1.48l2.32,2.33 l5.85-5.87l1.48,1.48L10.09,16.72z"/></svg></span>
           </div>
         </div>
 
         <div style="margin-top:16px;padding:10px 12px;background:rgba(255,255,255,0.04);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--text-muted);line-height:1.5">
-          ℹ️ Sur certains téléphones (Samsung, Xiaomi...), l'app s'appelle <strong>Contacts</strong> et l'option peut être dans <strong>Gérer les contacts → Importer/Exporter</strong>. Le principe reste le même : cherchez <strong>Exporter au format .vcf</strong>.
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg> Sur certains téléphones (Samsung, Xiaomi...), l'app s'appelle <strong>Contacts</strong> et l'option peut être dans <strong>Gérer les contacts → Importer/Exporter</strong>. Le principe reste le même : cherchez <strong>Exporter au format .vcf</strong>.
         </div>
       </div>
     </div>
@@ -781,6 +788,7 @@
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script src="otp.js"></script>
 <script src="privacy.js"></script>
+<script src="terms.js"></script>
 <script src="app.js"></script>
 
 <script>
@@ -798,15 +806,27 @@
 
 
 <!-- ═══════════════════════════════════════════════════════════
-     PRIVACY SCREEN — route publique /privacy
+     PRIVACY SCREEN : route publique /privacy
      Accessible sans compte : depuis Connexion, Inscription, les
      paramètres, ou directement par l'URL.
      ═══════════════════════════════════════════════════════════ -->
 <div id="screen-privacy" class="screen">
   <div class="privacy-topbar">
-    <button class="privacy-back" onclick="closePrivacy()" aria-label="Retour">&#8592; Retour</button>
+    <button class="privacy-back" onclick="closePrivacy()" aria-label="Retour"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg> Retour</button>
   </div>
   <div id="privacy-content" class="privacy-scroll"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     TERMS SCREEN : route publique /terms
+     Accessible sans compte : depuis Connexion, Inscription, les
+     paramètres, ou directement par l'URL.
+     ═══════════════════════════════════════════════════════════ -->
+<div id="screen-terms" class="screen">
+  <div class="privacy-topbar">
+    <button class="privacy-back" onclick="closeTerms()" aria-label="Retour"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg> Retour</button>
+  </div>
+  <div id="terms-content" class="privacy-scroll"></div>
 </div>
 
 </body>

@@ -2709,8 +2709,37 @@ input:-webkit-autofill:focus {
 }
 .auth-legal { text-align: center; margin-top: 10px; }
 .auth-legal a { color: var(--text-muted); font-size: 0.8rem; text-decoration: underline; }
+.auth-legal-sep { color: var(--text-muted); font-size: 0.8rem; margin: 0 6px; opacity: 0.55; }
 
 @media (min-width: 720px) {
   .privacy-scroll { padding: 28px 24px 60px; }
   .privacy-card { padding: 28px 30px; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ICÔNES SVG — Material Icons (Apache-2.0), même famille d'icônes que
+   l'application mobile Flutter (Icons.*). Aucune dépendance externe :
+   les tracés sont inline, les icônes héritent de la couleur du texte.
+   La taille suit le font-size du conteneur (1em), donc les règles
+   existantes (.nav-icon, .step-icon, .empty-icon…) continuent de piloter
+   les dimensions sans modification du design.
+   ───────────────────────────────────────────────────────────────────────── */
+.svg-icon {
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+  flex: none;
+  display: inline-block;
+  vertical-align: -0.15em;
+}
+.splash-logo .svg-icon,
+.auth-logo .svg-icon,
+.tab-action-btn .svg-icon,
+.send-btn .svg-icon { color: #fff; }
+.install-choice-icon .svg-icon,
+.subscribe-banner-icon .svg-icon { color: var(--accent); }
+.vcf-guide-card-icon .svg-icon { color: var(--warning); }
+.modal-title { display: inline-flex; align-items: center; gap: 8px; }
+.modal-title .svg-icon { color: var(--accent); }
+.empty-icon { display: flex; align-items: center; justify-content: center; }
+.privacy-back { display: inline-flex; align-items: center; gap: 6px; }

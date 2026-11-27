@@ -23,7 +23,8 @@ class SubscriptionScreen extends StatefulWidget {
   State<SubscriptionScreen> createState() => _SubscriptionScreenState();
 }
 
-class _SubscriptionScreenState extends State<SubscriptionScreen> {
+class _SubscriptionScreenState extends State<SubscriptionScreen>
+    with WidgetsBindingObserver {
   final PaymentService _paymentService = PaymentService();
 
   bool _isLoading = false;
@@ -31,10 +32,42 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   String? _errorMessage;
   String? _successMessage;
 
+  // Suivi du paiement ouvert dans le navigateur externe.
+  bool _pollEnCours = false;
+  int _pollGeneration = 0;
+  String? _checkoutEnCours;
+  String? _userIdEnCours;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkPremiumStatus();
+  }
+
+  @override
+  void dispose() {
+    // Incrémenter la génération arrête proprement toute boucle de suivi.
+    _pollGeneration++;
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Retour dans l'application après le navigateur de paiement : on
+    // revérifie le statut réel côté serveur. La redirection seule ne vaut
+    // jamais preuve de paiement.
+    if (state != AppLifecycleState.resumed) return;
+    _checkPremiumStatus();
+    final checkoutId = _checkoutEnCours;
+    final userId = _userIdEnCours;
+    if (!_pollEnCours &&
+        checkoutId != null &&
+        checkoutId.isNotEmpty &&
+        userId != null) {
+      unawaited(_startPaymentPolling(checkoutId, userId));
+    }
   }
 
   // ── Vérifier le statut Premium actuel ───────────────────────
@@ -92,7 +125,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
       if (result['success'] == true) {
         final checkoutUrl = result['checkoutUrl'] as String;
-        await _openCheckoutUrl(checkoutUrl);
+        await _openCheckoutUrl(
+          checkoutUrl,
+          checkoutId: result['checkoutId'] as String?,
+          userId: user.id,
+        );
       } else if (result['alreadySubscribed'] == true) {
         setState(() {
           _isPremium = true;
@@ -100,16 +137,16 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           _isLoading = false;
         });
       } else {
-        // LeekPay non configuré → fallback URL GitHub Pages
-        if (result['code'] == 'LEEKPAY_NOT_CONFIGURED') {
-          await _openFallbackUrl();
-        } else {
-          setState(() {
-            _errorMessage = result['error'] ??
-                'Impossible de créer le paiement. Réessayez.';
-            _isLoading = false;
-          });
-        }
+        // Aucune page de secours externe : si le service de paiement n'est
+        // pas configuré côté backend, on affiche l'erreur réelle renvoyée par
+        // le serveur. Rediriger vers une page web (GitHub Pages ou autre)
+        // pour un abonnement numérique est interdit par les règles Google
+        // Play et App Store : ce repli a été retiré.
+        setState(() {
+          _errorMessage = result['error'] ??
+              'Impossible de créer le paiement. Réessayez.';
+          _isLoading = false;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -122,70 +159,125 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   // ── Ouvrir l'URL de paiement LeekPay ────────────────────────
-  Future<void> _openCheckoutUrl(String checkoutUrl) async {
+  /// Ouvre le checkout dans le navigateur externe puis suit le statut RÉEL
+  /// du paiement côté backend. La redirection ne vaut jamais preuve de
+  /// paiement : seule la réponse du serveur fait foi.
+  Future<void> _openCheckoutUrl(
+    String checkoutUrl, {
+    String? checkoutId,
+    required String userId,
+  }) async {
     try {
       final uri = Uri.parse(checkoutUrl);
-      bool launched = false;
+      final launched =
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
 
-      if (kIsWeb) {
-        // Sur web : ouvrir dans un nouvel onglet
-        launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!mounted) return;
+
+      if (!launched) {
+        setState(() {
+          _errorMessage = "Impossible d'ouvrir la page de paiement. "
+              'Réessayez ou contactez le support.';
+          _isLoading = false;
+        });
+        return;
       }
 
-      if (mounted) {
-        if (launched) {
-          setState(() {
-            _successMessage =
-                'Page de paiement ouverte. Revenez ici après avoir complété le paiement.';
-            _isLoading = false;
-          });
-          // Vérifier le statut après 5 secondes (retour de la page)
-          Future.delayed(const Duration(seconds: 10), () {
-            if (mounted) _checkPremiumStatus();
-          });
-        } else {
-          setState(() {
-            _errorMessage =
-                'Impossible d\'ouvrir la page de paiement. URL : $checkoutUrl';
-            _isLoading = false;
-          });
-        }
+      setState(() {
+        _successMessage = 'Page de paiement ouverte. Revenez ici après avoir '
+            'complété le paiement : le statut sera vérifié automatiquement.';
+        _isLoading = false;
+      });
+
+      _checkoutEnCours = checkoutId;
+      _userIdEnCours = userId;
+
+      if (checkoutId != null && checkoutId.isNotEmpty) {
+        unawaited(_startPaymentPolling(checkoutId, userId));
+      } else {
+        // Sans identifiant de checkout, repli sur le statut Premium du
+        // compte (également revérifié au retour dans l'application).
+        Future<void>.delayed(const Duration(seconds: 10), () {
+          if (mounted) _checkPremiumStatus();
+        });
       }
     } catch (e) {
       debugPrint('[Subscription] openCheckoutUrl error: $e');
       if (mounted) {
         setState(() {
-          _errorMessage = 'Erreur lors de l\'ouverture de la page : $e';
+          _errorMessage = "Erreur lors de l'ouverture de la page de paiement.";
           _isLoading = false;
         });
       }
     }
   }
 
-  // ── Fallback si LeekPay non configuré ────────────────────────
-  Future<void> _openFallbackUrl() async {
-    const fallbackUrl =
-        'https://emstronglezin-cmd.github.io/omnisms-site/';
-    try {
-      final uri = Uri.parse(fallbackUrl);
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (mounted) {
-        setState(() {
-          _successMessage =
-              'Page d\'abonnement ouverte. Le paiement en ligne sera disponible prochainement.';
-          _isLoading = false;
-        });
+  // ── Suivi du statut réel après redirection ───────────────────
+  /// Interroge le backend comme le fait la PWA (`startLeekPayPolling`) :
+  /// premier appel après 15 s, puis toutes les 10 s, 15 tentatives au
+  /// maximum. Trois issues, toutes déterminées par le serveur :
+  ///   - payé → confirmation par le statut Premium du compte ;
+  ///   - échoué / annulé / expiré → message explicite, rien n'est activé ;
+  ///   - délai écoulé → aucun statut inventé, l'utilisateur peut actualiser.
+  Future<void> _startPaymentPolling(String checkoutId, String userId) async {
+    if (_pollEnCours) return; // anti double soumission
+    _pollEnCours = true;
+    final generation = ++_pollGeneration;
+
+    bool obsolete() => !mounted || generation != _pollGeneration;
+
+    await Future<void>.delayed(const Duration(seconds: 15));
+
+    for (var tentative = 1; tentative <= 15; tentative++) {
+      if (obsolete()) {
+        _pollEnCours = false;
+        return;
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Impossible d\'ouvrir la page : $e';
-          _isLoading = false;
-        });
+
+      final resultat = await _paymentService.pollPayment(
+        checkoutId: checkoutId,
+        userId: userId,
+      );
+
+      if (obsolete()) {
+        _pollEnCours = false;
+        return;
       }
+
+      final statut = resultat['status'] as String?;
+
+      if (resultat['paid'] == true) {
+        _pollEnCours = false;
+        _checkoutEnCours = null;
+        // Confirmation par la source de vérité : le statut Premium du compte.
+        await _checkPremiumStatus();
+        if (!mounted) return;
+        setState(() {
+          _successMessage = 'Paiement confirmé : abonnement Premium activé.';
+        });
+        return;
+      }
+
+      if (statut == 'failed' || statut == 'cancelled' || statut == 'expired') {
+        _pollEnCours = false;
+        _checkoutEnCours = null;
+        setState(() {
+          _errorMessage =
+              "Paiement annulé ou échoué. Aucun abonnement n'a été activé.";
+        });
+        return;
+      }
+
+      await Future<void>.delayed(const Duration(seconds: 10));
     }
+
+    _pollEnCours = false;
+    if (obsolete()) return;
+    setState(() {
+      _errorMessage = "Le statut du paiement n'est pas encore confirmé. "
+          'Si vous avez payé, utilisez « Actualiser le statut » : '
+          "l'activation peut prendre quelques minutes.";
+    });
   }
 
   @override
@@ -453,7 +545,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   _isLoading
                       ? 'Création du paiement…'
                       : (_isPremium
-                          ? 'Premium actif ✓'
+                          ? 'Premium actif'
                           : 'S\'abonner maintenant'),
                   style: const TextStyle(
                     fontSize: 18,
@@ -467,7 +559,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
             // ── Sécurité ──────────────────────────────────────
             Text(
-              '🔒 Paiement sécurisé via LeekPay (Mobile Money & Carte)',
+              'Paiement sécurisé via LeekPay (Mobile Money et Carte)',
               style: TextStyle(
                 color: isWeb
                     ? const Color(0xFF6b7a96)

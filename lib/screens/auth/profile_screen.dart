@@ -98,7 +98,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (success) {
       _passwordController.clear();
       setState(() => _isEditing = false);
-      _snack('Profil mis à jour ✓');
+      _snack('Profil mis à jour');
     } else {
       _snack(authProvider.error ?? 'Erreur de mise à jour', isError: true);
     }
@@ -194,7 +194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() => _isUploadingAvatar = false);
       _snack(
         ok
-            ? 'Photo de profil mise à jour ✓'
+            ? 'Photo de profil mise à jour'
             : (authProvider.error ?? "Échec de l'upload"),
         isError: !ok,
       );

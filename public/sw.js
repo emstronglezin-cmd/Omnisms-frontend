@@ -1,6 +1,6 @@
 // OmniSMS Service Worker - PWA Native
 // IMPORTANT : mettre à jour CACHE_VERSION à chaque déploiement pour invalider l'ancien cache
-const CACHE_VERSION = 'v5.3.0-google-web-callback';
+const CACHE_VERSION = 'v5.4.0-icones-svg-pages-legales';
 const CACHE_NAME = `omnisms-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
   '/',
@@ -8,6 +8,9 @@ const STATIC_ASSETS = [
   '/style.css',
   '/app.js',
   '/manifest.json',
+  '/otp.js',
+  '/privacy.js',
+  '/terms.js',
   '/icons/Icon-192.png',
   '/icons/Icon-512.png'
 ];

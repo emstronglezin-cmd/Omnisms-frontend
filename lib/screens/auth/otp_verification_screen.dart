@@ -269,7 +269,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                             ],
                             decoration: const InputDecoration(
                               counterText: '',
-                              hintText: '——————',
+                              hintText: '______',
                               border: OutlineInputBorder(
                                 borderRadius:
                                     BorderRadius.all(Radius.circular(12)),

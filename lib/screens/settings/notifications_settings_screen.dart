@@ -99,7 +99,7 @@ class _NotificationsSettingsScreenState
         if (granted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Permission accordée — notifications activées'),
+              content: Text('Permission accordée : notifications activées'),
               backgroundColor: Colors.green,
             ),
           );
@@ -167,7 +167,7 @@ class _NotificationsSettingsScreenState
               ),
               const SizedBox(height: 8),
               Text(
-                'Elles cessent dès que l’application est fermée — c’est le '
+                'Elles cessent dès que l’application est fermée : c’est le '
                 'rôle des notifications à distance, distinctes.',
                 style: OmniTypo.micro.copyWith(color: c.texteEstompe),
               ),
@@ -382,8 +382,8 @@ class _NotificationsSettingsScreenState
                   title: const Text('Notifications de messages'),
                   subtitle: Text(
                     _notificationsEnabled
-                        ? 'Activées — vous recevrez une notification à chaque nouveau message'
-                        : 'Désactivées — aucune notification système',
+                        ? 'Activées : vous recevrez une notification à chaque nouveau message'
+                        : 'Désactivées : aucune notification système',
                   ),
                   secondary: Icon(
                     _notificationsEnabled
@@ -456,7 +456,7 @@ class _NotificationsSettingsScreenState
                             '• Notification à chaque nouveau message reçu\n'
                             '• Pas de doublon pour le même message\n'
                             '• Pas de notification si vous regardez déjà la conversation\n'
-                            '• Gratuit — aucun abonnement requis\n'
+                            '• Gratuit : aucun abonnement requis\n'
                             '• Cliquer sur la notification ouvre directement la conversation',
                             style: TextStyle(fontSize: 13, height: 1.6),
                           ),

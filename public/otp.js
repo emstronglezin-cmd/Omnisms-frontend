@@ -1,7 +1,7 @@
 /* ============================================================================
- * OmniSMS — Vérification du numéro de téléphone par OTP (PWA)
+ * OmniSMS : Vérification du numéro de téléphone par OTP (PWA)
  * ----------------------------------------------------------------------------
- * Contrat serveur RÉEL (backend `routes/otp.js` + `services/otpService.js`) —
+ * Contrat serveur RÉEL (backend `routes/otp.js` + `services/otpService.js`) :
  * aucun champ ni endpoint inventé ici :
  *
  *   POST /api/auth/send-otp    body { phone, userId? }
@@ -16,7 +16,7 @@
  *     429 → { code:'OTP_MAX_TRIES' }
  *     404 → { code:'OTP_NOT_FOUND' }
  *
- * ⚠️ ÉTAT RÉEL DU BACKEND (vérifié le 21/10/2026) : `routes/otp.js` n'est
+ * ÉTAT RÉEL DU BACKEND (vérifié le 21/10/2026) : `routes/otp.js` n'est
  * monté NULLE PART (`server.js` : « OTP routes supprimées ») et `register`
  * crée l'utilisateur avec `phoneVerified: true`.
  * Tant que ces endpoints répondent 404, ce module ÉCHOUE FERMÉ : aucune
@@ -24,7 +24,7 @@
  *
  * Règles appliquées :
  *   • le code n'est jamais persisté (ni localStorage, ni sessionStorage,
- *     ni journal) — il ne quitte pas la fonction de soumission ;
+ *     ni journal) : il ne quitte pas la fonction de soumission ;
  *   • la session n'est ouverte QUE si le serveur confirme et renvoie un
  *     jeton d'accès ;
  *   • un jeton d'attente éventuel est stocké à part, jamais comme jeton
@@ -41,7 +41,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  /** Contrat serveur — valeurs relevées dans le code du backend. */
+  /** Contrat serveur : valeurs relevées dans le code du backend. */
   var CONTRACT = {
     sendEndpoint: '/api/auth/send-otp',
     verifyEndpoint: '/api/auth/verify-otp',
@@ -57,7 +57,7 @@
     pendingStorageKey: 'omnisms_pending_verification'
   };
 
-  /** Natures d'échec — mappées depuis les codes du backend. */
+  /** Natures d'échec : mappées depuis les codes du backend. */
   var FAILURE = {
     INVALID_CODE: 'INVALID_CODE',
     EXPIRED: 'EXPIRED',

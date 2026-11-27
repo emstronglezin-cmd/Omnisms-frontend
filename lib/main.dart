@@ -37,6 +37,7 @@ import 'screens/dashboard_screen.dart';
 import 'screens/contacts/contacts_screen_v2.dart';
 import 'screens/groups/groups_screen.dart';
 import 'screens/legal/privacy_policy_screen.dart';
+import 'screens/legal/terms_of_service_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/settings/statistics_screen.dart';
 import 'screens/subscription_screen.dart';
@@ -170,15 +171,18 @@ class OmniSMSApp extends StatelessWidget {
               child: OmniFondAurore(child: child ?? const SizedBox.shrink()),
             );
           },
-          // Route web publique `/privacy` : quand l'application est ouverte
-          // directement sur cette URL (partage de lien, moteur de recherche),
-          // la page s'affiche sans passer par le splash. En Android, la page
-          // reste accessible par la route nommée '/privacy'.
-          home:
-              (kIsWeb &&
-                  Uri.base.path.replaceAll(RegExp(r'/+$'), '') == '/privacy')
-              ? const PrivacyPolicyScreen()
-              : const SplashScreen(),
+          // Routes web publiques `/privacy` et `/terms` : quand l'application
+          // est ouverte directement sur l'une de ces adresses (partage de
+          // lien, moteur de recherche), la page légale s'affiche sans passer
+          // par le splash. En Android, les deux pages restent accessibles par
+          // les routes nommées '/privacy' et '/terms'.
+          home: switch (kIsWeb
+              ? Uri.base.path.replaceAll(RegExp(r'/+$'), '')
+              : '') {
+            '/privacy' => const PrivacyPolicyScreen(),
+            '/terms' => const TermsOfServiceScreen(),
+            _ => const SplashScreen(),
+          },
           routes: {
             '/login': (_) => const LoginScreen(),
             '/register': (_) => const RegisterScreen(),
@@ -188,10 +192,11 @@ class OmniSMSApp extends StatelessWidget {
             '/statistics': (_) => const StatisticsScreen(),
             '/subscription': (_) => const SubscriptionScreen(),
             '/settings': (_) => const SettingsScreen(),
-            // Page publique : accessible sans connexion, y compris depuis
-            // le navigateur (`/privacy`) et depuis Connexion / Inscription
-            // / Paramètres.
+            // Pages publiques : accessibles sans connexion, y compris depuis
+            // le navigateur (`/privacy`, `/terms`) et depuis Connexion /
+            // Inscription / Paramètres.
             '/privacy': (_) => const PrivacyPolicyScreen(),
+            '/terms': (_) => const TermsOfServiceScreen(),
           },
         );
       },
